@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Watchlist</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #18181b;
+      color: #e4e4e7;
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 16px;
+      line-height: 1.5;
+      min-height: 100vh;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    .container {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 24px 16px 48px;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #3f3f46;
+      flex-wrap: wrap;
+    }
+
+    h1 { font-size: 20px; font-weight: 600; color: #f4f4f5; }
+
+    .count { color: #71717a; font-size: 14px; flex: 1; }
+
+    .toggle-btn {
+      background: none;
+      border: 1px solid #3f3f46;
+      color: #a1a1aa;
+      padding: 5px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      white-space: nowrap;
+      transition: border-color 0.1s, color 0.1s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .toggle-btn:hover  { border-color: #71717a; color: #e4e4e7; }
+    .toggle-btn.active { border-color: #6366f1; color: #a5b4fc; }
+
+    /* ── Status badges ── */
+
+    .badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 99px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+    }
+    .badge-new    { background: #1e3a5f; color: #93c5fd; }
+    .badge-played { background: #27272a; color: #52525b; border: 1px solid #3f3f46; }
+
+    /* ── Video list ── */
+
+    #list { list-style: none; }
+
+    .video-card {
+      display: grid;
+      grid-template-columns: 1fr auto 44px;
+      grid-template-rows: auto auto;
+      grid-template-areas:
+        "channel  badge  del"
+        "title    title  del";
+      column-gap: 10px;
+      row-gap: 4px;
+      padding: 14px 0;
+      border-bottom: 1px solid #27272a;
+      transition: opacity 0.15s;
+    }
+
+    .video-card:last-child { border-bottom: none; }
+    .video-card.is-played { opacity: 0.5; }
+    .video-card.is-played:hover { opacity: 0.8; }
+
+    .card-channel {
+      grid-area: channel;
+      font-size: 13px;
+      color: #a1a1aa;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      align-self: center;
+    }
+
+    .card-badge {
+      grid-area: badge;
+      align-self: center;
+    }
+
+    .card-title {
+      grid-area: title;
+      color: #93c5fd;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 450;
+      line-height: 1.35;
+      padding: 4px 0;
+      margin: -4px 0;
+    }
+    .card-title:active { color: #bfdbfe; }
+    .is-played .card-title { color: #52525b; text-decoration: line-through; }
+
+    .card-del {
+      grid-area: del;
+      align-self: center;
+      background: none;
+      border: 1px solid #3f3f46;
+      color: #f87171;
+      width: 44px;
+      height: 44px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: background 0.1s, border-color 0.1s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .card-del:active { background: #2d1f1f; border-color: #f87171; }
+
+    /* ── Desktop: wider layout with date + status column ── */
+
+    @media (min-width: 600px) {
+      .video-card {
+        grid-template-columns: 170px 1fr 72px 96px 36px;
+        grid-template-rows: auto;
+        grid-template-areas: "channel title badge date del";
+        align-items: center;
+        column-gap: 14px;
+        padding: 11px 0;
+      }
+
+      .card-title { font-size: 15px; padding: 0; margin: 0; }
+
+      .card-date {
+        grid-area: date;
+        font-size: 13px;
+        color: #71717a;
+        text-align: right;
+        white-space: nowrap;
+      }
+
+      .card-del { width: 36px; height: 36px; font-size: 14px; border-radius: 6px; }
+
+      .list-header {
+        display: grid;
+        grid-template-columns: 170px 1fr 72px 96px 36px;
+        column-gap: 14px;
+        padding: 0 0 10px;
+        margin-bottom: 2px;
+        border-bottom: 1px solid #3f3f46;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #71717a;
+      }
+    }
+
+    @media (max-width: 599px) {
+      .list-header { display: none; }
+      .card-date   { display: none; }
+    }
+
+    /* ── Empty state ── */
+
+    .empty {
+      color: #52525b;
+      text-align: center;
+      padding: 64px 0;
+      font-size: 16px;
+    }
+
+    /* ── Modal ── */
+
+    .overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 100;
+      align-items: flex-end;
+      justify-content: center;
+    }
+    .overlay.open { display: flex; }
+
+    .modal {
+      background: #27272a;
+      border-top: 1px solid #3f3f46;
+      border-radius: 16px 16px 0 0;
+      padding: 20px 20px 36px;
+      width: 100%;
+    }
+
+    @media (min-width: 600px) {
+      .overlay { align-items: center; padding: 24px; }
+      .modal { border: 1px solid #3f3f46; border-radius: 12px; padding: 28px; max-width: 460px; }
+    }
+
+    .modal-handle {
+      width: 40px; height: 4px;
+      background: #52525b;
+      border-radius: 2px;
+      margin: 0 auto 20px;
+    }
+    @media (min-width: 600px) { .modal-handle { display: none; } }
+
+    .modal-label {
+      font-size: 11px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.08em;
+      color: #71717a; margin-bottom: 8px;
+    }
+
+    .modal-title {
+      font-size: 17px; color: #f4f4f5;
+      font-weight: 500; margin-bottom: 24px; line-height: 1.4;
+    }
+
+    .modal-actions { display: flex; flex-direction: column; gap: 10px; }
+
+    .btn {
+      border: none; padding: 15px 18px;
+      border-radius: 10px; cursor: pointer;
+      font-size: 16px; font-weight: 500;
+      text-align: left; width: 100%;
+      -webkit-tap-highlight-color: transparent;
+      transition: filter 0.1s;
+    }
+    .btn:active { filter: brightness(0.85); }
+    .btn-primary   { background: #2563eb; color: #fff; }
+    .btn-secondary { background: #3f3f46; color: #e4e4e7; }
+    .btn-cancel    { background: #27272a; color: #71717a; border: 1px solid #3f3f46; margin-top: 4px; }
+
+    @media (min-width: 600px) {
+      .btn { padding: 11px 16px; font-size: 14px; border-radius: 7px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1>📺 Watchlist</h1>
+    <span class="count" id="count"></span>
+    <button class="toggle-btn" id="toggle-btn" title="Show or hide videos you've already played">
+      Show played
+    </button>
+  </header>
+
+  <div class="list-header" aria-hidden="true">
+    <span>Channel</span>
+    <span>Title</span>
+    <span>Status</span>
+    <span style="text-align:right">Added</span>
+    <span></span>
+  </div>
+
+  <ul id="list"></ul>
+  <div class="empty" id="empty" style="display:none">Nothing here.</div>
+</div>
+
+<!-- Modal for unplayed videos -->
+<div class="overlay" id="overlay" role="dialog" aria-modal="true">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-label">Open video</div>
+    <div class="modal-title" id="modal-title"></div>
+    <div class="modal-actions">
+      <button class="btn btn-primary"   id="btn-played-open"
+        title="Mark this video as played and remove it from the New list, then open it">
+        Mark as played &amp; open
+      </button>
+      <button class="btn btn-secondary" id="btn-just-open"
+        title="Open the video without changing its status">
+        Just open
+      </button>
+      <button class="btn btn-cancel"    id="btn-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let current     = null;
+  let showPlayed  = false;
+
+  function esc(s) {
+    return String(s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function fmtDate(iso) {
+    return new Date(iso).toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' });
+  }
+
+  async function load() {
+    const url = '/api/videos' + (showPlayed ? '?all=true' : '');
+    const { videos } = await fetch(url).then(r => r.json());
+    render(videos);
+  }
+
+  function render(videos) {
+    const list  = document.getElementById('list');
+    const empty = document.getElementById('empty');
+    const count = document.getElementById('count');
+
+    if (!videos.length) {
+      list.innerHTML = '';
+      empty.style.display = '';
+      count.textContent = '';
+      return;
+    }
+
+    const newCount = videos.filter(v => v.status === 'unplayed').length;
+    empty.style.display = 'none';
+    count.textContent = newCount + ' new' + (showPlayed ? `, ${videos.length - newCount} played` : '');
+
+    list.innerHTML = videos.map(v => {
+      const isPlayed = v.status === 'played';
+      const badge = isPlayed
+        ? '<span class="badge badge-played">Played</span>'
+        : '<span class="badge badge-new">New</span>';
+      return `
+        <li class="video-card${isPlayed ? ' is-played' : ''}">
+          <span class="card-channel">${esc(v.emoji)} ${esc(v.channel_name)}</span>
+          <span class="card-title"
+            data-id="${v.id}"
+            data-title="${esc(v.title)}"
+            data-url="${esc(v.url)}"
+            data-played="${isPlayed}"
+            title="${esc(v.title)}">${esc(v.title)}</span>
+          <span class="card-badge">${badge}</span>
+          <span class="card-date">${fmtDate(v.added_at)}</span>
+          <button class="card-del" data-id="${v.id}"
+            aria-label="Delete from watchlist"
+            title="Delete from watchlist">✕</button>
+        </li>
+      `;
+    }).join('');
+  }
+
+  document.getElementById('toggle-btn').addEventListener('click', () => {
+    showPlayed = !showPlayed;
+    const btn = document.getElementById('toggle-btn');
+    btn.textContent = showPlayed ? 'Hide played' : 'Show played';
+    btn.classList.toggle('active', showPlayed);
+    load();
+  });
+
+  document.getElementById('list').addEventListener('click', e => {
+    const titleEl = e.target.closest('.card-title');
+    if (titleEl) {
+      if (titleEl.dataset.played === 'true') {
+        // already played — just open it
+        window.open(titleEl.dataset.url, '_blank');
+      } else {
+        current = { id: titleEl.dataset.id, title: titleEl.dataset.title, url: titleEl.dataset.url };
+        document.getElementById('modal-title').textContent = current.title;
+        document.getElementById('overlay').classList.add('open');
+      }
+      return;
+    }
+    const del = e.target.closest('.card-del');
+    if (del) deleteVideo(del.dataset.id);
+  });
+
+  document.getElementById('btn-played-open').addEventListener('click', async () => {
+    if (!current) return;
+    await fetch(`/api/videos/${current.id}/played`, { method: 'POST' });
+    window.open(current.url, '_blank');
+    closeModal();
+    load();
+  });
+
+  document.getElementById('btn-just-open').addEventListener('click', () => {
+    if (!current) return;
+    window.open(current.url, '_blank');
+    closeModal();
+  });
+
+  document.getElementById('btn-cancel').addEventListener('click', closeModal);
+
+  document.getElementById('overlay').addEventListener('click', e => {
+    if (e.target === document.getElementById('overlay')) closeModal();
+  });
+
+  function closeModal() {
+    document.getElementById('overlay').classList.remove('open');
+    current = null;
+  }
+
+  async function deleteVideo(id) {
+    await fetch(`/api/videos/${id}`, { method: 'DELETE' });
+    load();
+  }
+
+  load();
+  setInterval(load, 30000);
+</script>
+</body>
+</html>

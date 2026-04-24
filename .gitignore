@@ -1,0 +1,6 @@
+node_modules/
+watchlist.db
+watchlist.db-shm
+watchlist.db-wal
+dist/
+claude_restart_command
