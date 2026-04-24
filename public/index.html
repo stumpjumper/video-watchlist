@@ -380,28 +380,26 @@
       `;
     }
 
-    document.getElementById('btn-remove-open').addEventListener('click', async () => {
+    document.getElementById('btn-remove-open').addEventListener('click', () => {
       if (!current) return;
-      await fetch(`/api/videos/${current.id}`, { method: 'DELETE' });
-      window.open(current.url, '_blank');
+      openUrl(current.url);                                          // sync — must be first
+      fetch(`/api/videos/${current.id}`, { method: 'DELETE' }).then(load);
       closeModal();
-      load();
     });
 
     document.getElementById('btn-just-open').addEventListener('click', () => {
       if (!current) return;
-      window.open(current.url, '_blank');
+      openUrl(current.url);
       closeModal();
     });
 
     const startedBtn = document.getElementById('btn-started-open');
     if (startedBtn) {
-      startedBtn.addEventListener('click', async () => {
+      startedBtn.addEventListener('click', () => {
         if (!current) return;
-        await fetch(`/api/videos/${current.id}/started`, { method: 'POST' });
-        window.open(current.url, '_blank');
+        openUrl(current.url);                                        // sync — must be first
+        fetch(`/api/videos/${current.id}/started`, { method: 'POST' }).then(load);
         closeModal();
-        load();
       });
     }
 
@@ -420,6 +418,18 @@
   async function removeVideo(id) {
     await fetch(`/api/videos/${id}`, { method: 'DELETE' });
     load();
+  }
+
+  // Uses an <a> click instead of window.open so iOS Universal Links fire
+  // and the YouTube app opens rather than Safari. On desktop this opens a new tab.
+  function openUrl(url) {
+    const a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   }
 
   load();
