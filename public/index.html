@@ -22,47 +22,54 @@
     /* ── Header ── */
 
     header {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 20px;
-      padding-bottom: 16px;
-      border-bottom: 1px solid #3f3f46;
-      flex-wrap: wrap;
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 20px; padding-bottom: 16px;
+      border-bottom: 1px solid #3f3f46; flex-wrap: wrap;
     }
-
     h1 { font-size: 20px; font-weight: 600; color: #f4f4f5; flex-shrink: 0; }
     .count { color: #71717a; font-size: 14px; flex: 1; min-width: 60px; }
 
     .hdr-btn {
-      background: none;
-      border: 1px solid #3f3f46;
-      color: #a1a1aa;
-      padding: 5px 12px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 13px;
-      white-space: nowrap;
+      background: none; border: 1px solid #3f3f46; color: #a1a1aa;
+      padding: 5px 12px; border-radius: 6px; cursor: pointer;
+      font-size: 13px; white-space: nowrap;
       transition: border-color 0.15s, color 0.15s;
       -webkit-tap-highlight-color: transparent;
     }
-    .hdr-btn:hover        { border-color: #71717a; color: #e4e4e7; }
-    .hdr-btn.active       { border-color: #6366f1; color: #a5b4fc; }
-    .hdr-btn.add-btn      { border-color: #3f3f46; color: #4ade80; }
-    .hdr-btn.add-btn:hover{ border-color: #4ade80; }
+    .hdr-btn:hover         { border-color: #71717a; color: #e4e4e7; }
+    .hdr-btn.active        { border-color: #6366f1; color: #a5b4fc; }
+    .hdr-btn.add-btn       { color: #4ade80; }
+    .hdr-btn.add-btn:hover { border-color: #4ade80; }
+
+    /* ── Purge banner ── */
+
+    .purge-banner {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      background: #2d1f07; border: 1px solid #854d0e;
+      border-radius: 8px; padding: 10px 14px; margin-bottom: 20px;
+      font-size: 14px; color: #fde68a;
+    }
+    .purge-banner span { flex: 1; }
+    .purge-banner-btn {
+      background: none; border: 1px solid #854d0e; color: #fde68a;
+      padding: 4px 10px; border-radius: 5px; cursor: pointer;
+      font-size: 12px; white-space: nowrap;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .purge-banner-btn:hover { border-color: #fde68a; }
+    .purge-banner-btn.danger { border-color: #f87171; color: #f87171; }
+    .purge-banner-btn.danger:hover { background: #2d1f1f; }
 
     /* ── Badges ── */
 
     .badge {
-      display: inline-block;
-      font-size: 11px; font-weight: 700;
+      display: inline-block; font-size: 11px; font-weight: 700;
       padding: 2px 8px; border-radius: 99px;
-      text-transform: uppercase; letter-spacing: 0.05em;
-      white-space: nowrap;
+      text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap;
     }
     .badge-new     { background: #1e3a5f; color: #93c5fd; }
     .badge-started { background: #3b1f0a; color: #fb923c; }
-    .badge-removed { background: #1f1f23; color: #52525b; border: 1px solid #3f3f46; }
+    .badge-purge   { background: #2d1f07; color: #fbbf24; border: 1px solid #854d0e; }
 
     /* ── Active list ── */
 
@@ -73,32 +80,25 @@
       grid-template-columns: 1fr 44px;
       grid-template-rows: auto auto auto;
       grid-template-areas: "channel del" "title del" "badge del";
-      column-gap: 10px; row-gap: 3px;
-      padding: 14px 0;
+      column-gap: 10px; row-gap: 3px; padding: 14px 0;
       border-bottom: 1px solid #27272a;
     }
     .video-card:last-child { border-bottom: none; }
-
     .card-channel {
-      grid-area: channel;
-      font-size: 13px; color: #a1a1aa;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-      align-self: end;
+      grid-area: channel; font-size: 13px; color: #a1a1aa;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; align-self: end;
     }
     .card-title {
-      grid-area: title;
-      color: #93c5fd; cursor: pointer;
+      grid-area: title; color: #93c5fd; cursor: pointer;
       font-size: 16px; font-weight: 450; line-height: 1.35;
     }
     .card-title:active { color: #bfdbfe; }
     .card-badge { grid-area: badge; align-self: start; padding-top: 2px; }
-
     .card-del {
-      grid-area: del; align-self: center;
-      background: none; border: 1px solid #3f3f46;
-      color: #f87171; width: 44px; height: 44px;
-      border-radius: 8px; cursor: pointer; font-size: 18px;
-      display: flex; align-items: center; justify-content: center;
+      grid-area: del; align-self: center; background: none;
+      border: 1px solid #3f3f46; color: #f87171;
+      width: 44px; height: 44px; border-radius: 8px; cursor: pointer;
+      font-size: 18px; display: flex; align-items: center; justify-content: center;
       flex-shrink: 0; transition: background 0.1s, border-color 0.1s;
       -webkit-tap-highlight-color: transparent;
     }
@@ -107,59 +107,56 @@
     /* ── Removed section ── */
 
     .removed-section { margin-top: 32px; }
-
     .removed-header {
-      font-size: 11px; font-weight: 600;
-      text-transform: uppercase; letter-spacing: 0.08em;
-      color: #52525b; margin-bottom: 12px;
-      padding-bottom: 8px; border-bottom: 1px solid #27272a;
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #27272a;
     }
+    .removed-header-label {
+      font-size: 11px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.08em; color: #52525b; flex: 1;
+    }
+    .btn-purge-all {
+      background: none; border: 1px solid #3f3f46; color: #f87171;
+      padding: 4px 10px; border-radius: 5px; cursor: pointer;
+      font-size: 12px; white-space: nowrap;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-purge-all:active { background: #2d1f1f; border-color: #f87171; }
 
     #removed-list { list-style: none; }
 
     .removed-card {
       display: grid;
       grid-template-columns: 1fr auto auto;
-      grid-template-rows: auto auto;
-      grid-template-areas: "channel restore del" "title restore del";
-      column-gap: 8px; row-gap: 3px;
-      padding: 12px 0;
-      border-bottom: 1px solid #1f1f23;
-      opacity: 0.65;
+      grid-template-rows: auto auto auto;
+      grid-template-areas: "channel . ." "title title title" "actions actions actions";
+      column-gap: 8px; row-gap: 4px; padding: 12px 0;
+      border-bottom: 1px solid #1f1f23; opacity: 0.7;
     }
     .removed-card:last-child { border-bottom: none; }
+    .removed-card.purge-ready { opacity: 1; }
 
     .removed-channel {
-      grid-area: channel;
-      font-size: 12px; color: #71717a;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      grid-area: channel; font-size: 12px; color: #71717a;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; align-self: center;
     }
     .removed-title {
-      grid-area: title;
-      color: #52525b; font-size: 14px; line-height: 1.35;
+      grid-area: title; font-size: 14px; line-height: 1.35; color: #52525b;
     }
     .removed-title a { color: inherit; text-decoration: none; }
     .removed-title a:hover { color: #71717a; text-decoration: underline; }
-
-    .btn-restore {
-      grid-area: restore; align-self: center;
-      background: none; border: 1px solid #3f3f46;
-      color: #a1a1aa; padding: 4px 10px;
-      border-radius: 6px; cursor: pointer; font-size: 12px;
+    .removed-actions {
+      grid-area: actions; display: flex; gap: 6px; flex-wrap: wrap; padding-top: 4px;
+    }
+    .btn-sm {
+      background: none; border: 1px solid #3f3f46; color: #a1a1aa;
+      padding: 4px 10px; border-radius: 5px; cursor: pointer; font-size: 12px;
       white-space: nowrap; transition: border-color 0.1s, color 0.1s;
       -webkit-tap-highlight-color: transparent;
     }
-    .btn-restore:active { border-color: #71717a; color: #e4e4e7; }
-
-    .btn-hard-del {
-      grid-area: del; align-self: center;
-      background: none; border: 1px solid transparent;
-      color: #3f3f46; width: 36px; height: 36px;
-      border-radius: 6px; cursor: pointer; font-size: 16px;
-      display: flex; align-items: center; justify-content: center;
-      transition: color 0.1s; -webkit-tap-highlight-color: transparent;
-    }
-    .btn-hard-del:active { color: #f87171; }
+    .btn-sm:active     { border-color: #71717a; color: #e4e4e7; }
+    .btn-sm.del        { color: #f87171; border-color: #3f3f46; }
+    .btn-sm.del:active { background: #2d1f1f; border-color: #f87171; }
 
     /* ── Desktop layout ── */
 
@@ -173,8 +170,8 @@
       .card-title { font-size: 15px; }
       .card-badge { padding-top: 0; }
       .card-date {
-        grid-area: date; font-size: 13px;
-        color: #71717a; text-align: right; white-space: nowrap;
+        grid-area: date; font-size: 13px; color: #71717a;
+        text-align: right; white-space: nowrap;
       }
       .card-del { width: 36px; height: 36px; font-size: 14px; border-radius: 6px; }
 
@@ -188,14 +185,17 @@
       }
 
       .removed-card {
-        grid-template-columns: 160px 1fr 80px auto auto;
+        grid-template-columns: 160px 1fr auto auto auto;
         grid-template-rows: auto;
         grid-template-areas: "channel title date restore del";
-        align-items: center; column-gap: 14px; padding: 9px 0;
+        align-items: center; column-gap: 12px; padding: 9px 0;
       }
+      .removed-card .removed-actions { display: contents; padding-top: 0; }
+      .removed-card .removed-actions .btn-sm:nth-child(1) { grid-area: restore; }
+      .removed-card .removed-actions .btn-sm:nth-child(2) { grid-area: restore; }
       .removed-date {
-        grid-area: date; font-size: 13px;
-        color: #3f3f46; text-align: right; white-space: nowrap;
+        grid-area: date; font-size: 12px; color: #3f3f46;
+        text-align: right; white-space: nowrap;
       }
     }
 
@@ -205,11 +205,11 @@
       .removed-date { display: none; }
     }
 
-    /* ── Empty states ── */
+    /* ── Empty ── */
 
     .empty { color: #52525b; text-align: center; padding: 64px 0; font-size: 16px; }
 
-    /* ── Modal (shared) ── */
+    /* ── Modals ── */
 
     .overlay {
       display: none; position: fixed; inset: 0;
@@ -220,8 +220,7 @@
 
     .modal {
       background: #27272a; border-top: 1px solid #3f3f46;
-      border-radius: 16px 16px 0 0;
-      padding: 20px 20px 36px; width: 100%;
+      border-radius: 16px 16px 0 0; padding: 20px 20px 36px; width: 100%;
     }
 
     @media (min-width: 600px) {
@@ -240,36 +239,31 @@
       letter-spacing: 0.08em; color: #71717a; margin-bottom: 8px;
     }
     .modal-title {
-      font-size: 17px; color: #f4f4f5;
-      font-weight: 500; margin-bottom: 10px; line-height: 1.4;
+      font-size: 17px; color: #f4f4f5; font-weight: 500;
+      margin-bottom: 10px; line-height: 1.4;
     }
-
-    /* URL row in action modal */
     .modal-url-row {
-      display: flex; align-items: center; gap: 8px;
-      margin-bottom: 20px; padding: 8px 10px;
-      background: #18181b; border-radius: 6px; border: 1px solid #3f3f46;
+      display: flex; align-items: center; gap: 8px; margin-bottom: 20px;
+      padding: 8px 10px; background: #18181b;
+      border-radius: 6px; border: 1px solid #3f3f46;
     }
     .modal-url {
       flex: 1; font-size: 12px; color: #71717a;
       font-family: ui-monospace, monospace;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-      min-width: 0;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
     }
     .btn-copy {
       background: none; border: 1px solid #3f3f46; color: #a1a1aa;
-      padding: 3px 10px; border-radius: 4px; cursor: pointer;
-      font-size: 12px; white-space: nowrap; flex-shrink: 0;
-      transition: color 0.1s, border-color 0.1s;
+      padding: 3px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;
+      white-space: nowrap; flex-shrink: 0; transition: color 0.1s, border-color 0.1s;
     }
-    .btn-copy:active, .btn-copy.copied { color: #4ade80; border-color: #4ade80; }
+    .btn-copy.copied { color: #4ade80; border-color: #4ade80; }
 
     .modal-actions { display: flex; flex-direction: column; gap: 10px; }
 
     /* Add modal fields */
     .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
     .field label { font-size: 12px; color: #a1a1aa; font-weight: 500; }
-
     .field-row { display: flex; gap: 8px; }
     .field-row .field { flex: 1; margin-bottom: 0; }
     .field-row .field-emoji { flex: 0 0 72px; }
@@ -278,29 +272,22 @@
       background: #18181b; border: 1px solid #3f3f46;
       color: #e4e4e7; padding: 10px 12px; border-radius: 8px;
       font-size: 15px; width: 100%; outline: none;
-      transition: border-color 0.15s;
-      -webkit-appearance: none;
+      transition: border-color 0.15s; -webkit-appearance: none;
     }
     input:focus { border-color: #6366f1; }
     input::placeholder { color: #52525b; }
-    input.fetching { border-color: #6366f1; }
 
-    .fetch-status {
-      font-size: 12px; color: #71717a; min-height: 16px; margin-top: -8px;
-    }
+    .fetch-status { font-size: 12px; color: #71717a; min-height: 16px; margin-top: -8px; }
     .fetch-status.ok  { color: #4ade80; }
     .fetch-status.err { color: #f87171; }
 
     .btn {
-      border: none; padding: 15px 18px; border-radius: 10px;
-      cursor: pointer; font-size: 16px; font-weight: 500;
-      text-align: left; width: 100%;
-      -webkit-tap-highlight-color: transparent;
-      transition: filter 0.1s;
+      border: none; padding: 15px 18px; border-radius: 10px; cursor: pointer;
+      font-size: 16px; font-weight: 500; text-align: left; width: 100%;
+      -webkit-tap-highlight-color: transparent; transition: filter 0.1s;
     }
-    .btn:active { filter: brightness(0.85); }
+    .btn:active  { filter: brightness(0.85); }
     .btn:disabled { opacity: 0.4; cursor: default; }
-
     .btn-primary   { background: #2563eb; color: #fff; }
     .btn-green     { background: #166534; color: #bbf7d0; }
     .btn-orange    { background: #9a3412; color: #fed7aa; }
@@ -319,8 +306,16 @@
     <h1>📺 Watchlist</h1>
     <span class="count" id="count"></span>
     <button class="hdr-btn" id="btn-show-removed" title="Show videos you previously removed">Show removed</button>
-    <button class="hdr-btn add-btn" id="btn-show-add" title="Add a video to the watchlist">+ Add</button>
+    <button class="hdr-btn add-btn" id="btn-show-add" title="Add a video manually">+ Add</button>
   </header>
+
+  <!-- Purge banner: shown when ≥10 removed items are 90+ days old -->
+  <div class="purge-banner" id="purge-banner" style="display:none">
+    <span id="purge-banner-msg"></span>
+    <button class="purge-banner-btn" id="btn-purge-review">Review</button>
+    <button class="purge-banner-btn danger" id="btn-purge-all-banner">Delete all</button>
+    <button class="purge-banner-btn" id="btn-purge-dismiss" title="Dismiss for now">✕</button>
+  </div>
 
   <div class="list-header" aria-hidden="true">
     <span>Channel</span><span>Title</span><span>Status</span>
@@ -332,18 +327,24 @@
 
   <!-- Removed section -->
   <div class="removed-section" id="removed-section" style="display:none">
-    <div class="removed-header">Removed</div>
+    <div class="removed-header">
+      <span class="removed-header-label">Removed</span>
+      <button class="btn-purge-all" id="btn-purge-all-section"
+        style="display:none" title="Permanently delete all items ready for cleanup">
+        Purge ready
+      </button>
+    </div>
     <ul id="removed-list"></ul>
     <div class="empty" id="removed-empty" style="display:none">Nothing here yet.</div>
   </div>
 </div>
 
-<!-- Action modal (tap a video title) -->
+<!-- Action modal -->
 <div class="overlay" id="action-overlay" role="dialog" aria-modal="true">
   <div class="modal">
     <div class="modal-handle"></div>
     <div class="modal-label">Open video</div>
-    <div class="modal-title" id="action-title"></div>
+    <div class="modal-title"  id="action-title"></div>
     <div class="modal-url-row">
       <span class="modal-url" id="action-url"></span>
       <button class="btn-copy" id="btn-copy" title="Copy URL to clipboard">Copy</button>
@@ -360,7 +361,8 @@
 
     <div class="field">
       <label for="add-url">YouTube URL</label>
-      <input type="url" id="add-url" placeholder="https://www.youtube.com/watch?v=…" autocomplete="off" autocorrect="off" spellcheck="false">
+      <input type="url" id="add-url" placeholder="https://www.youtube.com/watch?v=…"
+        autocomplete="off" autocorrect="off" spellcheck="false">
       <span class="fetch-status" id="fetch-status"></span>
     </div>
 
@@ -388,9 +390,10 @@
 </div>
 
 <script>
-  let current      = null;
-  let showRemoved  = false;
-  let fetchTimer   = null;
+  let current       = null;
+  let showRemoved   = false;
+  let fetchTimer    = null;
+  let purgeDismissed = false;
 
   /* ── utils ── */
 
@@ -413,8 +416,9 @@
   /* ── load & render active list ── */
 
   async function load() {
-    const { videos } = await fetch('/api/videos').then(r => r.json());
-    render(videos);
+    const data = await fetch('/api/videos').then(r => r.json());
+    render(data.videos);
+    updatePurgeBanner(data.purge_ready_count || 0);
     if (showRemoved) loadRemoved();
   }
 
@@ -450,36 +454,117 @@
     }).join('');
   }
 
+  /* ── purge banner ── */
+
+  function updatePurgeBanner(count) {
+    const banner = document.getElementById('purge-banner');
+    if (count >= 10 && !purgeDismissed) {
+      document.getElementById('purge-banner-msg').textContent =
+        `⚠️ ${count} removed video${count !== 1 ? 's are' : ' is'} over 90 days old and ready to clean up.`;
+      banner.style.display = '';
+    } else {
+      banner.style.display = 'none';
+    }
+  }
+
+  document.getElementById('btn-purge-review').addEventListener('click', () => {
+    if (!showRemoved) document.getElementById('btn-show-removed').click();
+    document.getElementById('removed-section').scrollIntoView({ behavior: 'smooth' });
+  });
+
+  document.getElementById('btn-purge-all-banner').addEventListener('click', async () => {
+    await fetch('/api/videos/purge', { method: 'DELETE' });
+    purgeDismissed = false;
+    load();
+    if (showRemoved) loadRemoved();
+  });
+
+  document.getElementById('btn-purge-dismiss').addEventListener('click', () => {
+    purgeDismissed = true;
+    document.getElementById('purge-banner').style.display = 'none';
+  });
+
   /* ── load & render removed list ── */
 
   async function loadRemoved() {
-    const { videos } = await fetch('/api/videos/removed').then(r => r.json());
-    renderRemoved(videos);
+    const data = await fetch('/api/videos/removed').then(r => r.json());
+    renderRemoved(data.videos, data.purge_ready_count);
   }
 
-  function renderRemoved(videos) {
+  function renderRemoved(videos, purgeReadyCount) {
     const list  = document.getElementById('removed-list');
     const empty = document.getElementById('removed-empty');
+    const purgeBtn = document.getElementById('btn-purge-all-section');
+
+    purgeBtn.style.display = purgeReadyCount > 0 ? '' : 'none';
+    if (purgeReadyCount > 0) purgeBtn.textContent = `Purge ready (${purgeReadyCount})`;
+
     if (!videos.length) {
       list.innerHTML = ''; empty.style.display = ''; return;
     }
     empty.style.display = 'none';
-    list.innerHTML = videos.map(v => `
-      <li class="removed-card">
-        <span class="removed-channel">${esc(v.emoji)} ${esc(v.channel_name)}</span>
-        <span class="removed-title">
-          <a href="${esc(v.url)}" target="_blank" rel="noopener noreferrer"
-            title="${esc(v.url)}">${esc(v.title)}</a>
-        </span>
-        <span class="removed-date">${v.removed_at ? fmtDate(v.removed_at) : ''}</span>
-        <button class="btn-restore" data-id="${v.id}"
-          title="Put back in watchlist">Restore</button>
-        <button class="btn-hard-del" data-id="${v.id}"
-          aria-label="Permanently delete" title="Permanently delete">✕</button>
-      </li>`).join('');
+
+    list.innerHTML = videos.map(v => {
+      const badge = v.purge_ready
+        ? '<span class="badge badge-purge" title="Over 90 days old">Ready to purge</span> '
+        : '';
+      return `
+        <li class="removed-card${v.purge_ready ? ' purge-ready' : ''}">
+          <span class="removed-channel">${esc(v.emoji)} ${esc(v.channel_name)}</span>
+          <span class="removed-title">
+            ${badge}<a href="${esc(v.url)}" target="_blank" rel="noopener noreferrer"
+              title="${esc(v.url)}">${esc(v.title)}</a>
+          </span>
+          <span class="removed-date">${v.removed_at ? fmtDate(v.removed_at) : ''}</span>
+          <div class="removed-actions">
+            <button class="btn-sm" data-id="${v.id}" data-action="restore"
+              title="Put back in watchlist as New">Restore</button>
+            <button class="btn-sm" data-id="${v.id}" data-action="reset-clock"
+              title="Reset the 90-day clock — gives another 3 months before it's purge-ready">Reset clock</button>
+            <button class="btn-sm del" data-id="${v.id}" data-action="delete"
+              title="Permanently delete">Delete</button>
+          </div>
+        </li>`;
+    }).join('');
   }
 
-  /* ── event: active list clicks ── */
+  /* ── removed section actions ── */
+
+  document.getElementById('removed-list').addEventListener('click', async e => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const { id, action } = btn.dataset;
+
+    if (action === 'restore') {
+      await fetch(`/api/videos/${id}/restore`, { method: 'POST' });
+      load();
+    } else if (action === 'reset-clock') {
+      await fetch(`/api/videos/${id}/reset-clock`, { method: 'POST' });
+      loadRemoved();
+    } else if (action === 'delete') {
+      await fetch(`/api/videos/${id}`, { method: 'DELETE' });
+      load();
+    }
+  });
+
+  document.getElementById('btn-purge-all-section').addEventListener('click', async () => {
+    await fetch('/api/videos/purge', { method: 'DELETE' });
+    load();
+  });
+
+  /* ── show removed toggle ── */
+
+  document.getElementById('btn-show-removed').addEventListener('click', () => {
+    showRemoved = !showRemoved;
+    const btn = document.getElementById('btn-show-removed');
+    btn.textContent = showRemoved ? 'Hide removed' : 'Show removed';
+    btn.classList.toggle('active', showRemoved);
+    const section = document.getElementById('removed-section');
+    section.style.display = showRemoved ? '' : 'none';
+    if (showRemoved) loadRemoved();
+  });
+
+  /* ── active list clicks ── */
 
   document.getElementById('list').addEventListener('click', e => {
     const titleEl = e.target.closest('.card-title');
@@ -493,21 +578,7 @@
       return;
     }
     const del = e.target.closest('.card-del');
-    if (del) softRemove(del.dataset.id);
-  });
-
-  /* ── event: removed list clicks ── */
-
-  document.getElementById('removed-list').addEventListener('click', e => {
-    const restore = e.target.closest('.btn-restore');
-    if (restore) {
-      fetch(`/api/videos/${restore.dataset.id}/restore`, { method: 'POST' }).then(load);
-      return;
-    }
-    const del = e.target.closest('.btn-hard-del');
-    if (del) {
-      fetch(`/api/videos/${del.dataset.id}`, { method: 'DELETE' }).then(loadRemoved);
-    }
+    if (del) fetch(`/api/videos/${del.dataset.id}/removed`, { method: 'POST' }).then(load);
   });
 
   /* ── action modal ── */
@@ -519,13 +590,13 @@
         <button class="btn btn-primary" id="ab-started"
           title="Flags it as started but keeps it in your list">Mark as started &amp; open</button>
         <button class="btn btn-orange" id="ab-remove"
-          title="Opens it and moves it off the main list — you're confident you'll finish it">Remove &amp; open</button>
+          title="Opens it and moves it to removed — you're confident you'll finish it">Remove &amp; open</button>
         <button class="btn btn-secondary" id="ab-just">Just open</button>
         <button class="btn btn-cancel" id="ab-cancel">Cancel</button>`;
     } else {
       el.innerHTML = `
         <button class="btn btn-orange" id="ab-remove"
-          title="Opens it and moves it off the main list">Remove &amp; open</button>
+          title="Opens it and moves it to removed">Remove &amp; open</button>
         <button class="btn btn-secondary" id="ab-just">Just open</button>
         <button class="btn btn-cancel" id="ab-cancel">Cancel</button>`;
     }
@@ -558,8 +629,7 @@
     if (!current) return;
     navigator.clipboard.writeText(current.url).then(() => {
       const btn = document.getElementById('btn-copy');
-      btn.textContent = 'Copied!';
-      btn.classList.add('copied');
+      btn.textContent = 'Copied!'; btn.classList.add('copied');
       setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
     });
   });
@@ -573,56 +643,47 @@
     current = null;
   }
 
-  /* ── soft-remove (✕ on active card) ── */
-
-  function softRemove(id) {
-    fetch(`/api/videos/${id}/removed`, { method: 'POST' }).then(load);
-  }
-
-  /* ── show removed toggle ── */
-
-  document.getElementById('btn-show-removed').addEventListener('click', () => {
-    showRemoved = !showRemoved;
-    const btn = document.getElementById('btn-show-removed');
-    btn.textContent = showRemoved ? 'Hide removed' : 'Show removed';
-    btn.classList.toggle('active', showRemoved);
-    const section = document.getElementById('removed-section');
-    section.style.display = showRemoved ? '' : 'none';
-    if (showRemoved) loadRemoved();
-  });
-
   /* ── add video modal ── */
 
+  function updateAddBtn() {
+    const url   = document.getElementById('add-url').value.trim();
+    const title = document.getElementById('add-title').value.trim();
+    document.getElementById('btn-add-submit').disabled = !(url && title);
+  }
+
   document.getElementById('btn-show-add').addEventListener('click', () => {
-    document.getElementById('add-url').value     = '';
-    document.getElementById('add-title').value   = '';
-    document.getElementById('add-channel').value = '';
-    document.getElementById('add-emoji').value   = '📺';
+    ['add-url','add-title','add-channel'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('add-emoji').value = '📺';
     document.getElementById('fetch-status').textContent = '';
     document.getElementById('fetch-status').className   = 'fetch-status';
     document.getElementById('btn-add-submit').disabled  = true;
+    document.getElementById('btn-add-submit').textContent = 'Add to watchlist';
     document.getElementById('add-overlay').classList.add('open');
     setTimeout(() => document.getElementById('add-url').focus(), 100);
   });
 
   document.getElementById('add-url').addEventListener('input', () => {
     clearTimeout(fetchTimer);
+    updateAddBtn();
     const url = document.getElementById('add-url').value.trim();
-    document.getElementById('btn-add-submit').disabled = !url;
     if (!url) { setFetchStatus('', ''); return; }
     setFetchStatus('Fetching title…', '');
     fetchTimer = setTimeout(() => fetchPreview(url), 600);
   });
+
+  // allow user to type title manually and enable the button
+  document.getElementById('add-title').addEventListener('input', updateAddBtn);
 
   async function fetchPreview(url) {
     try {
       const res = await fetch(`/api/preview?url=${encodeURIComponent(url)}`);
       if (!res.ok) { setFetchStatus('Could not fetch title — enter it manually', 'err'); return; }
       const { title, channel_name } = await res.json();
-      document.getElementById('add-title').value   = title       || '';
+      document.getElementById('add-title').value   = title        || '';
       document.getElementById('add-channel').value = channel_name || '';
-      document.getElementById('btn-add-submit').disabled = !title;
-      setFetchStatus('Title fetched ✓', 'ok');
+      setFetchStatus(title ? 'Title fetched ✓' : 'No title returned — enter it manually',
+                     title ? 'ok' : 'err');
+      updateAddBtn();
     } catch {
       setFetchStatus('Could not fetch title — enter it manually', 'err');
     }
@@ -642,17 +703,21 @@
     if (!url || !title) return;
 
     const btn = document.getElementById('btn-add-submit');
-    btn.disabled = true;
-    btn.textContent = 'Adding…';
+    btn.disabled = true; btn.textContent = 'Adding…';
 
-    await fetch('/api/videos', {
+    const res = await fetch('/api/videos', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url, title, channel_name: channel, emoji }),
     });
 
-    closeAddModal();
-    load();
+    if (res.ok) {
+      closeAddModal();
+      load();
+    } else {
+      btn.disabled = false; btn.textContent = 'Add to watchlist';
+      setFetchStatus('Error adding video — try again', 'err');
+    }
   });
 
   document.getElementById('btn-add-cancel').addEventListener('click', closeAddModal);
@@ -662,7 +727,6 @@
 
   function closeAddModal() {
     document.getElementById('add-overlay').classList.remove('open');
-    document.getElementById('btn-add-submit').textContent = 'Add to watchlist';
   }
 
   /* ── init ── */
