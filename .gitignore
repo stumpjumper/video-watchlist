@@ -4,3 +4,4 @@ watchlist.db-shm
 watchlist.db-wal
 dist/
 claude_restart_command
+logs/
