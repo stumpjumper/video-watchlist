@@ -11,10 +11,14 @@ db.exec(`
     channel_name TEXT    NOT NULL DEFAULT '',
     emoji        TEXT    NOT NULL DEFAULT '📺',
     added_at     TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-    played_at    TEXT,
-    status       TEXT    NOT NULL DEFAULT 'unplayed'
+    started_at   TEXT,
+    status       TEXT    NOT NULL DEFAULT 'new'
   )
 `);
+
+// migrate any legacy records from old status values
+db.exec(`UPDATE videos SET status = 'new'     WHERE status = 'unplayed'`);
+db.exec(`UPDATE videos SET status = 'started' WHERE status = 'played'`);
 
 export interface Video {
   id: number;
@@ -23,19 +27,13 @@ export interface Video {
   channel_name: string;
   emoji: string;
   added_at: string;
-  played_at: string | null;
+  started_at: string | null;
   status: string;
 }
 
-export function getUnplayed(): Video[] {
+export function getVideos(): Video[] {
   return db.prepare(
-    "SELECT * FROM videos WHERE status = 'unplayed' ORDER BY added_at DESC"
-  ).all() as Video[];
-}
-
-export function getAll(): Video[] {
-  return db.prepare(
-    "SELECT * FROM videos ORDER BY CASE WHEN status='unplayed' THEN 0 ELSE 1 END, added_at DESC"
+    "SELECT * FROM videos ORDER BY CASE WHEN status='new' THEN 0 ELSE 1 END, added_at DESC"
   ).all() as Video[];
 }
 
@@ -50,8 +48,8 @@ export function removeVideo(id: number): boolean {
   return (db.prepare('DELETE FROM videos WHERE id = ?').run(id).changes as number) > 0;
 }
 
-export function markPlayed(id: number): boolean {
+export function markStarted(id: number): boolean {
   return (db.prepare(
-    "UPDATE videos SET status = 'played', played_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?"
+    "UPDATE videos SET status = 'started', started_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?"
   ).run(id).changes as number) > 0;
 }

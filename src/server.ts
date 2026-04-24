@@ -1,6 +1,6 @@
 import express, { Request, Response } from 'express';
 import path from 'path';
-import { getUnplayed, getAll, addVideo, removeVideo, markPlayed } from './db';
+import { getVideos, addVideo, removeVideo, markStarted } from './db';
 
 const app = express();
 const PORT = parseInt(process.env.PORT ?? '4000', 10);
@@ -8,9 +8,8 @@ const PORT = parseInt(process.env.PORT ?? '4000', 10);
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
-app.get('/api/videos', (req: Request, res: Response) => {
-  const videos = req.query.all === 'true' ? getAll() : getUnplayed();
-  res.json({ videos });
+app.get('/api/videos', (_req: Request, res: Response) => {
+  res.json({ videos: getVideos() });
 });
 
 app.post('/api/videos', (req: Request, res: Response) => {
@@ -36,9 +35,10 @@ app.delete('/api/videos/:id', (req: Request, res: Response) => {
   res.json({ success: true });
 });
 
-app.post('/api/videos/:id/played', (req: Request, res: Response) => {
+// mark as started (opened at least once, but may not finish)
+app.post('/api/videos/:id/started', (req: Request, res: Response) => {
   const id = parseInt(req.params.id, 10);
-  if (isNaN(id) || !markPlayed(id)) {
+  if (isNaN(id) || !markStarted(id)) {
     res.status(404).json({ error: 'not found' });
     return;
   }
