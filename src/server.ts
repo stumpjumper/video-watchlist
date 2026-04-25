@@ -1,5 +1,8 @@
 import 'dotenv/config';
 import express, { Request, Response } from 'express';
+import http from 'http';
+import https from 'https';
+import { readFileSync } from 'fs';
 import path from 'path';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
@@ -75,7 +78,9 @@ ${transcript.slice(0, 30000)}`;
 }
 
 const app = express();
-const PORT = parseInt(process.env.PORT ?? '4000', 10);
+const HTTP_PORT  = parseInt(process.env.PORT      ?? '4000', 10);
+const HTTPS_PORT = parseInt(process.env.HTTPS_PORT ?? '443',  10);
+const CERT_DIR   = process.env.CERT_DIR ?? '';
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'public')));
@@ -187,6 +192,20 @@ app.post('/api/videos/:id/summary', async (req: Request, res: Response) => {
   }
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Video watchlist running on port ${PORT}`);
+// HTTP — localhost only (dev / Mac browser)
+http.createServer(app).listen(HTTP_PORT, '127.0.0.1', () => {
+  console.log(`HTTP  listening on http://localhost:${HTTP_PORT}`);
 });
+
+// HTTPS — all interfaces (Tailscale / iPhone)
+if (CERT_DIR) {
+  try {
+    const key  = readFileSync(`${CERT_DIR}/server.key`);
+    const cert = readFileSync(`${CERT_DIR}/server.crt`);
+    https.createServer({ key, cert }, app).listen(HTTPS_PORT, '0.0.0.0', () => {
+      console.log(`HTTPS listening on port ${HTTPS_PORT}`);
+    });
+  } catch (err) {
+    console.error('HTTPS cert load failed — running HTTP only:', err);
+  }
+}

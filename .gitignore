@@ -6,3 +6,4 @@ dist/
 claude_restart_command
 logs/
 .env
+certs/
