@@ -78,11 +78,46 @@
     .video-card {
       display: grid;
       grid-template-columns: 1fr 44px;
-      grid-template-rows: auto auto auto;
-      grid-template-areas: "channel del" "title del" "badge del";
+      grid-template-rows: auto auto auto auto;
+      grid-template-areas: "channel del" "title del" "summbtn del" "badge del";
       column-gap: 10px; row-gap: 3px; padding: 14px 0;
       border-bottom: 1px solid #27272a;
     }
+
+    .card-summbtn {
+      grid-area: summbtn;
+      color: #71717a; font-size: 12px; cursor: pointer;
+      padding: 2px 0; white-space: nowrap; align-self: start;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .card-summbtn:active { color: #a1a1aa; }
+
+    .summary-html {
+      background: #1e1e21; border: 1px solid #3f3f46; border-radius: 8px;
+      padding: 16px 18px; margin: 12px 0 16px;
+      max-height: 55vh; overflow-y: auto; -webkit-overflow-scrolling: touch;
+      font-size: 14px; line-height: 1.6; color: #d4d4d8;
+    }
+    .summary-html h3 {
+      color: #f4f4f5; font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.07em; margin: 14px 0 6px;
+    }
+    .summary-html h3:first-child { margin-top: 0; }
+    .summary-html p  { margin-bottom: 10px; }
+    .summary-html ul, .summary-html ol { padding-left: 18px; margin-bottom: 10px; }
+    .summary-html li { margin-bottom: 5px; }
+    .summary-html strong { color: #e4e4e7; }
+
+    .copy-row { display: flex; gap: 8px; margin-bottom: 10px; }
+    .btn-copy-opt {
+      flex: 1; background: #3f3f46; border: 1px solid #52525b;
+      color: #a1a1aa; padding: 9px 0; border-radius: 7px;
+      cursor: pointer; font-size: 13px;
+      -webkit-tap-highlight-color: transparent; transition: background 0.1s;
+    }
+    .btn-copy-opt:active  { background: #52525b; }
+    .btn-copy-opt.copied  { color: #4ade80; border-color: #4ade80; }
+    .btn-copy-opt:disabled { opacity: 0.4; cursor: default; }
     .video-card:last-child { border-bottom: none; }
     .card-channel {
       grid-area: channel; font-size: 13px; color: #a1a1aa;
@@ -113,7 +148,7 @@
     }
     .removed-header-label {
       font-size: 11px; font-weight: 600; text-transform: uppercase;
-      letter-spacing: 0.08em; color: #52525b; flex: 1;
+      letter-spacing: 0.08em; color: #a1a1aa; flex: 1;
     }
     .btn-purge-all {
       background: none; border: 1px solid #3f3f46; color: #f87171;
@@ -131,17 +166,17 @@
       grid-template-rows: auto auto auto;
       grid-template-areas: "channel . ." "title title title" "actions actions actions";
       column-gap: 8px; row-gap: 4px; padding: 12px 0;
-      border-bottom: 1px solid #1f1f23; opacity: 0.7;
+      border-bottom: 1px solid #1f1f23; opacity: 0.85;
     }
     .removed-card:last-child { border-bottom: none; }
     .removed-card.purge-ready { opacity: 1; }
 
     .removed-channel {
-      grid-area: channel; font-size: 12px; color: #71717a;
+      grid-area: channel; font-size: 12px; color: #a1a1aa;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis; align-self: center;
     }
     .removed-title {
-      grid-area: title; font-size: 14px; line-height: 1.35; color: #52525b;
+      grid-area: title; font-size: 14px; line-height: 1.35; color: #71717a;
     }
     .removed-title a { color: inherit; text-decoration: none; }
     .removed-title a:hover { color: #71717a; text-decoration: underline; }
@@ -163,12 +198,16 @@
     @media (min-width: 600px) {
       .video-card {
         grid-template-columns: 160px 1fr 80px 96px 36px;
-        grid-template-rows: auto;
-        grid-template-areas: "channel title badge date del";
+        grid-template-rows: auto auto;
+        grid-template-areas:
+          "channel title   badge date del"
+          ".       summbtn .     .    del";
         align-items: center; column-gap: 14px; padding: 11px 0;
       }
-      .card-title { font-size: 15px; }
-      .card-badge { padding-top: 0; }
+      .card-title   { font-size: 15px; }
+      .card-badge   { padding-top: 0; }
+      .card-summbtn { align-self: start; padding: 1px 0 5px; }
+      .summary-modal { max-width: 640px; }
       .card-date {
         grid-area: date; font-size: 13px; color: #71717a;
         text-align: right; white-space: nowrap;
@@ -242,6 +281,21 @@
       font-size: 17px; color: #f4f4f5; font-weight: 500;
       margin-bottom: 10px; line-height: 1.4;
     }
+    .modal-summary {
+      background: #1e1e21; border: 1px solid #3f3f46;
+      border-radius: 8px; padding: 12px 14px; margin-bottom: 16px;
+      font-size: 14px; color: #a1a1aa; line-height: 1.55;
+      white-space: pre-wrap; max-height: 260px; overflow-y: auto;
+    }
+    .btn-summary-toggle {
+      background: none; border: 1px solid #3f3f46; color: #71717a;
+      padding: 5px 12px; border-radius: 6px; cursor: pointer;
+      font-size: 12px; margin-bottom: 14px; display: block;
+      transition: border-color 0.15s, color 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-summary-toggle:hover { border-color: #71717a; color: #a1a1aa; }
+
     .modal-url-row {
       display: flex; align-items: center; gap: 8px; margin-bottom: 20px;
       padding: 8px 10px; background: #18181b;
@@ -389,6 +443,24 @@
   </div>
 </div>
 
+<!-- Summary overlay -->
+<div class="overlay" id="summary-overlay" role="dialog" aria-modal="true">
+  <div class="modal summary-modal">
+    <div class="modal-handle"></div>
+    <div class="modal-label">Summary</div>
+    <div class="modal-title" id="summary-overlay-title"></div>
+    <div class="summary-html" id="summary-html-content"></div>
+    <div class="modal-actions">
+      <div class="copy-row">
+        <button class="btn-copy-opt" id="btn-copy-plain">Plain text</button>
+        <button class="btn-copy-opt" id="btn-copy-html">HTML</button>
+        <button class="btn-copy-opt" id="btn-copy-md">Markdown</button>
+      </div>
+      <button class="btn btn-cancel" id="btn-summary-overlay-close">Close</button>
+    </div>
+  </div>
+</div>
+
 <script>
   let current       = null;
   let showRemoved   = false;
@@ -445,7 +517,11 @@
           <span class="card-title"
             data-id="${v.id}" data-title="${esc(v.title)}"
             data-url="${esc(v.url)}" data-status="${v.status}"
+            data-summary="${esc(v.summary || '')}"
             title="Tap to open">${esc(v.title)}</span>
+          <span class="btn-card-summary" role="button" tabindex="0"
+            data-id="${v.id}" data-title="${esc(v.title)}"
+            data-summary="${esc(v.summary || '')}">Summary</span>
           <span class="card-badge">${badge}</span>
           <span class="card-date">${fmtDate(v.added_at)}</span>
           <button class="card-del" data-id="${v.id}"
@@ -570,11 +646,18 @@
     const titleEl = e.target.closest('.card-title');
     if (titleEl) {
       current = { id: titleEl.dataset.id, title: titleEl.dataset.title,
-                  url: titleEl.dataset.url, status: titleEl.dataset.status };
+                  url: titleEl.dataset.url, status: titleEl.dataset.status,
+                  summary: titleEl.dataset.summary || '' };
       document.getElementById('action-title').textContent = current.title;
       document.getElementById('action-url').textContent   = current.url;
       buildActionBtns(current.status);
       document.getElementById('action-overlay').classList.add('open');
+      return;
+    }
+    const summBtn = e.target.closest('.btn-card-summary');
+    if (summBtn) {
+      openSummaryOverlay({ id: summBtn.dataset.id, title: summBtn.dataset.title,
+                           summary: summBtn.dataset.summary || '' });
       return;
     }
     const del = e.target.closest('.card-del');
@@ -624,6 +707,7 @@
 
     document.getElementById('ab-cancel').addEventListener('click', closeActionModal);
   }
+
 
   document.getElementById('btn-copy').addEventListener('click', () => {
     if (!current) return;
@@ -728,6 +812,111 @@
   function closeAddModal() {
     document.getElementById('add-overlay').classList.remove('open');
   }
+
+  /* ── summary overlay ── */
+
+  function setCopyBtnsDisabled(disabled) {
+    document.querySelectorAll('.btn-copy-opt').forEach(b => b.disabled = disabled);
+  }
+
+  async function openSummaryOverlay(video) {
+    document.getElementById('summary-overlay-title').textContent = video.title;
+    const contentEl = document.getElementById('summary-html-content');
+    document.getElementById('summary-overlay').classList.add('open');
+
+    if (video.summary) {
+      contentEl.innerHTML = video.summary;
+      setCopyBtnsDisabled(false);
+      return;
+    }
+
+    contentEl.innerHTML = '<p style="color:#71717a;padding:8px 0">Fetching transcript and generating summary…</p>';
+    setCopyBtnsDisabled(true);
+
+    try {
+      const res  = await fetch(`/api/videos/${video.id}/summary`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'failed');
+      const cardBtn = document.querySelector(`.btn-card-summary[data-id="${video.id}"]`);
+      if (cardBtn) cardBtn.dataset.summary = data.summary;
+      const cardTitle = document.querySelector(`.card-title[data-id="${video.id}"]`);
+      if (cardTitle) cardTitle.dataset.summary = data.summary;
+      contentEl.innerHTML = data.summary;
+      setCopyBtnsDisabled(false);
+    } catch (err) {
+      contentEl.innerHTML = `<p style="color:#f87171">Could not generate summary: ${err.message}</p>`;
+      setCopyBtnsDisabled(false);
+    }
+  }
+
+  function closeSummaryOverlay() {
+    document.getElementById('summary-overlay').classList.remove('open');
+  }
+
+  document.getElementById('summary-overlay').addEventListener('click', e => {
+    if (e.target === document.getElementById('summary-overlay')) closeSummaryOverlay();
+  });
+  document.getElementById('btn-summary-overlay-close').addEventListener('click', closeSummaryOverlay);
+  function htmlToMarkdown(html) {
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    function toMd(node) {
+      if (node.nodeType === Node.TEXT_NODE) return node.textContent;
+      if (node.nodeType !== Node.ELEMENT_NODE) return '';
+      const tag = node.tagName.toLowerCase();
+      const inner = Array.from(node.childNodes).map(toMd).join('');
+      switch (tag) {
+        case 'h3': case 'h4': return `### ${inner}\n\n`;
+        case 'p':  return `${inner}\n\n`;
+        case 'ul': return Array.from(node.children).map(li => `- ${toMd(li).trim()}`).join('\n') + '\n\n';
+        case 'ol': return Array.from(node.children).map((li, i) => `${i+1}. ${toMd(li).trim()}`).join('\n') + '\n\n';
+        case 'li': return inner;
+        case 'strong': case 'b': return `**${inner}**`;
+        case 'em':     case 'i': return `*${inner}*`;
+        default: return inner;
+      }
+    }
+    return Array.from(div.childNodes).map(toMd).join('').trim();
+  }
+
+  function flashCopyBtn(btn, original) {
+    btn.textContent = 'Copied!'; btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = original; btn.classList.remove('copied'); }, 1500);
+  }
+
+  function copyText(text) {
+    // Synchronous execCommand path first — required for iOS gesture context
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;top:-9999px;left:0;width:2em;height:2em;opacity:0;';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    ta.setSelectionRange(0, text.length);
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch {}
+    document.body.removeChild(ta);
+    if (ok) return Promise.resolve();
+    // Modern API fallback (works on desktop/HTTPS)
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text).catch(() => Promise.resolve());
+    }
+    return Promise.resolve();
+  }
+
+  document.getElementById('btn-copy-plain').addEventListener('click', () => {
+    const text = document.getElementById('summary-html-content').innerText;
+    copyText(text).then(() => flashCopyBtn(document.getElementById('btn-copy-plain'), 'Plain text'));
+  });
+  document.getElementById('btn-copy-html').addEventListener('click', () => {
+    const html = document.getElementById('summary-html-content').innerHTML;
+    copyText(html).then(() => flashCopyBtn(document.getElementById('btn-copy-html'), 'HTML'));
+  });
+  document.getElementById('btn-copy-md').addEventListener('click', () => {
+    const md = htmlToMarkdown(document.getElementById('summary-html-content').innerHTML);
+    copyText(md).then(() => flashCopyBtn(document.getElementById('btn-copy-md'), 'Markdown'));
+  });
 
   /* ── init ── */
 
