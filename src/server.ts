@@ -9,10 +9,11 @@ import { promisify } from 'util';
 import { mkdtemp, readdir, readFile, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import {
-  getVideos, getRemoved, getPurgeReadyCount,
-  addVideo, hardDelete, purgeReady,
-  markStarted, markRemoved, restoreVideo, resetClock,
-  getVideoById, saveSummary,
+  getVideos, getVideoById, addVideo, hardDelete, markStarted, saveSummary,
+  getLabels, createLabel, deleteLabel,
+  addLabelToVideo, removeLabelFromVideo, setVideoLabels, trashVideo, restoreFromTrash,
+  getTrashCount, purgeTrash,
+  VideoFilter,
 } from './db';
 
 const execFileAsync = promisify(execFile);
@@ -85,15 +86,21 @@ const CERT_DIR   = process.env.CERT_DIR ?? '';
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
-app.get('/api/videos', (_req: Request, res: Response) => {
-  const videos = getVideos();
-  const purge_ready_count = getPurgeReadyCount();
-  res.json({ videos, purge_ready_count });
-});
+// ── Videos ──────────────────────────────────────────────────────────────────
 
-// must be registered before /:id routes
-app.get('/api/videos/removed', (_req: Request, res: Response) => {
-  res.json(getRemoved());
+app.get('/api/videos', (req: Request, res: Response) => {
+  const { q, after, before, labels: labelsRaw, label_mode } = req.query as Record<string, string>;
+  const filter: VideoFilter = {};
+  if (q) filter.q = q;
+  if (after) filter.after = after;
+  if (before) filter.before = before;
+  if (labelsRaw) {
+    filter.labels = labelsRaw.split(',').map(Number).filter(n => !isNaN(n) && n > 0);
+  }
+  if (label_mode === 'and' || label_mode === 'or') filter.label_mode = label_mode;
+  const videos = getVideos(filter);
+  const trash_count = getTrashCount();
+  res.json({ videos, trash_count });
 });
 
 app.post('/api/videos', async (req: Request, res: Response) => {
@@ -141,7 +148,7 @@ app.get('/api/preview', async (req: Request, res: Response) => {
 });
 
 app.delete('/api/videos/purge', (_req: Request, res: Response) => {
-  const count = purgeReady();
+  const count = purgeTrash();
   res.json({ deleted: count });
 });
 
@@ -157,22 +164,44 @@ app.post('/api/videos/:id/started', (req: Request, res: Response) => {
   res.json({ success: true });
 });
 
-app.post('/api/videos/:id/removed', (req: Request, res: Response) => {
+app.put('/api/videos/:id/labels', (req: Request, res: Response) => {
   const id = parseInt(req.params.id, 10);
-  if (isNaN(id) || !markRemoved(id)) { res.status(404).json({ error: 'not found' }); return; }
+  const { labelIds } = req.body ?? {};
+  if (isNaN(id) || !Array.isArray(labelIds)) {
+    res.status(400).json({ error: 'labelIds array required' }); return;
+  }
+  if (!setVideoLabels(id, labelIds.map(Number))) { res.status(404).json({ error: 'not found' }); return; }
+  res.json({ success: true });
+});
+
+app.post('/api/videos/:id/trash', (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id) || !trashVideo(id)) { res.status(404).json({ error: 'not found' }); return; }
   res.json({ success: true });
 });
 
 app.post('/api/videos/:id/restore', (req: Request, res: Response) => {
   const id = parseInt(req.params.id, 10);
-  if (isNaN(id) || !restoreVideo(id)) { res.status(404).json({ error: 'not found' }); return; }
+  if (isNaN(id) || !restoreFromTrash(id)) { res.status(404).json({ error: 'not found' }); return; }
   res.json({ success: true });
 });
 
-app.post('/api/videos/:id/reset-clock', (req: Request, res: Response) => {
-  const id = parseInt(req.params.id, 10);
-  if (isNaN(id) || !resetClock(id)) { res.status(404).json({ error: 'not found' }); return; }
+app.post('/api/videos/:id/labels/:labelId', (req: Request, res: Response) => {
+  const id      = parseInt(req.params.id, 10);
+  const labelId = parseInt(req.params.labelId, 10);
+  if (isNaN(id) || isNaN(labelId) || !addLabelToVideo(id, labelId)) {
+    res.status(404).json({ error: 'not found' }); return;
+  }
   res.json({ success: true });
+});
+
+app.delete('/api/videos/:id/labels/:labelId', (req: Request, res: Response) => {
+  const id      = parseInt(req.params.id, 10);
+  const labelId = parseInt(req.params.labelId, 10);
+  if (isNaN(id) || isNaN(labelId)) { res.status(400).json({ error: 'invalid id' }); return; }
+  const result = removeLabelFromVideo(id, labelId);
+  if (!result.ok) { res.status(409).json({ error: 'cannot remove last label' }); return; }
+  res.json({ success: true, restoredInbox: result.restoredInbox });
 });
 
 app.post('/api/videos/:id/summary', async (req: Request, res: Response) => {
@@ -192,12 +221,43 @@ app.post('/api/videos/:id/summary', async (req: Request, res: Response) => {
   }
 });
 
-// HTTP — localhost only (dev / Mac browser)
+// ── Labels ──────────────────────────────────────────────────────────────────
+
+app.get('/api/labels', (_req: Request, res: Response) => {
+  res.json(getLabels());
+});
+
+app.post('/api/labels', (req: Request, res: Response) => {
+  const { name } = req.body ?? {};
+  if (typeof name !== 'string' || !name.trim()) {
+    res.status(400).json({ error: 'name is required' }); return;
+  }
+  const label = createLabel(name);
+  if (!label) { res.status(409).json({ error: 'label name already exists' }); return; }
+  res.status(201).json(label);
+});
+
+app.delete('/api/labels/:id', (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: 'invalid id' }); return; }
+  const result = deleteLabel(id);
+  if (!result.ok) { res.status(409).json({ error: result.reason }); return; }
+  res.json({ success: true });
+});
+
+// ── Trash ────────────────────────────────────────────────────────────────────
+
+app.get('/api/trash', (_req: Request, res: Response) => {
+  const videos = getVideos({ labels: [2] });
+  res.json({ videos });
+});
+
+// ── Servers ──────────────────────────────────────────────────────────────────
+
 http.createServer(app).listen(HTTP_PORT, '127.0.0.1', () => {
   console.log(`HTTP  listening on http://localhost:${HTTP_PORT}`);
 });
 
-// HTTPS — all interfaces (Tailscale / iPhone)
 if (CERT_DIR) {
   try {
     const key  = readFileSync(`${CERT_DIR}/server.key`);

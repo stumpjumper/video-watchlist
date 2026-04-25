@@ -40,25 +40,36 @@
     .hdr-btn.active        { border-color: #6366f1; color: #a5b4fc; }
     .hdr-btn.add-btn       { color: #4ade80; }
     .hdr-btn.add-btn:hover { border-color: #4ade80; }
+    .hdr-btn.trash-btn     { position: relative; }
+    .hdr-btn.trash-btn.has-items { color: #f87171; border-color: #7f1d1d; }
+    .hdr-btn.trash-btn.has-items:hover { border-color: #f87171; }
+    .hdr-btn.trash-btn.active { border-color: #f87171; color: #f87171; }
 
-    /* ── Purge banner ── */
+    /* ── Filter row ── */
 
-    .purge-banner {
-      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-      background: #2d1f07; border: 1px solid #854d0e;
-      border-radius: 8px; padding: 10px 14px; margin-bottom: 20px;
-      font-size: 14px; color: #fde68a;
+    .filter-row {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 10px;
     }
-    .purge-banner span { flex: 1; }
-    .purge-banner-btn {
-      background: none; border: 1px solid #854d0e; color: #fde68a;
-      padding: 4px 10px; border-radius: 5px; cursor: pointer;
-      font-size: 12px; white-space: nowrap;
-      -webkit-tap-highlight-color: transparent;
+    .filter-search {
+      flex: 1;
+      background: #1c1c1f; border: 1px solid #3f3f46; color: #e4e4e7;
+      padding: 8px 12px; border-radius: 8px; font-size: 14px;
+      outline: none; -webkit-appearance: none;
+      transition: border-color 0.15s;
     }
-    .purge-banner-btn:hover { border-color: #fde68a; }
-    .purge-banner-btn.danger { border-color: #f87171; color: #f87171; }
-    .purge-banner-btn.danger:hover { background: #2d1f1f; }
+    .filter-search:focus { border-color: #6366f1; }
+    .filter-search::placeholder { color: #52525b; }
+    .filter-search::-webkit-search-cancel-button { display: none; }
+
+    .btn-filter {
+      background: none; border: 1px solid #3f3f46; color: #a1a1aa;
+      padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 13px;
+      white-space: nowrap; transition: border-color 0.15s, color 0.15s;
+      -webkit-tap-highlight-color: transparent; flex-shrink: 0;
+    }
+    .btn-filter:hover  { border-color: #71717a; color: #e4e4e7; }
+    .btn-filter.active { border-color: #6366f1; color: #a5b4fc; }
 
     /* ── Badges ── */
 
@@ -69,25 +80,27 @@
     }
     .badge-new     { background: #1e3a5f; color: #93c5fd; }
     .badge-started { background: #3b1f0a; color: #fb923c; }
-    .badge-purge   { background: #2d1f07; color: #fbbf24; border: 1px solid #854d0e; }
+
+    /* ── Label chips ── */
+
+    .label-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+    .label-chip {
+      font-size: 11px; padding: 2px 7px; border-radius: 99px;
+      background: #27272a; border: 1px solid #3f3f46; color: #a1a1aa;
+      white-space: nowrap;
+    }
+    .label-chip-date { color: #52525b; }
 
     /* ── Active list ── */
 
     #list { list-style: none; }
 
     .video-card {
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
-      padding: 14px 16px;
-      background: #1c1c1f;
-      border-radius: 12px;
-      margin-bottom: 8px;
-      cursor: pointer;
-      -webkit-tap-highlight-color: transparent;
-      transition: background 0.12s;
-      user-select: none;
-      -webkit-user-select: none;
+      display: flex; flex-direction: column; gap: 4px;
+      padding: 14px 16px; background: #1c1c1f;
+      border-radius: 12px; margin-bottom: 8px;
+      cursor: pointer; -webkit-tap-highlight-color: transparent;
+      transition: background 0.12s; user-select: none; -webkit-user-select: none;
     }
     .video-card:active { background: #26262a; }
 
@@ -96,89 +109,76 @@
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .card-title {
-      color: #93c5fd;
-      font-size: 16px; font-weight: 500; line-height: 1.35;
+      color: #93c5fd; font-size: 16px; font-weight: 500; line-height: 1.35;
     }
     .card-footer {
       display: flex; align-items: center; gap: 8px; margin-top: 2px;
     }
     .card-badge { /* inherits from .badge */ }
-    .card-date { font-size: 12px; color: #52525b; margin-left: auto; }
-
-    /* ── Removed section ── */
-
-    .removed-section { margin-top: 40px; }
-    .removed-header {
-      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-      margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #27272a;
-    }
-    .removed-header-label {
-      font-size: 11px; font-weight: 600; text-transform: uppercase;
-      letter-spacing: 0.08em; color: #71717a; flex: 1;
-    }
-    .btn-purge-all {
-      background: none; border: 1px solid #3f3f46; color: #f87171;
-      padding: 4px 10px; border-radius: 5px; cursor: pointer;
-      font-size: 12px; white-space: nowrap;
+    .card-date  { font-size: 12px; color: #52525b; margin-left: auto; }
+    .card-trash-btn {
+      background: none; border: none; padding: 4px 6px;
+      color: #3f3f46; cursor: pointer; font-size: 15px; line-height: 1;
+      border-radius: 4px; flex-shrink: 0;
       -webkit-tap-highlight-color: transparent;
+      transition: color 0.12s;
     }
-    .btn-purge-all:active { background: #2d1f1f; border-color: #f87171; }
+    .card-trash-btn:hover  { color: #f87171; }
+    .card-trash-btn:active { color: #f87171; }
 
-    #removed-list { list-style: none; }
+    /* ── Bulk action bar (trash mode) ── */
 
-    .removed-card {
-      padding: 12px 0;
-      border-bottom: 1px solid #1f1f23;
+    .bulk-bar {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      margin-bottom: 12px; padding: 10px 14px;
+      background: #1c1c1f; border: 1px solid #3f3f46; border-radius: 8px;
     }
-    .removed-card:last-child { border-bottom: none; }
-
-    .removed-card-top {
-      display: flex; align-items: baseline; gap: 8px; margin-bottom: 3px;
-    }
-    .removed-channel {
-      font-size: 12px; color: #71717a;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-      flex: 1; min-width: 0;
-    }
-    .removed-added {
-      font-size: 11px; color: #52525b; white-space: nowrap; flex-shrink: 0;
-    }
-
-    .days-left {
-      font-size: 11px; font-weight: 600; white-space: nowrap; flex-shrink: 0;
-      letter-spacing: 0.02em;
-    }
-    .days-left-ok     { color: #52525b; }
-    .days-left-warn   { color: #d97706; }
-    .days-left-urgent { color: #f87171; }
-
-    .removed-title {
-      font-size: 14px; line-height: 1.35; color: #71717a; margin-bottom: 8px;
-    }
-    .removed-title a { color: inherit; text-decoration: none; }
-    .removed-title a:hover { color: #a1a1aa; text-decoration: underline; }
-
-    .removed-actions {
-      display: flex; gap: 6px; flex-wrap: wrap;
-    }
-    .btn-sm {
+    .bulk-count { flex: 1; font-size: 13px; color: #71717a; min-width: 60px; }
+    .bulk-btn {
       background: none; border: 1px solid #3f3f46; color: #a1a1aa;
-      padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;
-      white-space: nowrap; transition: border-color 0.1s, color 0.1s;
-      -webkit-tap-highlight-color: transparent;
+      padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 13px;
+      white-space: nowrap; -webkit-tap-highlight-color: transparent;
+      transition: border-color 0.12s, color 0.12s;
     }
-    .btn-sm:active     { border-color: #71717a; color: #e4e4e7; }
-    .btn-sm.del        { color: #f87171; }
-    .btn-sm.del:active { background: #2d1f1f; border-color: #f87171; }
+    .bulk-btn:disabled { opacity: 0.35; cursor: default; }
+    .bulk-btn.sel-all  { }
+    .bulk-btn.sel-all:not(:disabled):hover { border-color: #71717a; color: #e4e4e7; }
+    .bulk-btn.restore  { color: #4ade80; border-color: #166534; }
+    .bulk-btn.restore:not(:disabled):hover  { background: #14291e; border-color: #4ade80; }
+    .bulk-btn.del      { color: #f87171; border-color: #7f1d1d; }
+    .bulk-btn.del:not(:disabled):hover      { background: #2d1f1f; border-color: #f87171; }
+    .bulk-btn.confirming { animation: pulse-border 0.3s ease; }
+
+    @keyframes pulse-border { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
+
+    /* ── Selectable cards (trash mode) ── */
+
+    .video-card.selectable { padding-left: 44px; position: relative; cursor: default; }
+    .video-card.selectable::before {
+      content: '';
+      position: absolute; left: 14px; top: 16px;
+      width: 20px; height: 20px; border-radius: 50%;
+      border: 2px solid #52525b; background: #27272a;
+      transition: background 0.12s, border-color 0.12s;
+    }
+    .video-card.selectable.selected { background: #1a1a35; }
+    .video-card.selectable.selected::before { background: #4338ca; border-color: #6366f1; }
+    .video-card.selectable.selected::after {
+      content: '✓';
+      position: absolute; left: 14px; top: 16px;
+      width: 20px; height: 20px;
+      font-size: 11px; font-weight: 700; color: #fff;
+      text-align: center; line-height: 20px;
+    }
 
     /* ── Desktop layout ── */
 
     @media (min-width: 600px) {
       .video-card {
         display: grid;
-        grid-template-columns: 160px 1fr 80px 96px;
-        grid-template-areas: "channel title badge date";
-        grid-template-rows: auto;
+        grid-template-columns: 160px 1fr 80px 96px 28px;
+        grid-template-areas: "channel title badge date trash" ". chips chips chips chips";
+        grid-template-rows: auto auto;
         gap: 0; column-gap: 16px;
         align-items: center;
         padding: 10px 14px;
@@ -186,15 +186,17 @@
         margin-bottom: 4px;
         flex-direction: unset;
       }
-      .card-channel { grid-area: channel; font-size: 13px; }
-      .card-title   { grid-area: title; font-size: 15px; }
-      .card-footer  { display: contents; }
-      .card-badge   { grid-area: badge; }
-      .card-date    { grid-area: date; text-align: right; margin-left: 0; font-size: 13px; color: #71717a; }
+      .card-channel   { grid-area: channel;  font-size: 13px; align-self: center; }
+      .card-title     { grid-area: title;    font-size: 15px; }
+      .card-footer    { display: contents; }
+      .card-badge     { grid-area: badge; }
+      .card-date      { grid-area: date; text-align: right; margin-left: 0; font-size: 13px; color: #71717a; }
+      .card-trash-btn { grid-area: trash; padding: 2px 4px; }
+      .card-chips-row { grid-area: chips; }
 
       .list-header {
         display: grid;
-        grid-template-columns: 160px 1fr 80px 96px;
+        grid-template-columns: 160px 1fr 80px 96px 28px;
         column-gap: 16px; padding: 0 14px 10px; margin-bottom: 4px;
         border-bottom: 1px solid #3f3f46;
         font-size: 11px; font-weight: 600;
@@ -202,35 +204,21 @@
       }
       .list-header span:last-child { text-align: right; }
 
-      .removed-card {
-        display: grid;
-        grid-template-columns: 1fr auto auto auto auto auto;
-        grid-template-areas: "title date days restore reset del";
-        align-items: center; column-gap: 10px; padding: 9px 0;
-        gap: 0;
-      }
-      .removed-card-top   { display: contents; }
-      .removed-channel    { display: none; }
-      .removed-added      { grid-area: date; font-size: 12px; color: #52525b; white-space: nowrap; }
-      .days-left          { grid-area: days; }
-      .removed-title      { grid-area: title; margin-bottom: 0; font-size: 13px; }
-      .removed-actions    { display: contents; }
-      .removed-actions .btn-sm:nth-child(1) { grid-area: restore; }
-      .removed-actions .btn-sm:nth-child(2) { grid-area: reset; }
-      .removed-actions .btn-sm:nth-child(3) { grid-area: del; }
+      .video-card.selectable::before,
+      .video-card.selectable::after { top: 50%; transform: translateY(-50%); }
 
       .summary-modal { max-width: 640px; }
     }
 
     @media (max-width: 599px) {
       .list-header { display: none; }
+      .card-chips-row { margin-top: 2px; }
     }
 
     /* ── Sort row ── */
 
     .sort-row {
-      display: flex; align-items: center; gap: 8px;
-      margin-bottom: 14px;
+      display: flex; align-items: center; gap: 8px; margin-bottom: 14px;
     }
     .sort-label { font-size: 12px; color: #52525b; white-space: nowrap; }
     .sort-select {
@@ -248,9 +236,9 @@
       flex-shrink: 0; transition: color 0.15s, border-color 0.15s;
       -webkit-tap-highlight-color: transparent;
     }
-    .sort-dir:active          { color: #e4e4e7; border-color: #71717a; }
-    .sort-dir.desc            { color: #a1a1aa; }
-    .sort-dir.asc             { color: #a5b4fc; border-color: #6366f1; }
+    .sort-dir:active { color: #e4e4e7; border-color: #71717a; }
+    .sort-dir.desc   { color: #a1a1aa; }
+    .sort-dir.asc    { color: #a5b4fc; border-color: #6366f1; }
 
     /* ── Empty ── */
 
@@ -289,7 +277,6 @@
       font-size: 17px; color: #f4f4f5; font-weight: 500;
       margin-bottom: 10px; line-height: 1.4;
     }
-
     .modal-url-row {
       display: flex; align-items: center; gap: 8px; margin-bottom: 16px;
       padding: 8px 10px; background: #18181b;
@@ -311,7 +298,33 @@
     .modal-actions { display: flex; flex-direction: column; gap: 10px; }
     .modal-divider { height: 1px; background: #3f3f46; margin: 2px 0; }
 
-    /* Add modal fields */
+    /* ── Label picker (archive sub-state) ── */
+
+    .label-picker { display: flex; flex-direction: column; gap: 8px; margin: 12px 0 4px; }
+    .label-picker-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 12px; background: #1c1c1f; border-radius: 8px;
+      border: 1px solid #3f3f46; cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: border-color 0.12s;
+    }
+    .label-picker-item.selected { border-color: #6366f1; background: #1e1e3f; }
+    .label-picker-item input[type="checkbox"] { display: none; }
+    .label-picker-check {
+      width: 18px; height: 18px; border-radius: 4px;
+      border: 1px solid #3f3f46; background: #18181b;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; font-size: 12px; color: #a5b4fc;
+      transition: border-color 0.12s, background 0.12s;
+    }
+    .label-picker-item.selected .label-picker-check {
+      border-color: #6366f1; background: #3730a3;
+    }
+    .label-picker-name  { font-size: 15px; color: #e4e4e7; flex: 1; }
+    .label-picker-since { font-size: 11px; color: #52525b; white-space: nowrap; }
+
+    /* ── Add modal fields ── */
+
     .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
     .field label { font-size: 12px; color: #a1a1aa; font-weight: 500; }
     .field-row { display: flex; gap: 8px; }
@@ -346,22 +359,82 @@
     .btn-danger    { background: none; border: 1px solid #3f3f46; color: #f87171; }
     .btn-danger:active { background: #2d1f1f; border-color: #f87171; }
     .btn-cancel    { background: #27272a; color: #71717a; border: 1px solid #3f3f46; }
+    .btn-indigo    { background: #1e1e3f; border: 1px solid #6366f1; color: #a5b4fc; }
 
     @media (min-width: 600px) {
       .btn { padding: 11px 16px; font-size: 14px; border-radius: 7px; }
     }
 
+    /* ── Filter modal ── */
+
+    .filter-modal-body { margin: 12px 0; }
+    .filter-section-label {
+      font-size: 11px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.08em; color: #71717a; margin-bottom: 8px; margin-top: 16px;
+    }
+    .filter-section-label:first-child { margin-top: 0; }
+    .filter-label-list { display: flex; flex-direction: column; gap: 6px; }
+    .filter-label-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 12px; background: #1c1c1f; border-radius: 8px;
+      border: 1px solid #3f3f46; cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .filter-label-item.selected { border-color: #6366f1; background: #1e1e3f; }
+    .filter-label-item .label-picker-check { /* reuse */ }
+    .filter-label-name { font-size: 14px; color: #e4e4e7; flex: 1; }
+    .filter-mode-row {
+      display: flex; gap: 8px; margin-top: 10px;
+    }
+    .filter-mode-btn {
+      flex: 1; padding: 8px; border-radius: 7px; cursor: pointer;
+      font-size: 13px; font-weight: 500; text-align: center;
+      background: #1c1c1f; border: 1px solid #3f3f46; color: #71717a;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .filter-mode-btn.active { border-color: #6366f1; color: #a5b4fc; background: #1e1e3f; }
+    .filter-date-row { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
+    .filter-date-row input[type="date"] {
+      flex: 1; background: #1c1c1f; border: 1px solid #3f3f46; color: #e4e4e7;
+      padding: 8px 10px; border-radius: 7px; font-size: 13px; outline: none;
+      -webkit-appearance: none; color-scheme: dark;
+    }
+    .filter-date-sep { font-size: 12px; color: #52525b; }
+    .filter-actions { display: flex; gap: 8px; margin-top: 16px; }
+    .filter-actions .btn { flex: 1; text-align: center; }
+
+    /* ── Labels management modal ── */
+
+    .labels-list { display: flex; flex-direction: column; gap: 6px; margin: 12px 0; }
+    .labels-list-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 12px; background: #1c1c1f; border-radius: 8px;
+      border: 1px solid #3f3f46;
+    }
+    .labels-list-name { flex: 1; font-size: 15px; color: #e4e4e7; }
+    .labels-list-count { font-size: 12px; color: #52525b; }
+    .btn-del-label {
+      background: none; border: none; color: #52525b; cursor: pointer;
+      font-size: 16px; padding: 2px 6px; border-radius: 4px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-del-label:hover { color: #f87171; }
+    .btn-del-label[disabled] { opacity: 0.3; cursor: default; }
+    .new-label-row { display: flex; gap: 8px; margin-top: 4px; }
+    .new-label-row input { flex: 1; padding: 8px 10px; font-size: 14px; }
+    .btn-add-label {
+      background: #14291e; border: 1px solid #16a34a; color: #4ade80;
+      padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 14px;
+      white-space: nowrap; -webkit-tap-highlight-color: transparent;
+    }
+    .btn-add-label:disabled { opacity: 0.4; cursor: default; }
+
     /* ── Summary overlay ── */
 
     .summary-modal {
-      display: flex;
-      flex-direction: column;
-      max-height: 85vh;
+      display: flex; flex-direction: column; max-height: 85vh;
     }
-
-    @media (min-width: 600px) {
-      .summary-modal { max-height: 80vh; }
-    }
+    @media (min-width: 600px) { .summary-modal { max-height: 80vh; } }
 
     .summary-html {
       flex: 1; min-height: 0;
@@ -398,16 +471,14 @@
   <header>
     <h1>📺 Watchlist</h1>
     <span class="count" id="count"></span>
-    <button class="hdr-btn" id="btn-show-removed" title="Show videos you previously removed">Show removed</button>
-    <button class="hdr-btn add-btn" id="btn-show-add" title="Add a video manually">+ Add</button>
+    <button class="hdr-btn" id="btn-labels">Labels</button>
+    <button class="hdr-btn trash-btn" id="btn-show-trash">Trash</button>
+    <button class="hdr-btn add-btn" id="btn-show-add">+ Add</button>
   </header>
 
-  <!-- Purge banner: shown when ≥10 removed items are 90+ days old -->
-  <div class="purge-banner" id="purge-banner" style="display:none">
-    <span id="purge-banner-msg"></span>
-    <button class="purge-banner-btn" id="btn-purge-review">Review</button>
-    <button class="purge-banner-btn danger" id="btn-purge-all-banner">Delete all</button>
-    <button class="purge-banner-btn" id="btn-purge-dismiss" title="Dismiss for now">✕</button>
+  <div class="filter-row">
+    <input type="search" class="filter-search" id="filter-text" placeholder="Search title or channel…" autocomplete="off" autocorrect="off" spellcheck="false">
+    <button class="btn-filter" id="btn-filter-labels">Filter</button>
   </div>
 
   <div class="sort-row">
@@ -422,38 +493,75 @@
   </div>
 
   <div class="list-header" aria-hidden="true">
-    <span>Channel</span><span>Title</span><span>Status</span>
-    <span>Added</span>
+    <span>Channel</span><span>Title</span><span>Status</span><span>Added</span>
+  </div>
+
+  <!-- Bulk action bar: shown in trash mode -->
+  <div class="bulk-bar" id="bulk-bar" style="display:none">
+    <button class="bulk-btn sel-all" id="btn-select-all">Select all</button>
+    <span class="bulk-count" id="bulk-count">0 selected</span>
+    <button class="bulk-btn restore" id="btn-bulk-restore" disabled>Restore</button>
+    <button class="bulk-btn del"     id="btn-bulk-delete"  disabled>Delete</button>
   </div>
 
   <ul id="list"></ul>
-  <div class="empty" id="empty" style="display:none">Nothing in the watchlist.</div>
-
-  <!-- Removed section -->
-  <div class="removed-section" id="removed-section" style="display:none">
-    <div class="removed-header">
-      <span class="removed-header-label">Removed</span>
-      <button class="btn-purge-all" id="btn-purge-all-section"
-        style="display:none" title="Permanently delete all items ready for cleanup">
-        Purge ready
-      </button>
-    </div>
-    <ul id="removed-list"></ul>
-    <div class="empty" id="removed-empty" style="display:none">Nothing here yet.</div>
-  </div>
+  <div class="empty" id="empty" style="display:none">Nothing here.</div>
 </div>
 
 <!-- Action modal -->
 <div class="overlay" id="action-overlay" role="dialog" aria-modal="true">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-label">Open video</div>
+    <div class="modal-label" id="action-modal-label">Open video</div>
     <div class="modal-title" id="action-title"></div>
-    <div class="modal-url-row">
+    <div class="modal-url-row" id="action-url-row">
       <span class="modal-url" id="action-url"></span>
       <button class="btn-copy" id="btn-copy-url">Copy</button>
     </div>
     <div class="modal-actions" id="action-btns"></div>
+  </div>
+</div>
+
+<!-- Filter modal -->
+<div class="overlay" id="filter-overlay" role="dialog" aria-modal="true">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-label">Filter</div>
+    <div class="filter-modal-body">
+      <div class="filter-section-label">Labels</div>
+      <div class="filter-label-list" id="filter-label-list"></div>
+      <div class="filter-mode-row" id="filter-mode-row" style="display:none">
+        <button class="filter-mode-btn active" data-mode="or" id="fmode-or">Any label (OR)</button>
+        <button class="filter-mode-btn" data-mode="and" id="fmode-and">All labels (AND)</button>
+      </div>
+      <div class="filter-section-label">Date added</div>
+      <div class="filter-date-row">
+        <input type="date" id="filter-after" placeholder="From">
+        <span class="filter-date-sep">–</span>
+        <input type="date" id="filter-before" placeholder="To">
+      </div>
+    </div>
+    <div class="filter-actions">
+      <button class="btn btn-cancel"    id="btn-filter-cancel">Cancel</button>
+      <button class="btn btn-secondary" id="btn-filter-clear">Clear</button>
+      <button class="btn btn-indigo"    id="btn-filter-apply">Apply</button>
+    </div>
+  </div>
+</div>
+
+<!-- Labels management modal -->
+<div class="overlay" id="labels-overlay" role="dialog" aria-modal="true">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-label">Labels</div>
+    <div class="labels-list" id="labels-list"></div>
+    <div class="new-label-row">
+      <input type="text" id="new-label-input" placeholder="New label name…" maxlength="40">
+      <button class="btn-add-label" id="btn-create-label" disabled>Add</button>
+    </div>
+    <div class="modal-actions" style="margin-top:16px">
+      <button class="btn btn-cancel" id="btn-labels-close">Done</button>
+    </div>
   </div>
 </div>
 
@@ -512,14 +620,26 @@
 </div>
 
 <script>
+  // ── State ──────────────────────────────────────────────────────────────────
+
   let current        = null;
-  let showRemoved    = false;
   let fetchTimer     = null;
-  let purgeDismissed = false;
   let sortBy         = 'added_at';
   let sortDir        = 'desc';
+  let allLabels      = [];
+  let selectedIds    = new Set();
+  let trashActive    = false;
 
-  /* ── utils ── */
+  function isTrashMode() { return trashActive; }
+
+  // Active filter state
+  let filterText    = '';
+  let filterLabels  = [];       // array of label IDs
+  let filterMode    = 'or';
+  let filterAfter   = '';
+  let filterBefore  = '';
+
+  // ── Utils ──────────────────────────────────────────────────────────────────
 
   function esc(s) {
     return String(s)
@@ -531,6 +651,10 @@
     return new Date(iso).toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' });
   }
 
+  function fmtDateShort(iso) {
+    return new Date(iso).toLocaleDateString(undefined, { month:'short', day:'numeric' });
+  }
+
   function openUrl(url) {
     const a = document.createElement('a');
     a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
@@ -539,8 +663,7 @@
 
   function copyText(text) {
     const ta = document.createElement('textarea');
-    ta.value = text;
-    ta.setAttribute('readonly', '');
+    ta.value = text; ta.setAttribute('readonly', '');
     ta.style.cssText = 'position:fixed;top:-9999px;left:0;width:2em;height:2em;opacity:0;';
     document.body.appendChild(ta);
     ta.focus(); ta.select(); ta.setSelectionRange(0, text.length);
@@ -554,21 +677,17 @@
     return Promise.resolve();
   }
 
-  function daysLeft(removedAt) {
-    if (!removedAt) return null;
-    const ms = Date.now() - new Date(removedAt).getTime();
-    return Math.max(0, Math.ceil(90 - ms / 86400000));
+  // ── Labels ─────────────────────────────────────────────────────────────────
+
+  async function loadLabels() {
+    allLabels = await fetch('/api/labels').then(r => r.json());
   }
 
-  function daysLeftHtml(days, purgeReady) {
-    if (purgeReady || days <= 0) {
-      return '<span class="days-left days-left-urgent">purge ready</span>';
-    }
-    const cls = days <= 10 ? 'days-left-urgent' : days <= 30 ? 'days-left-warn' : 'days-left-ok';
-    return `<span class="days-left ${cls}">${days}d left</span>`;
+  function userLabels() {
+    return allLabels.filter(l => l.id !== 1 && l.id !== 2);
   }
 
-  /* ── sort ── */
+  // ── Sort ───────────────────────────────────────────────────────────────────
 
   function sortVideos(videos) {
     const statusOrder = { new: 0, started: 1 };
@@ -591,10 +710,8 @@
   }
 
   document.getElementById('sort-field').addEventListener('change', e => {
-    sortBy = e.target.value;
-    load();
+    sortBy = e.target.value; load();
   });
-
   document.getElementById('sort-dir').addEventListener('click', () => {
     sortDir = sortDir === 'desc' ? 'asc' : 'desc';
     const btn = document.getElementById('sort-dir');
@@ -603,13 +720,23 @@
     load();
   });
 
-  /* ── load & render active list ── */
+  // ── Load & render main list ─────────────────────────────────────────────────
 
   async function load() {
-    const data = await fetch('/api/videos').then(r => r.json());
+    const params = new URLSearchParams();
+    if (filterText) params.set('q', filterText);
+    const activeLabels = trashActive ? [2, ...filterLabels] : filterLabels;
+    if (activeLabels.length) params.set('labels', activeLabels.join(','));
+    if (activeLabels.length > 1) {
+      // Trash is always AND'd so it stays required regardless of the user's OR/AND setting
+      params.set('label_mode', trashActive ? 'and' : filterMode);
+    }
+    if (filterAfter)  params.set('after',  filterAfter);
+    if (filterBefore) params.set('before', filterBefore);
+
+    const data = await fetch('/api/videos?' + params).then(r => r.json());
     render(data.videos);
-    updatePurgeBanner(data.purge_ready_count || 0);
-    if (showRemoved) loadRemoved();
+    updateTrashBtn(data.trash_count || 0);
   }
 
   function render(videos) {
@@ -625,208 +752,168 @@
     const nStarted = videos.filter(v => v.status === 'started').length;
     count.textContent = [nNew && nNew+' new', nStarted && nStarted+' started'].filter(Boolean).join(', ');
 
+    const trash = isTrashMode();
     list.innerHTML = sortVideos(videos).map(v => {
       const badge = v.status === 'started'
         ? '<span class="badge badge-started">Started</span>'
         : '<span class="badge badge-new">New</span>';
+      const displayLabels = trash
+        ? (v.labels || [])
+        : (v.labels || []).filter(l => l.label_id !== 2);
+      const chipsHtml = displayLabels.length
+        ? `<div class="card-chips-row label-chips">${displayLabels.map(l =>
+            `<span class="label-chip">${esc(l.label_name)} <span class="label-chip-date">· ${fmtDateShort(l.labeled_at)}</span></span>`
+          ).join('')}</div>`
+        : '';
+      const labelsJson = esc(JSON.stringify(v.labels || []));
+      const sel = selectedIds.has(String(v.id));
       return `
-        <li class="video-card"
+        <li class="video-card${trash ? ' selectable' : ''}${sel ? ' selected' : ''}"
             data-id="${v.id}" data-title="${esc(v.title)}"
             data-url="${esc(v.url)}" data-status="${v.status}"
-            data-summary="${esc(v.summary || '')}">
+            data-summary="${esc(v.summary || '')}"
+            data-labels="${labelsJson}">
           <span class="card-channel">${esc(v.emoji)} ${esc(v.channel_name)}</span>
           <span class="card-title">${esc(v.title)}</span>
           <div class="card-footer">
             <span class="card-badge">${badge}</span>
             <span class="card-date">${fmtDate(v.added_at)}</span>
+            <button class="card-trash-btn" data-id="${v.id}" title="Move to Trash">🗑</button>
           </div>
+          ${chipsHtml}
         </li>`;
     }).join('');
   }
 
-  /* ── purge banner ── */
+  // ── Trash mode & bulk actions ──────────────────────────────────────────────
 
-  function updatePurgeBanner(count) {
-    const banner = document.getElementById('purge-banner');
-    if (count >= 10 && !purgeDismissed) {
-      document.getElementById('purge-banner-msg').textContent =
-        `⚠️ ${count} removed video${count !== 1 ? 's are' : ' is'} over 90 days old and ready to clean up.`;
-      banner.style.display = '';
+  function updateTrashBtn(count) {
+    const btn = document.getElementById('btn-show-trash');
+    const inTrash = isTrashMode();
+    btn.textContent = inTrash ? 'Exit Trash' : (count > 0 ? `Trash (${count})` : 'Trash');
+    btn.classList.toggle('has-items', !inTrash && count > 0);
+    btn.classList.toggle('active', inTrash);
+    document.getElementById('bulk-bar').style.display = inTrash ? '' : 'none';
+    if (!inTrash) selectedIds.clear();
+    updateBulkBar();
+  }
+
+  function updateBulkBar() {
+    const n = selectedIds.size;
+    document.getElementById('bulk-count').textContent = n === 0 ? '0 selected' : `${n} selected`;
+    document.getElementById('btn-bulk-restore').disabled = n === 0;
+    document.getElementById('btn-bulk-delete').disabled  = n === 0;
+  }
+
+  document.getElementById('btn-show-trash').addEventListener('click', () => {
+    trashActive = !trashActive;
+    selectedIds.clear();
+    load();
+  });
+
+  document.getElementById('btn-select-all').addEventListener('click', () => {
+    const cards = document.querySelectorAll('#list .video-card.selectable');
+    const allSelected = cards.length > 0 && [...cards].every(c => c.classList.contains('selected'));
+    if (allSelected) {
+      cards.forEach(c => { c.classList.remove('selected'); selectedIds.delete(c.dataset.id); });
     } else {
-      banner.style.display = 'none';
+      cards.forEach(c => { c.classList.add('selected'); selectedIds.add(c.dataset.id); });
     }
-  }
-
-  document.getElementById('btn-purge-review').addEventListener('click', () => {
-    if (!showRemoved) document.getElementById('btn-show-removed').click();
-    document.getElementById('removed-section').scrollIntoView({ behavior: 'smooth' });
+    updateBulkBar();
   });
 
-  document.getElementById('btn-purge-all-banner').addEventListener('click', async () => {
-    await fetch('/api/videos/purge', { method: 'DELETE' });
-    purgeDismissed = false;
-    load();
-    if (showRemoved) loadRemoved();
-  });
-
-  document.getElementById('btn-purge-dismiss').addEventListener('click', () => {
-    purgeDismissed = true;
-    document.getElementById('purge-banner').style.display = 'none';
-  });
-
-  /* ── load & render removed list ── */
-
-  async function loadRemoved() {
-    const data = await fetch('/api/videos/removed').then(r => r.json());
-    renderRemoved(data.videos, data.purge_ready_count);
-  }
-
-  function renderRemoved(videos, purgeReadyCount) {
-    const list     = document.getElementById('removed-list');
-    const empty    = document.getElementById('removed-empty');
-    const purgeBtn = document.getElementById('btn-purge-all-section');
-
-    purgeBtn.style.display = purgeReadyCount > 0 ? '' : 'none';
-    if (purgeReadyCount > 0) purgeBtn.textContent = `Purge ready (${purgeReadyCount})`;
-
-    if (!videos.length) {
-      list.innerHTML = ''; empty.style.display = ''; return;
+  function confirmBulkAction(btn, label, onConfirm) {
+    if (btn.dataset.confirm === 'pending') {
+      onConfirm();
+      return;
     }
-    empty.style.display = 'none';
-
-    list.innerHTML = videos.map(v => {
-      const days     = daysLeft(v.removed_at);
-      const daysHtml = days !== null ? daysLeftHtml(days, v.purge_ready) : '';
-      const purgeLabel = v.purge_ready
-        ? '<span class="badge badge-purge" title="Over 90 days old">Ready to purge</span> '
-        : '';
-      return `
-        <li class="removed-card${v.purge_ready ? ' purge-ready' : ''}" data-id="${v.id}">
-          <div class="removed-card-top">
-            <span class="removed-channel">${esc(v.emoji)} ${esc(v.channel_name)}</span>
-            <span class="removed-added">${fmtDate(v.added_at)}</span>
-            ${daysHtml}
-          </div>
-          <div class="removed-title">
-            ${purgeLabel}<a href="${esc(v.url)}" target="_blank" rel="noopener noreferrer"
-              title="${esc(v.url)}">${esc(v.title)}</a>
-          </div>
-          <div class="removed-actions">
-            <button class="btn-sm" data-id="${v.id}" data-action="restore"
-              title="Put back in watchlist as New">Restore</button>
-            <button class="btn-sm" data-id="${v.id}" data-action="reset-clock"
-              title="Reset the 90-day clock">Reset clock</button>
-            <button class="btn-sm del" data-id="${v.id}" data-action="delete"
-              title="Permanently delete">Delete</button>
-          </div>
-        </li>`;
-    }).join('');
+    btn.dataset.confirm = 'pending';
+    const orig = btn.textContent;
+    btn.textContent = `Sure? (${selectedIds.size})`;
+    btn.classList.add('confirming');
+    const t = setTimeout(() => {
+      btn.dataset.confirm = '';
+      btn.textContent = orig;
+    }, 3000);
+    btn._confirmTimer = t;
   }
 
-  /* ── removed section actions ── */
-
-  let deleteConfirmTimer = null;
-
-  document.getElementById('removed-list').addEventListener('click', async e => {
-    const btn = e.target.closest('[data-action]');
-    if (!btn) return;
-    const { id, action } = btn.dataset;
-
-    if (action === 'restore') {
-      await fetch(`/api/videos/${id}/restore`, { method: 'POST' });
+  document.getElementById('btn-bulk-restore').addEventListener('click', function() {
+    confirmBulkAction(this, 'Restore', async () => {
+      const ids = [...selectedIds];
+      await Promise.all(ids.map(id => fetch(`/api/videos/${id}/restore`, { method: 'POST' })));
+      selectedIds.clear();
       load();
+    });
+  });
 
-    } else if (action === 'reset-clock') {
-      await fetch(`/api/videos/${id}/reset-clock`, { method: 'POST' });
-      const card = btn.closest('.removed-card');
-      const daysEl = card.querySelector('.days-left');
-      if (daysEl) { daysEl.textContent = '90d left'; daysEl.className = 'days-left days-left-ok'; }
-      const purgeBadge = card.querySelector('.badge-purge');
-      if (purgeBadge) purgeBadge.remove();
-      card.classList.remove('purge-ready');
-      btn.textContent = 'Reset ✓';
-      btn.style.color = '#4ade80'; btn.style.borderColor = '#4ade80';
-      setTimeout(() => {
-        btn.textContent = 'Reset clock';
-        btn.style.color = ''; btn.style.borderColor = '';
-        loadRemoved();
-      }, 1800);
+  document.getElementById('btn-bulk-delete').addEventListener('click', function() {
+    confirmBulkAction(this, 'Delete', async () => {
+      const ids = [...selectedIds];
+      await Promise.all(ids.map(id => fetch(`/api/videos/${id}`, { method: 'DELETE' })));
+      selectedIds.clear();
+      load();
+    });
+  });
 
-    } else if (action === 'delete') {
-      if (btn.dataset.confirm !== 'pending') {
-        // first tap — arm the button
-        btn.dataset.confirm = 'pending';
-        btn.textContent = 'Sure?';
-        btn.style.background = '#2d1f1f'; btn.style.borderColor = '#f87171';
-        clearTimeout(deleteConfirmTimer);
-        deleteConfirmTimer = setTimeout(() => {
-          btn.dataset.confirm = '';
-          btn.textContent = 'Delete';
-          btn.style.background = ''; btn.style.borderColor = '';
-        }, 3000);
-      } else {
-        // second tap — confirmed
-        clearTimeout(deleteConfirmTimer);
-        await fetch(`/api/videos/${id}`, { method: 'DELETE' });
-        load();
-      }
+  // ── Active list clicks ─────────────────────────────────────────────────────
+
+  document.getElementById('list').addEventListener('click', async e => {
+    const trashBtn = e.target.closest('.card-trash-btn');
+    if (trashBtn) {
+      await fetch(`/api/videos/${trashBtn.dataset.id}/trash`, { method: 'POST' });
+      load();
+      return;
     }
-  });
 
-  document.getElementById('btn-purge-all-section').addEventListener('click', async () => {
-    await fetch('/api/videos/purge', { method: 'DELETE' });
-    load();
-  });
-
-  /* ── show removed toggle ── */
-
-  document.getElementById('btn-show-removed').addEventListener('click', () => {
-    showRemoved = !showRemoved;
-    const btn = document.getElementById('btn-show-removed');
-    btn.textContent = showRemoved ? 'Hide removed' : 'Show removed';
-    btn.classList.toggle('active', showRemoved);
-    document.getElementById('removed-section').style.display = showRemoved ? '' : 'none';
-    if (showRemoved) loadRemoved();
-  });
-
-  /* ── active list clicks ── */
-
-  document.getElementById('list').addEventListener('click', e => {
     const card = e.target.closest('.video-card');
     if (!card) return;
+
+    if (card.classList.contains('selectable')) {
+      const id = card.dataset.id;
+      if (selectedIds.has(id)) { selectedIds.delete(id); card.classList.remove('selected'); }
+      else                     { selectedIds.add(id);    card.classList.add('selected');    }
+      updateBulkBar();
+      return;
+    }
+
+    let labels = [];
+    try { labels = JSON.parse(card.dataset.labels || '[]'); } catch {}
     current = {
       id:      card.dataset.id,
       title:   card.dataset.title,
       url:     card.dataset.url,
       status:  card.dataset.status,
-      summary: card.dataset.summary || ''
+      summary: card.dataset.summary || '',
+      labels,
     };
     document.getElementById('action-title').textContent = current.title;
     document.getElementById('action-url').textContent   = current.url;
+    document.getElementById('action-url-row').style.display = '';
+    document.getElementById('action-modal-label').textContent = 'Open video';
     buildActionBtns(current.status);
     document.getElementById('action-overlay').classList.add('open');
   });
 
-  /* ── action modal ── */
+  // ── Action modal ───────────────────────────────────────────────────────────
 
   function buildActionBtns(status) {
     const el = document.getElementById('action-btns');
+
     if (status === 'new') {
       el.innerHTML = `
         <button class="btn btn-primary"   id="ab-started">Mark as started &amp; open</button>
-        <button class="btn btn-orange"    id="ab-remove-open">Remove &amp; open</button>
         <button class="btn btn-secondary" id="ab-just">Just open</button>
         <div class="modal-divider"></div>
         <button class="btn btn-muted"     id="ab-summary">Summary</button>
-        <button class="btn btn-danger"    id="ab-remove">Remove from watchlist</button>
+        <button class="btn btn-indigo"    id="ab-labels">Labels…</button>
         <button class="btn btn-cancel"    id="ab-cancel">Cancel</button>`;
     } else {
       el.innerHTML = `
-        <button class="btn btn-orange"    id="ab-remove-open">Remove &amp; open</button>
         <button class="btn btn-secondary" id="ab-just">Just open</button>
         <div class="modal-divider"></div>
         <button class="btn btn-muted"     id="ab-summary">Summary</button>
-        <button class="btn btn-danger"    id="ab-remove">Remove from watchlist</button>
+        <button class="btn btn-indigo"    id="ab-labels">Labels…</button>
         <button class="btn btn-cancel"    id="ab-cancel">Cancel</button>`;
     }
 
@@ -835,13 +922,6 @@
       if (!current) return;
       openUrl(current.url);
       fetch(`/api/videos/${current.id}/started`, { method: 'POST' }).then(load);
-      closeActionModal();
-    });
-
-    document.getElementById('ab-remove-open').addEventListener('click', () => {
-      if (!current) return;
-      openUrl(current.url);
-      fetch(`/api/videos/${current.id}/removed`, { method: 'POST' }).then(load);
       closeActionModal();
     });
 
@@ -858,13 +938,63 @@
       openSummaryOverlay(v);
     });
 
-    document.getElementById('ab-remove').addEventListener('click', () => {
-      if (!current) return;
-      fetch(`/api/videos/${current.id}/removed`, { method: 'POST' }).then(load);
-      closeActionModal();
-    });
+    document.getElementById('ab-labels').addEventListener('click', showLabelEditor);
 
     document.getElementById('ab-cancel').addEventListener('click', closeActionModal);
+  }
+
+  function showLabelEditor() {
+    if (!current) return;
+    document.getElementById('action-modal-label').textContent = 'Edit labels';
+    document.getElementById('action-url-row').style.display = 'none';
+
+    const currentLabelIds = (current.labels || []).map(l => l.label_id);
+    const labeledAtMap = {};
+    (current.labels || []).forEach(l => { labeledAtMap[l.label_id] = l.labeled_at; });
+
+    const el = document.getElementById('action-btns');
+    el.innerHTML = `
+      <div class="label-picker" id="label-editor-picker">
+        ${allLabels.map(l => {
+          const on = currentLabelIds.includes(l.id);
+          const since = on ? `<span class="label-picker-since">since ${fmtDateShort(labeledAtMap[l.id])}</span>` : '';
+          return `
+            <div class="label-picker-item${on ? ' selected' : ''}" data-label-id="${l.id}" data-on="${on}">
+              <span class="label-picker-check">${on ? '✓' : ''}</span>
+              <span class="label-picker-name">${esc(l.name)}</span>
+              ${since}
+            </div>`;
+        }).join('')}
+      </div>
+      <button class="btn btn-indigo" id="ab-labels-apply">Apply</button>
+      <button class="btn btn-cancel" id="ab-labels-back">Cancel</button>`;
+
+    document.getElementById('label-editor-picker').addEventListener('click', e => {
+      const item = e.target.closest('.label-picker-item');
+      if (!item) return;
+      const on = item.classList.toggle('selected');
+      item.querySelector('.label-picker-check').textContent = on ? '✓' : '';
+    });
+
+    document.getElementById('ab-labels-apply').addEventListener('click', async () => {
+      if (!current) return;
+      const selected = Array.from(
+        document.querySelectorAll('#label-editor-picker .label-picker-item.selected')
+      ).map(el => parseInt(el.dataset.labelId, 10));
+      await fetch(`/api/videos/${current.id}/labels`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ labelIds: selected }),
+      });
+      closeActionModal();
+      load();
+    });
+
+    document.getElementById('ab-labels-back').addEventListener('click', () => {
+      document.getElementById('action-url-row').style.display = '';
+      document.getElementById('action-modal-label').textContent = 'Open video';
+      buildActionBtns(current.status);
+    });
   }
 
   document.getElementById('btn-copy-url').addEventListener('click', () => {
@@ -885,7 +1015,187 @@
     current = null;
   }
 
-  /* ── add video modal ── */
+  // ── Filter modal ───────────────────────────────────────────────────────────
+
+  function buildFilterModal() {
+    const list = document.getElementById('filter-label-list');
+    const nonSystem = allLabels.filter(l => l.id !== 2); // exclude Trash from filter options
+    list.innerHTML = nonSystem.map(l => {
+      const sel = filterLabels.includes(l.id);
+      return `
+        <div class="filter-label-item${sel ? ' selected' : ''}" data-label-id="${l.id}">
+          <span class="label-picker-check">${sel ? '✓' : ''}</span>
+          <span class="filter-label-name">${esc(l.name)}</span>
+        </div>`;
+    }).join('');
+
+    document.getElementById('filter-after').value  = filterAfter;
+    document.getElementById('filter-before').value = filterBefore;
+
+    updateFilterModeRow();
+
+    // label click handlers
+    list.querySelectorAll('.filter-label-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const lid = parseInt(item.dataset.labelId, 10);
+        if (item.classList.contains('selected')) {
+          item.classList.remove('selected');
+          item.querySelector('.label-picker-check').textContent = '';
+        } else {
+          item.classList.add('selected');
+          item.querySelector('.label-picker-check').textContent = '✓';
+        }
+        updateFilterModeRow();
+      });
+    });
+  }
+
+  function updateFilterModeRow() {
+    const selected = document.querySelectorAll('#filter-label-list .filter-label-item.selected');
+    const row = document.getElementById('filter-mode-row');
+    row.style.display = selected.length > 1 ? '' : 'none';
+    document.getElementById('fmode-or').classList.toggle('active', filterMode === 'or');
+    document.getElementById('fmode-and').classList.toggle('active', filterMode === 'and');
+  }
+
+  document.getElementById('filter-mode-row').addEventListener('click', e => {
+    const btn = e.target.closest('[data-mode]');
+    if (!btn) return;
+    filterMode = btn.dataset.mode;
+    document.getElementById('fmode-or').classList.toggle('active', filterMode === 'or');
+    document.getElementById('fmode-and').classList.toggle('active', filterMode === 'and');
+  });
+
+  document.getElementById('btn-filter-labels').addEventListener('click', () => {
+    buildFilterModal();
+    document.getElementById('filter-overlay').classList.add('open');
+  });
+
+  document.getElementById('filter-overlay').addEventListener('click', e => {
+    if (e.target === document.getElementById('filter-overlay')) closeFilterModal();
+  });
+
+  document.getElementById('btn-filter-cancel').addEventListener('click', closeFilterModal);
+
+  document.getElementById('btn-filter-apply').addEventListener('click', () => {
+    filterLabels = Array.from(
+      document.querySelectorAll('#filter-label-list .filter-label-item.selected')
+    ).map(el => parseInt(el.dataset.labelId, 10));
+    filterAfter  = document.getElementById('filter-after').value;
+    filterBefore = document.getElementById('filter-before').value;
+    closeFilterModal();
+    updateFilterBtn();
+    load();
+  });
+
+  document.getElementById('btn-filter-clear').addEventListener('click', () => {
+    filterLabels = []; filterAfter = ''; filterBefore = '';
+    document.querySelectorAll('#filter-label-list .filter-label-item.selected').forEach(el => {
+      el.classList.remove('selected');
+      el.querySelector('.label-picker-check').textContent = '';
+    });
+    document.getElementById('filter-after').value  = '';
+    document.getElementById('filter-before').value = '';
+    updateFilterModeRow();
+    updateFilterBtn();
+    closeFilterModal();
+    load();
+  });
+
+  function closeFilterModal() {
+    document.getElementById('filter-overlay').classList.remove('open');
+  }
+
+  function updateFilterBtn() {
+    const hasFilter = filterLabels.length > 0 || filterAfter || filterBefore;
+    const btn = document.getElementById('btn-filter-labels');
+    btn.classList.toggle('active', hasFilter);
+    const count = filterLabels.length + (filterAfter ? 1 : 0) + (filterBefore ? 1 : 0);
+    btn.textContent = hasFilter ? `Filter (${count})` : 'Filter';
+  }
+
+  // text search with debounce
+  let searchTimer = null;
+  document.getElementById('filter-text').addEventListener('input', e => {
+    clearTimeout(searchTimer);
+    filterText = e.target.value.trim();
+    searchTimer = setTimeout(load, 300);
+  });
+
+  // ── Labels management modal ────────────────────────────────────────────────
+
+  async function openLabelsModal() {
+    await loadLabels();
+    renderLabelsList();
+    document.getElementById('labels-overlay').classList.add('open');
+  }
+
+  function renderLabelsList() {
+    const list = document.getElementById('labels-list');
+    const ul   = allLabels.filter(l => l.id !== 1 && l.id !== 2);
+    if (!ul.length) {
+      list.innerHTML = '<div style="color:#52525b;font-size:14px;padding:8px 0">No labels yet.</div>';
+      return;
+    }
+    list.innerHTML = ul.map(l => `
+      <div class="labels-list-item">
+        <span class="labels-list-name">${esc(l.name)}</span>
+        <button class="btn-del-label" data-label-id="${l.id}" title="Delete label">✕</button>
+      </div>`).join('');
+
+    list.querySelectorAll('.btn-del-label').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = parseInt(btn.dataset.labelId, 10);
+        const res = await fetch(`/api/labels/${id}`, { method: 'DELETE' });
+        if (!res.ok) {
+          const { error } = await res.json();
+          btn.style.color = '#f87171';
+          setTimeout(() => { btn.style.color = ''; }, 1500);
+          btn.title = error || 'cannot delete';
+        } else {
+          await loadLabels();
+          renderLabelsList();
+          load();
+        }
+      });
+    });
+  }
+
+  document.getElementById('btn-labels').addEventListener('click', openLabelsModal);
+  document.getElementById('btn-labels-close').addEventListener('click', () => {
+    document.getElementById('labels-overlay').classList.remove('open');
+  });
+  document.getElementById('labels-overlay').addEventListener('click', e => {
+    if (e.target === document.getElementById('labels-overlay')) {
+      document.getElementById('labels-overlay').classList.remove('open');
+    }
+  });
+
+  document.getElementById('new-label-input').addEventListener('input', e => {
+    document.getElementById('btn-create-label').disabled = !e.target.value.trim();
+  });
+
+  document.getElementById('btn-create-label').addEventListener('click', async () => {
+    const input = document.getElementById('new-label-input');
+    const name  = input.value.trim();
+    if (!name) return;
+    const res = await fetch('/api/labels', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    if (res.ok) {
+      input.value = '';
+      document.getElementById('btn-create-label').disabled = true;
+      await loadLabels();
+      renderLabelsList();
+    } else {
+      input.style.borderColor = '#f87171';
+      setTimeout(() => { input.style.borderColor = ''; }, 1500);
+    }
+  });
+
+  // ── Add video modal ────────────────────────────────────────────────────────
 
   function updateAddBtn() {
     const url   = document.getElementById('add-url').value.trim();
@@ -942,19 +1252,15 @@
     const channel = document.getElementById('add-channel').value.trim();
     const emoji   = document.getElementById('add-emoji').value.trim() || '📺';
     if (!url || !title) return;
-
     const btn = document.getElementById('btn-add-submit');
     btn.disabled = true; btn.textContent = 'Adding…';
-
     const res = await fetch('/api/videos', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url, title, channel_name: channel, emoji }),
     });
-
     if (res.ok) {
-      closeAddModal();
-      load();
+      closeAddModal(); load();
     } else {
       btn.disabled = false; btn.textContent = 'Add to watchlist';
       setFetchStatus('Error adding video — try again', 'err');
@@ -970,7 +1276,7 @@
     document.getElementById('add-overlay').classList.remove('open');
   }
 
-  /* ── summary overlay ── */
+  // ── Summary overlay ────────────────────────────────────────────────────────
 
   function setCopyBtnsDisabled(disabled) {
     document.querySelectorAll('.btn-copy-opt').forEach(b => b.disabled = disabled);
@@ -1053,9 +1359,14 @@
     copyText(md).then(() => flashCopyBtn(document.getElementById('btn-copy-md'), 'Markdown'));
   });
 
-  /* ── init ── */
+  // ── Init ───────────────────────────────────────────────────────────────────
 
-  load();
+  async function init() {
+    await loadLabels();
+    load();
+  }
+
+  init();
   setInterval(load, 30000);
 </script>
 </body>
