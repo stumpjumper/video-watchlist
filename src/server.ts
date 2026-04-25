@@ -70,7 +70,7 @@ ${transcript.slice(0, 30000)}`;
   });
   if (!res.ok) throw new Error(`OpenRouter error ${res.status}`);
   const data = await res.json() as { choices: Array<{ message: { content: string } }> };
-  return data.choices[0].message.content.trim();
+  return data.choices[0].message.content.trim().replace(/^```html?\s*/i, '').replace(/\s*```$/, '');
 }
 
 const app = express();

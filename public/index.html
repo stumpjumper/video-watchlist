@@ -76,79 +76,45 @@
     #list { list-style: none; }
 
     .video-card {
-      display: grid;
-      grid-template-columns: 1fr 44px;
-      grid-template-rows: auto auto auto auto;
-      grid-template-areas: "channel del" "title del" "summbtn del" "badge del";
-      column-gap: 10px; row-gap: 3px; padding: 14px 0;
-      border-bottom: 1px solid #27272a;
-    }
-
-    .card-summbtn {
-      grid-area: summbtn;
-      color: #71717a; font-size: 12px; cursor: pointer;
-      padding: 2px 0; white-space: nowrap; align-self: start;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      padding: 14px 16px;
+      background: #1c1c1f;
+      border-radius: 12px;
+      margin-bottom: 8px;
+      cursor: pointer;
       -webkit-tap-highlight-color: transparent;
+      transition: background 0.12s;
+      user-select: none;
+      -webkit-user-select: none;
     }
-    .card-summbtn:active { color: #a1a1aa; }
+    .video-card:active { background: #26262a; }
 
-    .summary-html {
-      background: #1e1e21; border: 1px solid #3f3f46; border-radius: 8px;
-      padding: 16px 18px; margin: 12px 0 16px;
-      max-height: 55vh; overflow-y: auto; -webkit-overflow-scrolling: touch;
-      font-size: 14px; line-height: 1.6; color: #d4d4d8;
-    }
-    .summary-html h3 {
-      color: #f4f4f5; font-size: 11px; font-weight: 700;
-      text-transform: uppercase; letter-spacing: 0.07em; margin: 14px 0 6px;
-    }
-    .summary-html h3:first-child { margin-top: 0; }
-    .summary-html p  { margin-bottom: 10px; }
-    .summary-html ul, .summary-html ol { padding-left: 18px; margin-bottom: 10px; }
-    .summary-html li { margin-bottom: 5px; }
-    .summary-html strong { color: #e4e4e7; }
-
-    .copy-row { display: flex; gap: 8px; margin-bottom: 10px; }
-    .btn-copy-opt {
-      flex: 1; background: #3f3f46; border: 1px solid #52525b;
-      color: #a1a1aa; padding: 9px 0; border-radius: 7px;
-      cursor: pointer; font-size: 13px;
-      -webkit-tap-highlight-color: transparent; transition: background 0.1s;
-    }
-    .btn-copy-opt:active  { background: #52525b; }
-    .btn-copy-opt.copied  { color: #4ade80; border-color: #4ade80; }
-    .btn-copy-opt:disabled { opacity: 0.4; cursor: default; }
-    .video-card:last-child { border-bottom: none; }
     .card-channel {
-      grid-area: channel; font-size: 13px; color: #a1a1aa;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; align-self: end;
+      font-size: 12px; color: #71717a;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .card-title {
-      grid-area: title; color: #93c5fd; cursor: pointer;
-      font-size: 16px; font-weight: 450; line-height: 1.35;
+      color: #93c5fd;
+      font-size: 16px; font-weight: 500; line-height: 1.35;
     }
-    .card-title:active { color: #bfdbfe; }
-    .card-badge { grid-area: badge; align-self: start; padding-top: 2px; }
-    .card-del {
-      grid-area: del; align-self: center; background: none;
-      border: 1px solid #3f3f46; color: #f87171;
-      width: 44px; height: 44px; border-radius: 8px; cursor: pointer;
-      font-size: 18px; display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0; transition: background 0.1s, border-color 0.1s;
-      -webkit-tap-highlight-color: transparent;
+    .card-footer {
+      display: flex; align-items: center; gap: 8px; margin-top: 2px;
     }
-    .card-del:active { background: #2d1f1f; border-color: #f87171; }
+    .card-badge { /* inherits from .badge */ }
+    .card-date { font-size: 12px; color: #52525b; margin-left: auto; }
 
     /* ── Removed section ── */
 
-    .removed-section { margin-top: 32px; }
+    .removed-section { margin-top: 40px; }
     .removed-header {
       display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
       margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #27272a;
     }
     .removed-header-label {
       font-size: 11px; font-weight: 600; text-transform: uppercase;
-      letter-spacing: 0.08em; color: #a1a1aa; flex: 1;
+      letter-spacing: 0.08em; color: #71717a; flex: 1;
     }
     .btn-purge-all {
       background: none; border: 1px solid #3f3f46; color: #f87171;
@@ -161,87 +127,103 @@
     #removed-list { list-style: none; }
 
     .removed-card {
-      display: grid;
-      grid-template-columns: 1fr auto auto;
-      grid-template-rows: auto auto auto;
-      grid-template-areas: "channel . ." "title title title" "actions actions actions";
-      column-gap: 8px; row-gap: 4px; padding: 12px 0;
-      border-bottom: 1px solid #1f1f23; opacity: 0.85;
+      padding: 12px 0;
+      border-bottom: 1px solid #1f1f23;
     }
     .removed-card:last-child { border-bottom: none; }
-    .removed-card.purge-ready { opacity: 1; }
 
-    .removed-channel {
-      grid-area: channel; font-size: 12px; color: #a1a1aa;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; align-self: center;
+    .removed-card-top {
+      display: flex; align-items: baseline; gap: 8px; margin-bottom: 3px;
     }
+    .removed-channel {
+      font-size: 12px; color: #71717a;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      flex: 1; min-width: 0;
+    }
+    .removed-added {
+      font-size: 11px; color: #52525b; white-space: nowrap; flex-shrink: 0;
+    }
+
+    .days-left {
+      font-size: 11px; font-weight: 600; white-space: nowrap; flex-shrink: 0;
+      letter-spacing: 0.02em;
+    }
+    .days-left-ok     { color: #52525b; }
+    .days-left-warn   { color: #d97706; }
+    .days-left-urgent { color: #f87171; }
+
     .removed-title {
-      grid-area: title; font-size: 14px; line-height: 1.35; color: #71717a;
+      font-size: 14px; line-height: 1.35; color: #71717a; margin-bottom: 8px;
     }
     .removed-title a { color: inherit; text-decoration: none; }
-    .removed-title a:hover { color: #71717a; text-decoration: underline; }
+    .removed-title a:hover { color: #a1a1aa; text-decoration: underline; }
+
     .removed-actions {
-      grid-area: actions; display: flex; gap: 6px; flex-wrap: wrap; padding-top: 4px;
+      display: flex; gap: 6px; flex-wrap: wrap;
     }
     .btn-sm {
       background: none; border: 1px solid #3f3f46; color: #a1a1aa;
-      padding: 4px 10px; border-radius: 5px; cursor: pointer; font-size: 12px;
+      padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;
       white-space: nowrap; transition: border-color 0.1s, color 0.1s;
       -webkit-tap-highlight-color: transparent;
     }
     .btn-sm:active     { border-color: #71717a; color: #e4e4e7; }
-    .btn-sm.del        { color: #f87171; border-color: #3f3f46; }
+    .btn-sm.del        { color: #f87171; }
     .btn-sm.del:active { background: #2d1f1f; border-color: #f87171; }
 
     /* ── Desktop layout ── */
 
     @media (min-width: 600px) {
       .video-card {
-        grid-template-columns: 160px 1fr 80px 96px 36px;
-        grid-template-rows: auto auto;
-        grid-template-areas:
-          "channel title   badge date del"
-          ".       summbtn .     .    del";
-        align-items: center; column-gap: 14px; padding: 11px 0;
+        display: grid;
+        grid-template-columns: 160px 1fr 80px 96px;
+        grid-template-areas: "channel title badge date";
+        grid-template-rows: auto;
+        gap: 0; column-gap: 16px;
+        align-items: center;
+        padding: 10px 14px;
+        border-radius: 8px;
+        margin-bottom: 4px;
+        flex-direction: unset;
       }
-      .card-title   { font-size: 15px; }
-      .card-badge   { padding-top: 0; }
-      .card-summbtn { align-self: start; padding: 1px 0 5px; }
-      .summary-modal { max-width: 640px; }
-      .card-date {
-        grid-area: date; font-size: 13px; color: #71717a;
-        text-align: right; white-space: nowrap;
-      }
-      .card-del { width: 36px; height: 36px; font-size: 14px; border-radius: 6px; }
+      .card-channel { grid-area: channel; font-size: 13px; }
+      .card-title   { grid-area: title; font-size: 15px; }
+      .card-footer  { display: contents; }
+      .card-badge   { grid-area: badge; }
+      .card-date    { grid-area: date; text-align: right; margin-left: 0; font-size: 13px; color: #71717a; }
 
       .list-header {
         display: grid;
-        grid-template-columns: 160px 1fr 80px 96px 36px;
-        column-gap: 14px; padding: 0 0 10px; margin-bottom: 2px;
+        grid-template-columns: 160px 1fr 80px 96px;
+        column-gap: 16px; padding: 0 14px 10px; margin-bottom: 4px;
         border-bottom: 1px solid #3f3f46;
         font-size: 11px; font-weight: 600;
         text-transform: uppercase; letter-spacing: 0.06em; color: #71717a;
       }
+      .list-header span:last-child { text-align: right; }
 
       .removed-card {
-        grid-template-columns: 160px 1fr auto auto auto;
-        grid-template-rows: auto;
-        grid-template-areas: "channel title date restore del";
-        align-items: center; column-gap: 12px; padding: 9px 0;
+        display: grid;
+        grid-template-columns: 1fr auto auto auto auto auto;
+        grid-template-areas: "title date days restore reset del";
+        align-items: center; column-gap: 10px; padding: 9px 0;
+        gap: 0;
       }
-      .removed-card .removed-actions { display: contents; padding-top: 0; }
-      .removed-card .removed-actions .btn-sm:nth-child(1) { grid-area: restore; }
-      .removed-card .removed-actions .btn-sm:nth-child(2) { grid-area: restore; }
-      .removed-date {
-        grid-area: date; font-size: 12px; color: #3f3f46;
-        text-align: right; white-space: nowrap;
-      }
+      .removed-card-top   { display: contents; }
+      .removed-channel    { display: none; }
+      .removed-added      { grid-area: date; font-size: 12px; color: #52525b; white-space: nowrap; }
+      .days-left          { grid-area: days; }
+      .removed-title      { grid-area: title; margin-bottom: 0; font-size: 13px; }
+      .removed-actions    { display: contents; }
+      .removed-actions .btn-sm:nth-child(1) { grid-area: restore; }
+      .removed-actions .btn-sm:nth-child(2) { grid-area: reset; }
+      .removed-actions .btn-sm:nth-child(3) { grid-area: del; }
+
+      .summary-modal { max-width: 640px; }
     }
 
     @media (max-width: 599px) {
       .list-header { display: none; }
-      .card-date   { display: none; }
-      .removed-date { display: none; }
     }
 
     /* ── Empty ── */
@@ -281,23 +263,9 @@
       font-size: 17px; color: #f4f4f5; font-weight: 500;
       margin-bottom: 10px; line-height: 1.4;
     }
-    .modal-summary {
-      background: #1e1e21; border: 1px solid #3f3f46;
-      border-radius: 8px; padding: 12px 14px; margin-bottom: 16px;
-      font-size: 14px; color: #a1a1aa; line-height: 1.55;
-      white-space: pre-wrap; max-height: 260px; overflow-y: auto;
-    }
-    .btn-summary-toggle {
-      background: none; border: 1px solid #3f3f46; color: #71717a;
-      padding: 5px 12px; border-radius: 6px; cursor: pointer;
-      font-size: 12px; margin-bottom: 14px; display: block;
-      transition: border-color 0.15s, color 0.15s;
-      -webkit-tap-highlight-color: transparent;
-    }
-    .btn-summary-toggle:hover { border-color: #71717a; color: #a1a1aa; }
 
     .modal-url-row {
-      display: flex; align-items: center; gap: 8px; margin-bottom: 20px;
+      display: flex; align-items: center; gap: 8px; margin-bottom: 16px;
       padding: 8px 10px; background: #18181b;
       border-radius: 6px; border: 1px solid #3f3f46;
     }
@@ -310,10 +278,12 @@
       background: none; border: 1px solid #3f3f46; color: #a1a1aa;
       padding: 3px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;
       white-space: nowrap; flex-shrink: 0; transition: color 0.1s, border-color 0.1s;
+      -webkit-tap-highlight-color: transparent;
     }
     .btn-copy.copied { color: #4ade80; border-color: #4ade80; }
 
     .modal-actions { display: flex; flex-direction: column; gap: 10px; }
+    .modal-divider { height: 1px; background: #3f3f46; margin: 2px 0; }
 
     /* Add modal fields */
     .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
@@ -340,17 +310,60 @@
       font-size: 16px; font-weight: 500; text-align: left; width: 100%;
       -webkit-tap-highlight-color: transparent; transition: filter 0.1s;
     }
-    .btn:active  { filter: brightness(0.85); }
+    .btn:active   { filter: brightness(0.85); }
     .btn:disabled { opacity: 0.4; cursor: default; }
     .btn-primary   { background: #2563eb; color: #fff; }
     .btn-green     { background: #166534; color: #bbf7d0; }
     .btn-orange    { background: #9a3412; color: #fed7aa; }
     .btn-secondary { background: #3f3f46; color: #e4e4e7; }
-    .btn-cancel    { background: #27272a; color: #71717a; border: 1px solid #3f3f46; margin-top: 4px; }
+    .btn-muted     { background: none; border: 1px solid #3f3f46; color: #71717a; }
+    .btn-danger    { background: none; border: 1px solid #3f3f46; color: #f87171; }
+    .btn-danger:active { background: #2d1f1f; border-color: #f87171; }
+    .btn-cancel    { background: #27272a; color: #71717a; border: 1px solid #3f3f46; }
 
     @media (min-width: 600px) {
       .btn { padding: 11px 16px; font-size: 14px; border-radius: 7px; }
     }
+
+    /* ── Summary overlay ── */
+
+    .summary-modal {
+      display: flex;
+      flex-direction: column;
+      max-height: 85vh;
+    }
+
+    @media (min-width: 600px) {
+      .summary-modal { max-height: 80vh; }
+    }
+
+    .summary-html {
+      flex: 1; min-height: 0;
+      background: #1e1e21; border: 1px solid #3f3f46; border-radius: 8px;
+      padding: 16px 18px; margin: 12px 0 16px;
+      overflow-y: auto; -webkit-overflow-scrolling: touch;
+      font-size: 14px; line-height: 1.6; color: #d4d4d8;
+    }
+    .summary-html h3 {
+      color: #f4f4f5; font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.07em; margin: 14px 0 6px;
+    }
+    .summary-html h3:first-child { margin-top: 0; }
+    .summary-html p  { margin-bottom: 10px; }
+    .summary-html ul, .summary-html ol { padding-left: 18px; margin-bottom: 10px; }
+    .summary-html li { margin-bottom: 5px; }
+    .summary-html strong { color: #e4e4e7; }
+
+    .copy-row { display: flex; gap: 8px; margin-bottom: 10px; }
+    .btn-copy-opt {
+      flex: 1; background: #3f3f46; border: 1px solid #52525b;
+      color: #a1a1aa; padding: 9px 0; border-radius: 7px;
+      cursor: pointer; font-size: 13px;
+      -webkit-tap-highlight-color: transparent; transition: background 0.1s;
+    }
+    .btn-copy-opt:active  { background: #52525b; }
+    .btn-copy-opt.copied  { color: #4ade80; border-color: #4ade80; }
+    .btn-copy-opt:disabled { opacity: 0.4; cursor: default; }
   </style>
 </head>
 <body>
@@ -373,7 +386,7 @@
 
   <div class="list-header" aria-hidden="true">
     <span>Channel</span><span>Title</span><span>Status</span>
-    <span style="text-align:right">Added</span><span></span>
+    <span>Added</span>
   </div>
 
   <ul id="list"></ul>
@@ -398,10 +411,10 @@
   <div class="modal">
     <div class="modal-handle"></div>
     <div class="modal-label">Open video</div>
-    <div class="modal-title"  id="action-title"></div>
+    <div class="modal-title" id="action-title"></div>
     <div class="modal-url-row">
       <span class="modal-url" id="action-url"></span>
-      <button class="btn-copy" id="btn-copy" title="Copy URL to clipboard">Copy</button>
+      <button class="btn-copy" id="btn-copy-url">Copy</button>
     </div>
     <div class="modal-actions" id="action-btns"></div>
   </div>
@@ -456,15 +469,15 @@
         <button class="btn-copy-opt" id="btn-copy-html">HTML</button>
         <button class="btn-copy-opt" id="btn-copy-md">Markdown</button>
       </div>
-      <button class="btn btn-cancel" id="btn-summary-overlay-close">Close</button>
+      <button class="btn btn-secondary" id="btn-summary-overlay-close">Close</button>
     </div>
   </div>
 </div>
 
 <script>
-  let current       = null;
-  let showRemoved   = false;
-  let fetchTimer    = null;
+  let current        = null;
+  let showRemoved    = false;
+  let fetchTimer     = null;
   let purgeDismissed = false;
 
   /* ── utils ── */
@@ -483,6 +496,37 @@
     const a = document.createElement('a');
     a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  }
+
+  function copyText(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;top:-9999px;left:0;width:2em;height:2em;opacity:0;';
+    document.body.appendChild(ta);
+    ta.focus(); ta.select(); ta.setSelectionRange(0, text.length);
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch {}
+    document.body.removeChild(ta);
+    if (ok) return Promise.resolve();
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text).catch(() => Promise.resolve());
+    }
+    return Promise.resolve();
+  }
+
+  function daysLeft(removedAt) {
+    if (!removedAt) return null;
+    const ms = Date.now() - new Date(removedAt).getTime();
+    return Math.max(0, Math.ceil(90 - ms / 86400000));
+  }
+
+  function daysLeftHtml(days, purgeReady) {
+    if (purgeReady || days <= 0) {
+      return '<span class="days-left days-left-urgent">purge ready</span>';
+    }
+    const cls = days <= 10 ? 'days-left-urgent' : days <= 30 ? 'days-left-warn' : 'days-left-ok';
+    return `<span class="days-left ${cls}">${days}d left</span>`;
   }
 
   /* ── load & render active list ── */
@@ -512,20 +556,16 @@
         ? '<span class="badge badge-started">Started</span>'
         : '<span class="badge badge-new">New</span>';
       return `
-        <li class="video-card">
-          <span class="card-channel">${esc(v.emoji)} ${esc(v.channel_name)}</span>
-          <span class="card-title"
+        <li class="video-card"
             data-id="${v.id}" data-title="${esc(v.title)}"
             data-url="${esc(v.url)}" data-status="${v.status}"
-            data-summary="${esc(v.summary || '')}"
-            title="Tap to open">${esc(v.title)}</span>
-          <span class="btn-card-summary" role="button" tabindex="0"
-            data-id="${v.id}" data-title="${esc(v.title)}"
-            data-summary="${esc(v.summary || '')}">Summary</span>
-          <span class="card-badge">${badge}</span>
-          <span class="card-date">${fmtDate(v.added_at)}</span>
-          <button class="card-del" data-id="${v.id}"
-            aria-label="Remove from watchlist" title="Remove from watchlist">✕</button>
+            data-summary="${esc(v.summary || '')}">
+          <span class="card-channel">${esc(v.emoji)} ${esc(v.channel_name)}</span>
+          <span class="card-title">${esc(v.title)}</span>
+          <div class="card-footer">
+            <span class="card-badge">${badge}</span>
+            <span class="card-date">${fmtDate(v.added_at)}</span>
+          </div>
         </li>`;
     }).join('');
   }
@@ -568,8 +608,8 @@
   }
 
   function renderRemoved(videos, purgeReadyCount) {
-    const list  = document.getElementById('removed-list');
-    const empty = document.getElementById('removed-empty');
+    const list     = document.getElementById('removed-list');
+    const empty    = document.getElementById('removed-empty');
     const purgeBtn = document.getElementById('btn-purge-all-section');
 
     purgeBtn.style.display = purgeReadyCount > 0 ? '' : 'none';
@@ -581,22 +621,27 @@
     empty.style.display = 'none';
 
     list.innerHTML = videos.map(v => {
-      const badge = v.purge_ready
+      const days     = daysLeft(v.removed_at);
+      const daysHtml = days !== null ? daysLeftHtml(days, v.purge_ready) : '';
+      const purgeLabel = v.purge_ready
         ? '<span class="badge badge-purge" title="Over 90 days old">Ready to purge</span> '
         : '';
       return `
-        <li class="removed-card${v.purge_ready ? ' purge-ready' : ''}">
-          <span class="removed-channel">${esc(v.emoji)} ${esc(v.channel_name)}</span>
-          <span class="removed-title">
-            ${badge}<a href="${esc(v.url)}" target="_blank" rel="noopener noreferrer"
+        <li class="removed-card${v.purge_ready ? ' purge-ready' : ''}" data-id="${v.id}">
+          <div class="removed-card-top">
+            <span class="removed-channel">${esc(v.emoji)} ${esc(v.channel_name)}</span>
+            <span class="removed-added">${fmtDate(v.added_at)}</span>
+            ${daysHtml}
+          </div>
+          <div class="removed-title">
+            ${purgeLabel}<a href="${esc(v.url)}" target="_blank" rel="noopener noreferrer"
               title="${esc(v.url)}">${esc(v.title)}</a>
-          </span>
-          <span class="removed-date">${v.removed_at ? fmtDate(v.removed_at) : ''}</span>
+          </div>
           <div class="removed-actions">
             <button class="btn-sm" data-id="${v.id}" data-action="restore"
               title="Put back in watchlist as New">Restore</button>
             <button class="btn-sm" data-id="${v.id}" data-action="reset-clock"
-              title="Reset the 90-day clock — gives another 3 months before it's purge-ready">Reset clock</button>
+              title="Reset the 90-day clock">Reset clock</button>
             <button class="btn-sm del" data-id="${v.id}" data-action="delete"
               title="Permanently delete">Delete</button>
           </div>
@@ -606,6 +651,8 @@
 
   /* ── removed section actions ── */
 
+  let deleteConfirmTimer = null;
+
   document.getElementById('removed-list').addEventListener('click', async e => {
     const btn = e.target.closest('[data-action]');
     if (!btn) return;
@@ -614,12 +661,41 @@
     if (action === 'restore') {
       await fetch(`/api/videos/${id}/restore`, { method: 'POST' });
       load();
+
     } else if (action === 'reset-clock') {
       await fetch(`/api/videos/${id}/reset-clock`, { method: 'POST' });
-      loadRemoved();
+      const card = btn.closest('.removed-card');
+      const daysEl = card.querySelector('.days-left');
+      if (daysEl) { daysEl.textContent = '90d left'; daysEl.className = 'days-left days-left-ok'; }
+      const purgeBadge = card.querySelector('.badge-purge');
+      if (purgeBadge) purgeBadge.remove();
+      card.classList.remove('purge-ready');
+      btn.textContent = 'Reset ✓';
+      btn.style.color = '#4ade80'; btn.style.borderColor = '#4ade80';
+      setTimeout(() => {
+        btn.textContent = 'Reset clock';
+        btn.style.color = ''; btn.style.borderColor = '';
+        loadRemoved();
+      }, 1800);
+
     } else if (action === 'delete') {
-      await fetch(`/api/videos/${id}`, { method: 'DELETE' });
-      load();
+      if (btn.dataset.confirm !== 'pending') {
+        // first tap — arm the button
+        btn.dataset.confirm = 'pending';
+        btn.textContent = 'Sure?';
+        btn.style.background = '#2d1f1f'; btn.style.borderColor = '#f87171';
+        clearTimeout(deleteConfirmTimer);
+        deleteConfirmTimer = setTimeout(() => {
+          btn.dataset.confirm = '';
+          btn.textContent = 'Delete';
+          btn.style.background = ''; btn.style.borderColor = '';
+        }, 3000);
+      } else {
+        // second tap — confirmed
+        clearTimeout(deleteConfirmTimer);
+        await fetch(`/api/videos/${id}`, { method: 'DELETE' });
+        load();
+      }
     }
   });
 
@@ -635,33 +711,26 @@
     const btn = document.getElementById('btn-show-removed');
     btn.textContent = showRemoved ? 'Hide removed' : 'Show removed';
     btn.classList.toggle('active', showRemoved);
-    const section = document.getElementById('removed-section');
-    section.style.display = showRemoved ? '' : 'none';
+    document.getElementById('removed-section').style.display = showRemoved ? '' : 'none';
     if (showRemoved) loadRemoved();
   });
 
   /* ── active list clicks ── */
 
   document.getElementById('list').addEventListener('click', e => {
-    const titleEl = e.target.closest('.card-title');
-    if (titleEl) {
-      current = { id: titleEl.dataset.id, title: titleEl.dataset.title,
-                  url: titleEl.dataset.url, status: titleEl.dataset.status,
-                  summary: titleEl.dataset.summary || '' };
-      document.getElementById('action-title').textContent = current.title;
-      document.getElementById('action-url').textContent   = current.url;
-      buildActionBtns(current.status);
-      document.getElementById('action-overlay').classList.add('open');
-      return;
-    }
-    const summBtn = e.target.closest('.btn-card-summary');
-    if (summBtn) {
-      openSummaryOverlay({ id: summBtn.dataset.id, title: summBtn.dataset.title,
-                           summary: summBtn.dataset.summary || '' });
-      return;
-    }
-    const del = e.target.closest('.card-del');
-    if (del) fetch(`/api/videos/${del.dataset.id}/removed`, { method: 'POST' }).then(load);
+    const card = e.target.closest('.video-card');
+    if (!card) return;
+    current = {
+      id:      card.dataset.id,
+      title:   card.dataset.title,
+      url:     card.dataset.url,
+      status:  card.dataset.status,
+      summary: card.dataset.summary || ''
+    };
+    document.getElementById('action-title').textContent = current.title;
+    document.getElementById('action-url').textContent   = current.url;
+    buildActionBtns(current.status);
+    document.getElementById('action-overlay').classList.add('open');
   });
 
   /* ── action modal ── */
@@ -670,29 +739,32 @@
     const el = document.getElementById('action-btns');
     if (status === 'new') {
       el.innerHTML = `
-        <button class="btn btn-primary" id="ab-started"
-          title="Flags it as started but keeps it in your list">Mark as started &amp; open</button>
-        <button class="btn btn-orange" id="ab-remove"
-          title="Opens it and moves it to removed — you're confident you'll finish it">Remove &amp; open</button>
+        <button class="btn btn-primary"   id="ab-started">Mark as started &amp; open</button>
+        <button class="btn btn-orange"    id="ab-remove-open">Remove &amp; open</button>
         <button class="btn btn-secondary" id="ab-just">Just open</button>
-        <button class="btn btn-cancel" id="ab-cancel">Cancel</button>`;
+        <div class="modal-divider"></div>
+        <button class="btn btn-muted"     id="ab-summary">Summary</button>
+        <button class="btn btn-danger"    id="ab-remove">Remove from watchlist</button>
+        <button class="btn btn-cancel"    id="ab-cancel">Cancel</button>`;
     } else {
       el.innerHTML = `
-        <button class="btn btn-orange" id="ab-remove"
-          title="Opens it and moves it to removed">Remove &amp; open</button>
+        <button class="btn btn-orange"    id="ab-remove-open">Remove &amp; open</button>
         <button class="btn btn-secondary" id="ab-just">Just open</button>
-        <button class="btn btn-cancel" id="ab-cancel">Cancel</button>`;
+        <div class="modal-divider"></div>
+        <button class="btn btn-muted"     id="ab-summary">Summary</button>
+        <button class="btn btn-danger"    id="ab-remove">Remove from watchlist</button>
+        <button class="btn btn-cancel"    id="ab-cancel">Cancel</button>`;
     }
 
-    const s = document.getElementById('ab-started');
-    if (s) s.addEventListener('click', () => {
+    const started = document.getElementById('ab-started');
+    if (started) started.addEventListener('click', () => {
       if (!current) return;
       openUrl(current.url);
       fetch(`/api/videos/${current.id}/started`, { method: 'POST' }).then(load);
       closeActionModal();
     });
 
-    document.getElementById('ab-remove').addEventListener('click', () => {
+    document.getElementById('ab-remove-open').addEventListener('click', () => {
       if (!current) return;
       openUrl(current.url);
       fetch(`/api/videos/${current.id}/removed`, { method: 'POST' }).then(load);
@@ -705,14 +777,26 @@
       closeActionModal();
     });
 
+    document.getElementById('ab-summary').addEventListener('click', () => {
+      if (!current) return;
+      const v = { ...current };
+      closeActionModal();
+      openSummaryOverlay(v);
+    });
+
+    document.getElementById('ab-remove').addEventListener('click', () => {
+      if (!current) return;
+      fetch(`/api/videos/${current.id}/removed`, { method: 'POST' }).then(load);
+      closeActionModal();
+    });
+
     document.getElementById('ab-cancel').addEventListener('click', closeActionModal);
   }
 
-
-  document.getElementById('btn-copy').addEventListener('click', () => {
+  document.getElementById('btn-copy-url').addEventListener('click', () => {
     if (!current) return;
-    navigator.clipboard.writeText(current.url).then(() => {
-      const btn = document.getElementById('btn-copy');
+    copyText(current.url).then(() => {
+      const btn = document.getElementById('btn-copy-url');
       btn.textContent = 'Copied!'; btn.classList.add('copied');
       setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
     });
@@ -755,7 +839,6 @@
     fetchTimer = setTimeout(() => fetchPreview(url), 600);
   });
 
-  // allow user to type title manually and enable the button
   document.getElementById('add-title').addEventListener('input', updateAddBtn);
 
   async function fetchPreview(url) {
@@ -837,10 +920,8 @@
       const res  = await fetch(`/api/videos/${video.id}/summary`, { method: 'POST' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'failed');
-      const cardBtn = document.querySelector(`.btn-card-summary[data-id="${video.id}"]`);
-      if (cardBtn) cardBtn.dataset.summary = data.summary;
-      const cardTitle = document.querySelector(`.card-title[data-id="${video.id}"]`);
-      if (cardTitle) cardTitle.dataset.summary = data.summary;
+      const card = document.querySelector(`.video-card[data-id="${video.id}"]`);
+      if (card) card.dataset.summary = data.summary;
       contentEl.innerHTML = data.summary;
       setCopyBtnsDisabled(false);
     } catch (err) {
@@ -857,13 +938,14 @@
     if (e.target === document.getElementById('summary-overlay')) closeSummaryOverlay();
   });
   document.getElementById('btn-summary-overlay-close').addEventListener('click', closeSummaryOverlay);
+
   function htmlToMarkdown(html) {
     const div = document.createElement('div');
     div.innerHTML = html;
     function toMd(node) {
       if (node.nodeType === Node.TEXT_NODE) return node.textContent;
       if (node.nodeType !== Node.ELEMENT_NODE) return '';
-      const tag = node.tagName.toLowerCase();
+      const tag   = node.tagName.toLowerCase();
       const inner = Array.from(node.childNodes).map(toMd).join('');
       switch (tag) {
         case 'h3': case 'h4': return `### ${inner}\n\n`;
@@ -882,27 +964,6 @@
   function flashCopyBtn(btn, original) {
     btn.textContent = 'Copied!'; btn.classList.add('copied');
     setTimeout(() => { btn.textContent = original; btn.classList.remove('copied'); }, 1500);
-  }
-
-  function copyText(text) {
-    // Synchronous execCommand path first — required for iOS gesture context
-    const ta = document.createElement('textarea');
-    ta.value = text;
-    ta.setAttribute('readonly', '');
-    ta.style.cssText = 'position:fixed;top:-9999px;left:0;width:2em;height:2em;opacity:0;';
-    document.body.appendChild(ta);
-    ta.focus();
-    ta.select();
-    ta.setSelectionRange(0, text.length);
-    let ok = false;
-    try { ok = document.execCommand('copy'); } catch {}
-    document.body.removeChild(ta);
-    if (ok) return Promise.resolve();
-    // Modern API fallback (works on desktop/HTTPS)
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      return navigator.clipboard.writeText(text).catch(() => Promise.resolve());
-    }
-    return Promise.resolve();
   }
 
   document.getElementById('btn-copy-plain').addEventListener('click', () => {
