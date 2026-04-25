@@ -64,6 +64,16 @@ On any non-201: note `(watchlist unavailable)` and continue without stopping the
 ⚡ Tesla: NEW — "Cybertruck Update" — https://youtu.be/xyz789 (watchlist unavailable)
 ```
 
+## On-demand summaries
+
+The server can generate an AI summary for any video on demand — you do not need to implement summary generation yourself. When a user asks for a summary of a watchlist video, direct them to tap **Summary** in the app, or call:
+
+```bash
+curl -s -X POST "$WATCHLIST_URL/api/videos/$VIDEO_ID/summary"
+```
+
+The server fetches the YouTube transcript via yt-dlp, sends it to an LLM, and returns structured HTML. The result is cached in the database so subsequent calls are instant. This requires `OPENROUTER_API_KEY` to be configured on the server.
+
 ## Other available endpoints
 
 These are informational — you generally won't need them during a check, but they're available if you need to query or manage the list.
