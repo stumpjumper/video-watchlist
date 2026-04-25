@@ -7,3 +7,4 @@ claude_restart_command
 logs/
 .env
 certs/
+README_local.md
