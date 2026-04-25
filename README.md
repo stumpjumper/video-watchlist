@@ -34,6 +34,8 @@ A lightweight, self-hosted YouTube watchlist. Add videos you want to watch later
 git clone https://github.com/stumpjumper/video-watchlist
 cd video-watchlist
 npm install
+cp .env.example .env
+# edit .env and add your OPENROUTER_API_KEY
 ```
 
 ### Run
@@ -43,7 +45,7 @@ npm install
 npm run dev
 
 # production
-OPENROUTER_API_KEY=sk-or-... npm start
+npm start
 ```
 
 Open [http://localhost:4000](http://localhost:4000).
