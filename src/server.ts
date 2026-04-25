@@ -90,16 +90,32 @@ app.get('/api/videos/removed', (_req: Request, res: Response) => {
   res.json(getRemoved());
 });
 
-app.post('/api/videos', (req: Request, res: Response) => {
-  const { url, title, channel_name = '', emoji = '📺', summary } = req.body ?? {};
+app.post('/api/videos', async (req: Request, res: Response) => {
+  let { url, title = '', channel_name = '', emoji = '📺', summary } = req.body ?? {};
   if (typeof url !== 'string' || !url.trim()) {
     res.status(400).json({ error: 'url is required' }); return;
   }
-  if (typeof title !== 'string' || !title.trim()) {
-    res.status(400).json({ error: 'title is required' }); return;
+  url = url.trim();
+
+  if (!title.trim()) {
+    try {
+      const oEmbed = await fetch(
+        `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`
+      );
+      if (oEmbed.ok) {
+        const data = await oEmbed.json() as { title: string; author_name: string };
+        title        = data.title       || '';
+        channel_name = channel_name || data.author_name || '';
+      }
+    } catch {}
   }
+
+  if (!title.trim()) {
+    res.status(400).json({ error: 'title is required and could not be fetched from YouTube' }); return;
+  }
+
   const summaryStr = typeof summary === 'string' && summary.trim() ? summary.trim() : undefined;
-  const video = addVideo(url.trim(), title.trim(), String(channel_name), String(emoji), summaryStr);
+  const video = addVideo(url, title.trim(), String(channel_name), String(emoji), summaryStr);
   res.status(201).json(video);
 });
 
