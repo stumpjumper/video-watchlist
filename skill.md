@@ -43,7 +43,7 @@ Fields:
 | `emoji` | no | Emoji for the channel (defaults to 📺) |
 | `summary` | no | Plain-text summary; include if you already generated one |
 
-**Tip:** if your agent already has the title and channel from an RSS feed, pass them — it saves the server a round-trip to YouTube. If you only have the URL, omit `title` and the server will fetch it.
+**Tip:** pass `title` and `channel_name` when you already have them (e.g. from an RSS feed) — it saves the server a round-trip to YouTube. If you only have the URL, omit both and the server handles it.
 
 Success: HTTP 201 with the new video record as JSON.
 
