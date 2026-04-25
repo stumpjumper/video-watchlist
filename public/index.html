@@ -226,6 +226,32 @@
       .list-header { display: none; }
     }
 
+    /* ── Sort row ── */
+
+    .sort-row {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 14px;
+    }
+    .sort-label { font-size: 12px; color: #52525b; white-space: nowrap; }
+    .sort-select {
+      background: #1c1c1f; border: 1px solid #3f3f46; color: #a1a1aa;
+      padding: 5px 10px; border-radius: 6px; font-size: 13px;
+      outline: none; cursor: pointer;
+      -webkit-appearance: none; appearance: none;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .sort-select:focus { border-color: #71717a; color: #e4e4e7; }
+    .sort-dir {
+      background: none; border: 1px solid #3f3f46; color: #71717a;
+      width: 32px; height: 30px; border-radius: 6px; cursor: pointer;
+      font-size: 15px; display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; transition: color 0.15s, border-color 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .sort-dir:active          { color: #e4e4e7; border-color: #71717a; }
+    .sort-dir.desc            { color: #a1a1aa; }
+    .sort-dir.asc             { color: #a5b4fc; border-color: #6366f1; }
+
     /* ── Empty ── */
 
     .empty { color: #52525b; text-align: center; padding: 64px 0; font-size: 16px; }
@@ -312,10 +338,10 @@
     }
     .btn:active   { filter: brightness(0.85); }
     .btn:disabled { opacity: 0.4; cursor: default; }
-    .btn-primary   { background: #2563eb; color: #fff; }
-    .btn-green     { background: #166534; color: #bbf7d0; }
-    .btn-orange    { background: #9a3412; color: #fed7aa; }
-    .btn-secondary { background: #3f3f46; color: #e4e4e7; }
+    .btn-primary   { background: #1e3154; border: 1px solid #3b82f6; color: #93c5fd; }
+    .btn-green     { background: #14291e; border: 1px solid #16a34a; color: #4ade80; }
+    .btn-orange    { background: #2c1a09; border: 1px solid #c2410c; color: #fb923c; }
+    .btn-secondary { background: #3f3f46; color: #e4e4e7; border: none; }
     .btn-muted     { background: none; border: 1px solid #3f3f46; color: #71717a; }
     .btn-danger    { background: none; border: 1px solid #3f3f46; color: #f87171; }
     .btn-danger:active { background: #2d1f1f; border-color: #f87171; }
@@ -382,6 +408,17 @@
     <button class="purge-banner-btn" id="btn-purge-review">Review</button>
     <button class="purge-banner-btn danger" id="btn-purge-all-banner">Delete all</button>
     <button class="purge-banner-btn" id="btn-purge-dismiss" title="Dismiss for now">✕</button>
+  </div>
+
+  <div class="sort-row">
+    <span class="sort-label">Sort</span>
+    <select id="sort-field" class="sort-select">
+      <option value="added_at">Date added</option>
+      <option value="status">Status</option>
+      <option value="channel_name">Channel</option>
+      <option value="title">Title</option>
+    </select>
+    <button class="sort-dir desc" id="sort-dir" title="Toggle sort direction">↓</button>
   </div>
 
   <div class="list-header" aria-hidden="true">
@@ -479,6 +516,8 @@
   let showRemoved    = false;
   let fetchTimer     = null;
   let purgeDismissed = false;
+  let sortBy         = 'added_at';
+  let sortDir        = 'desc';
 
   /* ── utils ── */
 
@@ -529,6 +568,41 @@
     return `<span class="days-left ${cls}">${days}d left</span>`;
   }
 
+  /* ── sort ── */
+
+  function sortVideos(videos) {
+    const statusOrder = { new: 0, started: 1 };
+    return [...videos].sort((a, b) => {
+      let va, vb;
+      if (sortBy === 'added_at') {
+        va = new Date(a.added_at).getTime();
+        vb = new Date(b.added_at).getTime();
+      } else if (sortBy === 'status') {
+        va = statusOrder[a.status] ?? 9;
+        vb = statusOrder[b.status] ?? 9;
+      } else {
+        va = (a[sortBy] || '').toLowerCase();
+        vb = (b[sortBy] || '').toLowerCase();
+      }
+      if (va < vb) return sortDir === 'asc' ? -1 : 1;
+      if (va > vb) return sortDir === 'asc' ?  1 : -1;
+      return 0;
+    });
+  }
+
+  document.getElementById('sort-field').addEventListener('change', e => {
+    sortBy = e.target.value;
+    load();
+  });
+
+  document.getElementById('sort-dir').addEventListener('click', () => {
+    sortDir = sortDir === 'desc' ? 'asc' : 'desc';
+    const btn = document.getElementById('sort-dir');
+    btn.textContent = sortDir === 'asc' ? '↑' : '↓';
+    btn.className   = `sort-dir ${sortDir}`;
+    load();
+  });
+
   /* ── load & render active list ── */
 
   async function load() {
@@ -551,7 +625,7 @@
     const nStarted = videos.filter(v => v.status === 'started').length;
     count.textContent = [nNew && nNew+' new', nStarted && nStarted+' started'].filter(Boolean).join(', ');
 
-    list.innerHTML = videos.map(v => {
+    list.innerHTML = sortVideos(videos).map(v => {
       const badge = v.status === 'started'
         ? '<span class="badge badge-started">Started</span>'
         : '<span class="badge badge-new">New</span>';
