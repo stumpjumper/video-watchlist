@@ -1,15 +1,18 @@
 # 📺 Video Watchlist
 
-A lightweight, self-hosted YouTube watchlist. Add videos you want to watch later, track what you've started, and let the server clean up old entries automatically. Includes on-demand AI summaries and an agent integration skill.
+A lightweight, self-hosted YouTube watchlist. Add videos you want to watch later, track what you've started, and organize them with labels. Includes on-demand AI summaries and an agent integration skill.
 
 ## Features
 
 - **Mobile-first UI** — tappable cards, bottom-sheet modals, works great on iPhone over Tailscale
 - **Add videos** — paste a URL; title and channel auto-fill from YouTube oEmbed
-- **Status tracking** — New → Started → Removed lifecycle with restore support
+- **Status tracking** — New / Started lifecycle (read/unread, like email)
+- **Labels** — create custom labels, apply multiple per video, filter by label with AND/OR mode
+- **Search & filter** — text search with debounce, date range filter, label filter
+- **Trash mode** — move videos to Trash; bulk-select, restore, or hard-delete
 - **AI summaries** — on-demand per video via yt-dlp transcript + OpenRouter (Gemini)
-- **Purge management** — removed items accumulate; a banner prompts cleanup after 90 days
 - **Sort** — by date added, status, channel, or title with asc/desc toggle
+- **HTTPS access** — served over Tailscale TLS so you can reach it from iPhone
 - **Agent skill** — `skill.md` lets AI agents add videos directly via the API
 
 ## Stack
@@ -72,6 +75,10 @@ A sample plist is not included, but the pattern is:
 
 Restart after code changes: `launchctl kickstart -k gui/$(id -u)/com.video-watchlist`
 
+### HTTPS via Tailscale
+
+To access over HTTPS from your iPhone, provision a Tailscale cert and set `CERT_DIR` and `HTTPS_PORT` in `.env`. The server will listen on the HTTPS port in addition to port 4000.
+
 ## API
 
 ### Add a video
@@ -94,20 +101,25 @@ If `title` is not provided, the server calls YouTube oEmbed to fill it in. Retur
 
 **Response:** `201` with the created video record.
 
-### Other endpoints
+### Endpoints
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/api/videos` | Active videos (new + started). Includes `purge_ready_count`. |
-| `GET` | `/api/videos/removed` | Removed videos with `purge_ready` flag per item. |
+| `GET` | `/api/videos` | Active videos (Inbox). Supports `q`, `after`, `before`, `labels` (comma-sep IDs), `label_mode=and\|or`. |
+| `GET` | `/api/trash` | Trash-labeled videos. |
 | `GET` | `/api/preview?url=` | Fetch title + channel_name from YouTube oEmbed without adding. |
 | `POST` | `/api/videos/:id/started` | Mark as started. |
-| `POST` | `/api/videos/:id/removed` | Soft-delete (move to removed). |
-| `POST` | `/api/videos/:id/restore` | Restore from removed → new. |
-| `POST` | `/api/videos/:id/reset-clock` | Reset the 90-day purge window. |
+| `POST` | `/api/videos/:id/trash` | Move to Trash (adds Trash label, removes Inbox). |
+| `POST` | `/api/videos/:id/restore` | Remove Trash label; restore Inbox if no other labels. |
+| `PUT` | `/api/videos/:id/labels` | Set exact label set `{ labelIds: [...] }`; auto-restores Inbox if empty. |
+| `POST` | `/api/videos/:id/labels/:labelId` | Add a label. |
+| `DELETE` | `/api/videos/:id/labels/:labelId` | Remove a label (auto-restores Inbox if last). |
 | `POST` | `/api/videos/:id/summary` | Generate (or return cached) AI summary. |
 | `DELETE` | `/api/videos/:id` | Hard delete. |
-| `DELETE` | `/api/videos/purge` | Hard-delete all purge-ready items (removed 90+ days ago). |
+| `DELETE` | `/api/videos/purge` | Hard-delete all Trash-labeled videos. |
+| `GET` | `/api/labels` | List all labels. |
+| `POST` | `/api/labels` | Create a label `{ name }`. |
+| `DELETE` | `/api/labels/:id` | Delete a label (blocked if in use; Inbox and Trash are protected). |
 
 ### Quick example
 
@@ -141,6 +153,8 @@ Requires `OPENROUTER_API_KEY` in the environment and `yt-dlp` installed.
 
 ## Data model
 
+### `videos`
+
 | Column | Type | Notes |
 |---|---|---|
 | `id` | integer | Primary key |
@@ -149,12 +163,32 @@ Requires `OPENROUTER_API_KEY` in the environment and `yt-dlp` installed.
 | `channel_name` | text | |
 | `emoji` | text | Defaults to 📺 |
 | `added_at` | text | ISO timestamp, set on insert |
-| `started_at` | text\|null | Set when marked started |
-| `removed_at` | text\|null | Set when soft-deleted; reset by reset-clock |
-| `status` | text | `new`, `started`, or `removed` |
+| `status` | text | `new` or `started` |
 | `summary` | text\|null | Cached HTML summary |
+| `source` | text | Defaults to `youtube` |
+| `content_type` | text | Defaults to `video` |
+| `external_id` | text\|null | |
+| `source_metadata` | text\|null | JSON blob |
 
-Items with `status = removed` and `removed_at` older than 90 days are considered purge-ready.
+### `labels`
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | integer | Primary key |
+| `name` | text | Unique |
+| `created_at` | text | |
+
+Pre-seeded: **Inbox** (id=1), **Trash** (id=2). These are protected and cannot be deleted.
+
+### `video_labels`
+
+| Column | Type | Notes |
+|---|---|---|
+| `video_id` | integer | FK → videos, CASCADE delete |
+| `label_id` | integer | FK → labels |
+| `labeled_at` | text | When the label was applied |
+
+Every video always has at least one label. New videos are automatically given the Inbox label.
 
 ## License
 
