@@ -17,8 +17,7 @@ import {
 } from './db';
 import { buildReaderHtml } from './reader';
 import {
-  generateAudio, audioExists, audioPath, audioUrl, audioDirSizeBytes,
-  estimateDurationSec, AUDIO_DIR,
+  generateAudio, audioExists, audioUrl, audioDirSizeBytes, AUDIO_DIR,
 } from './audio';
 
 const execFileAsync = promisify(execFile);
@@ -189,29 +188,15 @@ app.post('/api/videos/:id/audio', async (req: Request, res: Response) => {
     return;
   }
 
-  let articleText = '';
-  if (video.source_metadata) {
-    try {
-      const sanitized = video.source_metadata.replace(/[\x00-\x1f]/g, c =>
-        c === '\n' ? '\\n' : c === '\r' ? '\\r' : c === '\t' ? '\\t' : '',
-      );
-      const meta = JSON.parse(sanitized) as Record<string, unknown>;
-      articleText = typeof meta.text === 'string' ? meta.text : '';
-    } catch (e) {
-      console.error('[audio] failed to parse source_metadata for video', id, e);
-    }
-  }
-
-  if (!articleText.trim()) {
-    res.status(422).json({ error: 'No article text available for this item' });
+  if (video.content_type !== 'article') {
+    res.status(422).json({ error: 'Audio generation is only supported for articles' });
     return;
   }
 
-  const estSec = estimateDurationSec(articleText);
-  res.json({ status: 'generating', estimatedSec: estSec });
+  res.json({ status: 'generating' });
 
   // Generate in background — client polls /api/videos/:id/audio/status
-  generateAudio(id, articleText).catch(e =>
+  generateAudio(id, video.url).catch(e =>
     console.error('[audio] generation failed for video', id, e),
   );
 });
