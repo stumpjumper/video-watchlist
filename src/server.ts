@@ -152,26 +152,17 @@ app.get('/reader/:id', async (req: Request, res: Response) => {
   const video = getVideoById(id);
   if (!video) { res.status(404).send('Not found'); return; }
 
-  let articleText = '';
-  if (video.source_metadata) {
-    try {
-      // Replace bare control chars (unescaped newlines etc.) that make JSON.parse throw
-      const sanitized = video.source_metadata.replace(/[\x00-\x1f]/g, c =>
-        c === '\n' ? '\\n' : c === '\r' ? '\\r' : c === '\t' ? '\\t' : '',
-      );
-      const meta = JSON.parse(sanitized) as Record<string, unknown>;
-      articleText = typeof meta.text === 'string' ? meta.text : '';
-    } catch (e) {
-      console.error('[reader] failed to parse source_metadata for video', id, e);
-    }
-  }
-
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.send(buildReaderHtml(video.title, video.channel_name, video.added_at, video.url, articleText,
-    await audioExists(id) ? audioUrl(id) : null));
+  res.send(buildReaderHtml(video.title, video.channel_name, video.added_at, video.url,
+    await audioExists(id) ? audioUrl(id) : null,
+    audioGenerating.has(id),
+    audioFailed.get(id) ?? null));
 });
 
 // ── Audio ────────────────────────────────────────────────────────────────────
+
+const audioGenerating = new Set<number>();
+const audioFailed     = new Map<number, string>(); // id → error message
 
 // Serve generated audio files
 app.use('/audio', express.static(AUDIO_DIR, { maxAge: '7d' }));
@@ -193,12 +184,24 @@ app.post('/api/videos/:id/audio', async (req: Request, res: Response) => {
     return;
   }
 
+  if (audioGenerating.has(id)) {
+    res.json({ status: 'generating' });
+    return;
+  }
+
+  // Clear any previous failure so user can retry
+  audioFailed.delete(id);
+  audioGenerating.add(id);
   res.json({ status: 'generating' });
 
-  // Generate in background — client polls /api/videos/:id/audio/status
-  generateAudio(id, video.url).catch(e =>
-    console.error('[audio] generation failed for video', id, e),
-  );
+  generateAudio(id, video.url)
+    .then(() => audioGenerating.delete(id))
+    .catch(e => {
+      audioGenerating.delete(id);
+      const msg = e instanceof Error ? e.message : String(e);
+      audioFailed.set(id, msg);
+      console.error('[audio] generation failed for video', id, e);
+    });
 });
 
 app.get('/api/videos/:id/audio/status', async (req: Request, res: Response) => {
@@ -206,6 +209,8 @@ app.get('/api/videos/:id/audio/status', async (req: Request, res: Response) => {
   if (isNaN(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
   if (await audioExists(id)) {
     res.json({ status: 'ready', url: audioUrl(id) });
+  } else if (audioFailed.has(id)) {
+    res.json({ status: 'failed', error: audioFailed.get(id) });
   } else {
     res.json({ status: 'generating' });
   }

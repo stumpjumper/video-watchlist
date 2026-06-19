@@ -53,17 +53,16 @@ Fields:
 curl -s -w "\n%{http_code}" -X POST "$WATCHLIST_URL/api/videos" \
   -H "Content-Type: application/json" \
   -d "{
-    \"url\":             \"$ARTICLE_URL\",
-    \"title\":           \"$ARTICLE_TITLE\",
-    \"channel_name\":    \"$SOURCE_NAME\",
-    \"emoji\":           \"$EMOJI\",
-    \"content_type\":    \"article\",
-    \"source\":          \"ars_technica\",
-    \"source_metadata\": \"{\\\"text\\\": \\\"$ARTICLE_TEXT\\\", \\\"pub_date\\\": \\\"$PUB_DATE\\\", \\\"feed\\\": \\\"$FEED_NAME\\\"}\"
+    \"url\":          \"$ARTICLE_URL\",
+    \"title\":        \"$ARTICLE_TITLE\",
+    \"channel_name\": \"$SOURCE_NAME\",
+    \"emoji\":        \"$EMOJI\",
+    \"content_type\": \"article\",
+    \"source\":       \"ars_technica\"
   }"
 ```
 
-For articles, `title` is always required (no auto-fetch). `source_metadata` is optional but enables browser TTS playback — include the full article text in the `text` field for the best experience.
+For articles, `title` is always required (no auto-fetch). Do **not** include article body text — the server fetches and extracts it on demand via Trafilatura when the user requests audio.
 
 Known source identifiers: `youtube`, `ars_technica`. For new sources, use a lowercase underscore slug (e.g. `the_verge`) — the UI will display it in Title Case automatically.
 

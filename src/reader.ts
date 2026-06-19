@@ -19,12 +19,10 @@ export function buildReaderHtml(
   channelName: string,
   addedAt: string,
   sourceUrl: string,
-  text: string,
   audioSrc: string | null,
+  isGenerating: boolean,
+  genError: string | null,
 ): string {
-  const hasText = text.trim().length > 0;
-  const videoId = sourceUrl; // not used for id here; id passed via data attr in the page
-
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -37,69 +35,53 @@ export function buildReaderHtml(
     body {
       background: #111;
       color: #e4e4e7;
-      font-family: system-ui, -apple-system, Georgia, serif;
-      font-size: 18px;
-      line-height: 1.7;
+      font-family: system-ui, -apple-system, sans-serif;
       min-height: 100vh;
       -webkit-text-size-adjust: 100%;
     }
 
     /* ── Top bar ── */
     .top-bar {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 12px 16px;
-      border-bottom: 1px solid #2a2a2a;
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 16px; border-bottom: 1px solid #2a2a2a;
     }
     .back-link {
       color: #6366f1; text-decoration: none; font-size: 14px;
       white-space: nowrap; min-height: 44px; display: flex; align-items: center;
+      flex-shrink: 0;
     }
     .back-link:hover { color: #a5b4fc; }
     .page-title {
-      font-size: 14px; color: #71717a; overflow: hidden;
-      text-overflow: ellipsis; white-space: nowrap;
+      font-size: 14px; color: #71717a;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
 
     /* ── Audio player ── */
     .player {
-      background: #18181b;
-      border-bottom: 1px solid #27272a;
-      padding: 14px 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
+      background: #18181b; border-bottom: 1px solid #27272a;
+      padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;
     }
-
     .player-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
     }
-
     .play-btn {
-      width: 48px; height: 48px; border-radius: 50%;
+      width: 52px; height: 52px; border-radius: 50%;
       background: #6366f1; border: none; cursor: pointer;
-      color: #fff; font-size: 20px;
+      color: #fff; font-size: 22px;
       display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0;
-      -webkit-tap-highlight-color: transparent;
+      flex-shrink: 0; -webkit-tap-highlight-color: transparent;
       transition: background 0.15s;
     }
     .play-btn:hover { background: #4f46e5; }
     .play-btn:active { background: #4338ca; }
-
     .skip-btn {
       background: none; border: 1px solid #3f3f46; border-radius: 8px;
       color: #a1a1aa; font-size: 13px; padding: 8px 12px; cursor: pointer;
-      white-space: nowrap; min-height: 44px; min-width: 44px;
+      white-space: nowrap; min-height: 44px;
       -webkit-tap-highlight-color: transparent;
       transition: border-color 0.15s, color 0.15s;
     }
     .skip-btn:hover { border-color: #71717a; color: #e4e4e7; }
-
     .speed-btn {
       background: none; border: 1px solid #3f3f46; border-radius: 8px;
       color: #a1a1aa; font-size: 13px; padding: 8px 12px; cursor: pointer;
@@ -108,84 +90,58 @@ export function buildReaderHtml(
       transition: border-color 0.15s, color 0.15s;
     }
     .speed-btn:hover { border-color: #71717a; color: #e4e4e7; }
-    .speed-btn.active { border-color: #6366f1; color: #a5b4fc; }
-
     .time-display {
       font-size: 13px; color: #71717a; white-space: nowrap;
-      font-variant-numeric: tabular-nums;
-      margin-left: auto;
+      font-variant-numeric: tabular-nums; margin-left: auto;
     }
-
-    /* Progress bar */
-    .progress-wrap {
-      display: flex; align-items: center; gap: 10px;
-    }
+    .progress-wrap { display: flex; align-items: center; gap: 10px; }
     .progress-bar {
       flex: 1; height: 4px; background: #27272a; border-radius: 2px;
       cursor: pointer; position: relative;
     }
     .progress-fill {
       height: 100%; background: #6366f1; border-radius: 2px;
-      width: 0%; transition: width 0.25s linear;
-      pointer-events: none;
+      width: 0%; transition: width 0.25s linear; pointer-events: none;
     }
     .progress-bar:active .progress-fill { transition: none; }
 
-    /* ── Generate state ── */
-    .generate-wrap {
-      background: #18181b;
-      border-bottom: 1px solid #27272a;
-      padding: 16px;
-      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    /* ── Generate / error state ── */
+    .action-wrap {
+      background: #18181b; border-bottom: 1px solid #27272a;
+      padding: 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
     }
     .generate-btn {
       background: #6366f1; border: none; border-radius: 10px;
       color: #fff; font-size: 15px; padding: 12px 20px; cursor: pointer;
       min-height: 48px; white-space: nowrap;
-      -webkit-tap-highlight-color: transparent;
-      transition: background 0.15s;
+      -webkit-tap-highlight-color: transparent; transition: background 0.15s;
     }
     .generate-btn:hover { background: #4f46e5; }
     .generate-btn:disabled { background: #3f3f46; color: #71717a; cursor: default; }
-    .generate-status {
-      font-size: 14px; color: #71717a;
-    }
+    .action-status { font-size: 14px; color: #71717a; }
+    .action-status.error { color: #f87171; }
 
-    /* ── No text ── */
-    .no-text-wrap {
-      background: #18181b; border-bottom: 1px solid #27272a;
-      padding: 14px 16px; font-size: 14px; color: #52525b;
-    }
-
-    /* ── Article body ── */
-    .content {
-      max-width: 750px; margin: 0 auto; padding: 28px 20px 80px;
+    /* ── Article info ── */
+    .article-info {
+      max-width: 750px; margin: 0 auto; padding: 28px 20px;
     }
     h1.article-title {
       font-size: 24px; font-weight: 700; color: #f4f4f5;
-      line-height: 1.3; margin-bottom: 8px;
+      line-height: 1.3; margin-bottom: 10px;
     }
     .article-meta {
-      font-size: 14px; color: #71717a; margin-bottom: 24px;
-      padding-bottom: 18px; border-bottom: 1px solid #27272a;
+      font-size: 14px; color: #71717a;
     }
     .article-meta a { color: #6366f1; text-decoration: none; }
     .article-meta a:hover { text-decoration: underline; }
-    .article-para {
-      margin-bottom: 1.4em; color: #d4d4d8;
-    }
-    .no-text-body { color: #71717a; font-size: 16px; line-height: 1.6; padding: 24px 0; }
-    .no-text-body a { color: #6366f1; text-decoration: none; }
-    .no-text-body a:hover { text-decoration: underline; }
 
     @media (max-width: 599px) {
       h1.article-title { font-size: 20px; }
-      body { font-size: 17px; }
-      .content { padding: 20px 16px 64px; }
+      .article-info { padding: 20px 16px; }
     }
   </style>
 </head>
-<body data-audio-src="${escHtml(audioSrc ?? '')}" data-video-id="${escHtml(sourceUrl)}">
+<body>
 
 <div class="top-bar">
   <a class="back-link" href="/">← Watchlist</a>
@@ -198,8 +154,8 @@ ${audioSrc
   <div class="player-row">
     <button class="play-btn" id="play-btn" title="Play / Pause">▶</button>
     <button class="skip-btn" id="skip-back" title="Back 10s">↩ 10s</button>
-    <button class="skip-btn" id="skip-fwd" title="Forward 30s">30s ↪</button>
-    <button class="speed-btn active" id="speed-btn" title="Cycle speed">1×</button>
+    <button class="skip-btn" id="skip-fwd"  title="Forward 30s">30s ↪</button>
+    <button class="speed-btn" id="speed-btn" title="Cycle speed">1×</button>
     <span class="time-display" id="time-display">0:00 / --:--</span>
   </div>
   <div class="progress-wrap">
@@ -208,26 +164,24 @@ ${audioSrc
     </div>
   </div>
 </div>`
-  : hasText
-    ? `<div class="generate-wrap" id="generate-wrap">
-  <button class="generate-btn" id="generate-btn">🎧 Generate Audio</button>
-  <span class="generate-status" id="generate-status">Uses Ava (Premium) voice · generates once &amp; caches</span>
+  : `<div class="action-wrap" id="action-wrap">
+  <button class="generate-btn" id="generate-btn"${isGenerating ? ' disabled' : ''}>🎧 ${isGenerating ? 'Generating…' : genError ? 'Retry' : 'Generate Audio'}</button>
+  <span class="action-status${genError ? ' error' : ''}" id="action-status">${
+    genError
+      ? 'Failed: ' + escHtml(genError)
+      : isGenerating
+        ? 'Fetching article &amp; generating audio…'
+        : 'Uses Ava (Premium) voice · cached after first generation'
+  }</span>
 </div>`
-    : `<div class="no-text-wrap">No article text available — audio cannot be generated.</div>`
 }
 
-<div class="content">
+<div class="article-info">
   <h1 class="article-title">${escHtml(title)}</h1>
   <div class="article-meta">
-    ${escHtml(channelName)} &nbsp;·&nbsp;
-    ${fmtDate(addedAt)}
+    ${escHtml(channelName)} &nbsp;·&nbsp; ${fmtDate(addedAt)}
     &nbsp;·&nbsp; <a href="${escHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer">Original ↗</a>
   </div>
-
-  ${hasText
-    ? `<div id="article-body">${text.split(/\n\n+/).map(p => p.replace(/\n/g, ' ').trim()).filter(Boolean).map(p => `<p class="article-para">${escHtml(p)}</p>`).join('\n')}</div>`
-    : `<div class="no-text-body"><p>No article text.</p><p style="margin-top:10px"><a href="${escHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer">Open original ↗</a></p></div>`
-  }
 </div>
 
 <script>
@@ -249,64 +203,47 @@ ${audioSrc
     function fmt(s) {
       if (!isFinite(s)) return '--:--';
       const m = Math.floor(s / 60);
-      const sec = Math.floor(s % 60);
-      return m + ':' + String(sec).padStart(2, '0');
+      return m + ':' + String(Math.floor(s % 60)).padStart(2, '0');
     }
-
-    function updatePlay() {
-      playBtn.textContent = audio.paused ? '▶' : '⏸';
-    }
-
+    function updatePlay() { playBtn.textContent = audio.paused ? '▶' : '⏸'; }
     function updateTime() {
-      const cur = audio.currentTime;
-      const dur = audio.duration;
-      timeLbl.textContent = fmt(cur) + ' / ' + fmt(dur);
-      fill.style.width = (dur > 0 ? (cur / dur * 100) : 0) + '%';
+      timeLbl.textContent = fmt(audio.currentTime) + ' / ' + fmt(audio.duration);
+      fill.style.width = (audio.duration > 0 ? audio.currentTime / audio.duration * 100 : 0) + '%';
     }
 
-    // Media Session API — headphone controls, lock screen
     if ('mediaSession' in navigator) {
       navigator.mediaSession.metadata = new MediaMetadata({
         title: ${JSON.stringify(title)},
         artist: ${JSON.stringify(channelName)},
       });
-      navigator.mediaSession.setActionHandler('play',  () => audio.play());
-      navigator.mediaSession.setActionHandler('pause', () => audio.pause());
+      navigator.mediaSession.setActionHandler('play',         () => audio.play());
+      navigator.mediaSession.setActionHandler('pause',        () => audio.pause());
       navigator.mediaSession.setActionHandler('seekbackward', () => { audio.currentTime = Math.max(0, audio.currentTime - 10); });
       navigator.mediaSession.setActionHandler('seekforward',  () => { audio.currentTime = Math.min(audio.duration, audio.currentTime + 30); });
     }
 
-    audio.addEventListener('play',       updatePlay);
-    audio.addEventListener('pause',      updatePlay);
-    audio.addEventListener('ended',      updatePlay);
-    audio.addEventListener('timeupdate', updateTime);
-    audio.addEventListener('loadedmetadata', updateTime);
+    audio.addEventListener('play',          updatePlay);
+    audio.addEventListener('pause',         updatePlay);
+    audio.addEventListener('ended',         updatePlay);
+    audio.addEventListener('timeupdate',    updateTime);
+    audio.addEventListener('loadedmetadata',updateTime);
 
-    playBtn.addEventListener('click', () => {
-      if (audio.paused) audio.play(); else audio.pause();
-    });
+    playBtn.addEventListener('click',  () => { if (audio.paused) audio.play(); else audio.pause(); });
     skipBack.addEventListener('click', () => { audio.currentTime = Math.max(0, audio.currentTime - 10); });
     skipFwd.addEventListener('click',  () => { audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + 30); });
-
     speedBtn.addEventListener('click', () => {
       speedIdx = (speedIdx + 1) % SPEEDS.length;
-      const rate = SPEEDS[speedIdx];
-      audio.playbackRate = rate;
-      speedBtn.textContent = rate + '×';
+      audio.playbackRate = SPEEDS[speedIdx];
+      speedBtn.textContent = SPEEDS[speedIdx] + '×';
     });
-
-    // Tap progress bar to seek
     bar.addEventListener('click', e => {
       const rect = bar.getBoundingClientRect();
-      const pct  = (e.clientX - rect.left) / rect.width;
-      audio.currentTime = pct * (audio.duration || 0);
+      audio.currentTime = (e.clientX - rect.left) / rect.width * (audio.duration || 0);
     });
 
-    // Restore position from sessionStorage on reload
     const POS_KEY = 'reader-pos-' + location.pathname;
     const saved = parseFloat(sessionStorage.getItem(POS_KEY) || '0');
     if (saved > 5) audio.currentTime = saved;
-
     setInterval(() => {
       if (!audio.paused) sessionStorage.setItem(POS_KEY, String(Math.floor(audio.currentTime)));
     }, 5000);
@@ -314,30 +251,32 @@ ${audioSrc
 
   // ── Generate button ───────────────────────────────────────────────────────
   const genBtn    = document.getElementById('generate-btn');
-  const genStatus = document.getElementById('generate-status');
+  const genStatus = document.getElementById('action-status');
   if (genBtn) {
-    // Extract video ID from the current URL path: /reader/123
     const pathId = location.pathname.split('/').pop();
+
+    ${isGenerating ? 'poll(pathId);' : ''}
 
     genBtn.addEventListener('click', async () => {
       genBtn.disabled = true;
-      genStatus.textContent = 'Generating… this takes roughly 1 minute per 10 min of audio';
+      genBtn.textContent = '🎧 Generating…';
+      genStatus.className = 'action-status';
+      genStatus.textContent = 'Fetching article & generating audio…';
 
-      const res = await fetch('/api/videos/' + pathId + '/audio', { method: 'POST' });
-      const data = await res.json();
-
-      if (data.status === 'ready') {
-        location.reload();
-        return;
-      }
-
-      if (data.status === 'generating') {
-        const estSec = data.estimatedSec || 60;
-        genStatus.textContent = 'Generating… (~' + Math.ceil(estSec / 60) + ' min) — will auto-refresh when ready';
-        poll(pathId);
-      } else {
+      try {
+        const res = await fetch('/api/videos/' + pathId + '/audio', { method: 'POST' });
+        const data = await res.json();
+        if (data.status === 'ready') { location.reload(); return; }
+        if (data.status === 'generating') { poll(pathId); return; }
+        genStatus.className = 'action-status error';
         genStatus.textContent = 'Error: ' + (data.error || 'unknown');
         genBtn.disabled = false;
+        genBtn.textContent = '🎧 Retry';
+      } catch (e) {
+        genStatus.className = 'action-status error';
+        genStatus.textContent = 'Network error — try again';
+        genBtn.disabled = false;
+        genBtn.textContent = '🎧 Retry';
       }
     });
 
@@ -348,12 +287,15 @@ ${audioSrc
           const d = await r.json();
           if (d.status === 'ready') {
             location.reload();
+          } else if (d.status === 'failed') {
+            genStatus.className = 'action-status error';
+            genStatus.textContent = 'Failed: ' + (d.error || 'unknown error');
+            genBtn.disabled = false;
+            genBtn.textContent = '🎧 Retry';
           } else {
             poll(id);
           }
-        } catch {
-          poll(id);
-        }
+        } catch { poll(id); }
       }, 4000);
     }
   }
