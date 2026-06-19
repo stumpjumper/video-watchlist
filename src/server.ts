@@ -152,9 +152,15 @@ app.get('/reader/:id', (req: Request, res: Response) => {
   let articleText = '';
   if (video.source_metadata) {
     try {
-      const meta = JSON.parse(video.source_metadata) as Record<string, unknown>;
+      // Replace bare control chars (unescaped newlines etc.) that make JSON.parse throw
+      const sanitized = video.source_metadata.replace(/[\x00-\x1f]/g, c =>
+        c === '\n' ? '\\n' : c === '\r' ? '\\r' : c === '\t' ? '\\t' : '',
+      );
+      const meta = JSON.parse(sanitized) as Record<string, unknown>;
       articleText = typeof meta.text === 'string' ? meta.text : '';
-    } catch {}
+    } catch (e) {
+      console.error('[reader] failed to parse source_metadata for video', id, e);
+    }
   }
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
