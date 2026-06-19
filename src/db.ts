@@ -115,6 +115,7 @@ export interface VideoFilter {
   before?: string;
   labels?: number[];
   label_mode?: 'and' | 'or';
+  source?: string;
 }
 
 // ── Internal helpers ────────────────────────────────────────────────────────
@@ -145,7 +146,7 @@ function attachLabels(videos: Omit<Video, 'labels'>[]): Video[] {
 // ── Video queries ──────────────────────────────────────────────────────────
 
 export function getVideos(filter: VideoFilter = {}): Video[] {
-  const { q, after, before, labels, label_mode = 'or' } = filter;
+  const { q, after, before, labels, label_mode = 'or', source } = filter;
   const conditions: string[] = [];
   const params: (string | number)[] = [];
 
@@ -174,6 +175,7 @@ export function getVideos(filter: VideoFilter = {}): Video[] {
   }
   if (after)  { conditions.push('v.added_at >= ?'); params.push(after); }
   if (before) { conditions.push('v.added_at <= ?'); params.push(before); }
+  if (source) { conditions.push('v.source = ?'); params.push(source); }
 
   const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
   const rows = db.prepare(`SELECT * FROM videos v ${where} ORDER BY v.added_at DESC`).all(...params) as Omit<Video, 'labels'>[];
@@ -186,13 +188,37 @@ export function getVideoById(id: number): Video | null {
   return attachLabels([row])[0];
 }
 
-export function addVideo(url: string, title: string, channel_name: string, emoji: string, summary?: string): Video {
+export function addVideo(
+  url: string,
+  title: string,
+  channel_name: string,
+  emoji: string,
+  summary?: string,
+  source?: string,
+  content_type?: string,
+  source_metadata?: string,
+): Video {
   const info = db.prepare(
-    `INSERT INTO videos (url, title, channel_name, emoji, status, summary) VALUES (?, ?, ?, ?, 'new', ?)`
-  ).run(url, title, channel_name, emoji, summary ?? null);
+    `INSERT INTO videos (url, title, channel_name, emoji, status, summary, source, content_type, source_metadata)
+     VALUES (?, ?, ?, ?, 'new', ?, ?, ?, ?)`
+  ).run(
+    url, title, channel_name, emoji,
+    summary ?? null,
+    source ?? 'youtube',
+    content_type ?? 'video',
+    source_metadata ?? null,
+  );
   const id = info.lastInsertRowid as number;
   db.prepare(`INSERT INTO video_labels (video_id, label_id) VALUES (?, 1)`).run(id);
   return getVideoById(id)!;
+}
+
+export function getCategories(): { source: string; count: number }[] {
+  return db.prepare(
+    `SELECT source, COUNT(*) AS count FROM videos
+     WHERE EXISTS (SELECT 1 FROM video_labels WHERE video_id = videos.id AND label_id = 1)
+     GROUP BY source ORDER BY source`
+  ).all() as { source: string; count: number }[];
 }
 
 export function hardDelete(id: number): boolean {

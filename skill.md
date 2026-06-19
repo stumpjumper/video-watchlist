@@ -1,6 +1,6 @@
 # Skill: video-watchlist
 
-Add videos to a self-hosted video watchlist server. The server stores videos with title, channel, status, and an optional summary. It exposes a simple HTTP API.
+Add videos and articles to a self-hosted watchlist server. The server stores items with title, channel/source, status, and optional metadata. It exposes a simple HTTP API.
 
 ## Configuration
 
@@ -12,15 +12,15 @@ Reference it in your group config as `watchlist_url`, for example:
 { "watchlist_url": "http://localhost:4000" }
 ```
 
-## When to add a video
+## When to add an item
 
-Add a video to the watchlist when:
-- The channel config has `watchlist: true`
-- The video passed all filters (shorts check, minimum duration, etc.)
+Add an item to the watchlist when:
+- The channel/feed config has `watchlist: true`
+- The item passed all filters (shorts check, minimum duration, keyword match, etc.)
 
-Do not add skipped or filtered-out videos.
+Do not add skipped or filtered-out items.
 
-## API: add a video
+## API: add a YouTube video
 
 ```bash
 curl -s -w "\n%{http_code}" -X POST "$WATCHLIST_URL/api/videos" \
@@ -39,21 +39,43 @@ Fields:
 |---|---|---|
 | `url` | yes | Full YouTube video URL |
 | `title` | no | Video title. If omitted, the server fetches it from YouTube oEmbed automatically. |
-| `channel_name` | no | Channel display name. If omitted alongside `title`, the server fills it from oEmbed. If you supply `title` but not `channel_name`, it defaults to empty. |
+| `channel_name` | no | Channel display name. If omitted alongside `title`, the server fills it from oEmbed. |
 | `emoji` | no | Emoji for the channel (defaults to 📺) |
 | `summary` | no | Plain-text summary; include if you already generated one |
+| `source` | no | Source identifier (default: `youtube`) |
+| `content_type` | no | `video` or `article` (default: `video`) |
 
-**Tip:** pass `title` and `channel_name` when you already have them (e.g. from an RSS feed) — it saves the server a round-trip to YouTube. If you only have the URL, omit both and the server handles it.
+**Tip:** pass `title` and `channel_name` when you already have them (e.g. from an RSS feed) — it saves the server a round-trip to YouTube.
 
-Success: HTTP 201 with the new video record as JSON.
+## API: add an article
+
+```bash
+curl -s -w "\n%{http_code}" -X POST "$WATCHLIST_URL/api/videos" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"url\":             \"$ARTICLE_URL\",
+    \"title\":           \"$ARTICLE_TITLE\",
+    \"channel_name\":    \"$SOURCE_NAME\",
+    \"emoji\":           \"$EMOJI\",
+    \"content_type\":    \"article\",
+    \"source\":          \"ars_technica\",
+    \"source_metadata\": \"{\\\"text\\\": \\\"$ARTICLE_TEXT\\\", \\\"pub_date\\\": \\\"$PUB_DATE\\\", \\\"feed\\\": \\\"$FEED_NAME\\\"}\"
+  }"
+```
+
+For articles, `title` is always required (no auto-fetch). `source_metadata` is optional but enables browser TTS playback — include the full article text in the `text` field for the best experience.
+
+Known source identifiers: `youtube`, `ars_technica`. For new sources, use a lowercase underscore slug (e.g. `the_verge`) — the UI will display it in Title Case automatically.
+
+Success: HTTP 201 with the new item record as JSON.
 
 Errors:
-- HTTP 400 — missing `url`, or `title` was not provided and could not be fetched from YouTube
+- HTTP 400 — missing `url`, or `title` was not provided (articles never auto-fetch)
 - Connection refused / HTTP 5xx — server is unavailable; treat as a soft failure
 
 ## Handling the response
 
-On HTTP 201: note `(added to watchlist)` in your report for this video.
+On HTTP 201: note `(added to watchlist)` in your report for this item.
 
 On any non-201: note `(watchlist unavailable)` and continue without stopping the check. Do not retry.
 
@@ -61,31 +83,30 @@ On any non-201: note `(watchlist unavailable)` and continue without stopping the
 
 ```
 🔭 Scott Manley: NEW — "Apollo at 50" — https://youtu.be/abc123 (added to watchlist)
+🛸 Ars Technica: NEW — "NASA's new rocket" — https://arstechnica.com/... (added to watchlist)
 ⚡ Tesla: NEW — "Cybertruck Update" — https://youtu.be/xyz789 (watchlist unavailable)
 ```
 
-## On-demand summaries
+## On-demand summaries (videos only)
 
-The server can generate an AI summary for any video on demand — you do not need to implement summary generation yourself. When a user asks for a summary of a watchlist video, direct them to tap **Summary** in the app, or call:
+The server can generate an AI summary for any video on demand. When a user asks for a summary of a watchlist video, direct them to tap **Summary** in the app, or call:
 
 ```bash
 curl -s -X POST "$WATCHLIST_URL/api/videos/$VIDEO_ID/summary"
 ```
 
-The server fetches the YouTube transcript via yt-dlp, sends it to an LLM, and returns structured HTML. The result is cached in the database so subsequent calls are instant. This requires `OPENROUTER_API_KEY` to be configured on the server.
+The server fetches the YouTube transcript via yt-dlp, sends it to an LLM, and returns structured HTML. This requires `OPENROUTER_API_KEY` to be configured on the server.
 
 ## Other available endpoints
 
-These are informational — you generally won't need them during a check, but they're available if you need to query or manage the list.
-
 ```
-GET  /api/videos              → list active videos (new + started)
-GET  /api/videos/removed      → list removed videos
+GET  /api/videos              → list active items (new + started); supports ?source=ars_technica filter
+GET  /api/categories          → list sources with counts: [{source, count}]
+GET  /reader/:id              → browser TTS reader page for articles
 GET  /api/preview?url=        → fetch title + channel_name from YouTube oEmbed (without adding)
-POST /api/videos/:id/started  → mark a video as started
-POST /api/videos/:id/removed  → soft-delete (move to removed)
-POST /api/videos/:id/restore  → restore from removed
-POST /api/videos/:id/reset-clock → reset 90-day purge window
+POST /api/videos/:id/started  → mark an item as started
+POST /api/videos/:id/trash    → move to trash
+POST /api/videos/:id/restore  → restore from trash
 DELETE /api/videos/:id        → hard delete
-DELETE /api/videos/purge      → hard-delete all purge-ready items (90+ days old)
+DELETE /api/videos/purge      → hard-delete all trash items
 ```

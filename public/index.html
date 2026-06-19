@@ -215,6 +215,38 @@
       .card-chips-row { margin-top: 2px; }
     }
 
+    /* ── Category filter ── */
+
+    .category-select {
+      background: #1c1c1f; border: 1px solid #3f3f46; color: #a1a1aa;
+      padding: 8px 12px; border-radius: 8px; font-size: 13px;
+      outline: none; cursor: pointer;
+      -webkit-appearance: none; appearance: none;
+      transition: border-color 0.15s, color 0.15s;
+      flex-shrink: 0;
+      max-width: 160px;
+    }
+    .category-select:focus { border-color: #6366f1; color: #e4e4e7; }
+    .category-select.active { border-color: #6366f1; color: #a5b4fc; }
+
+    /* ── Article card action buttons ── */
+    .card-article-actions {
+      display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px;
+    }
+    .card-action-btn {
+      background: none; border: 1px solid #3f3f46; color: #a1a1aa;
+      padding: 5px 10px; border-radius: 6px; cursor: pointer;
+      font-size: 12px; white-space: nowrap;
+      -webkit-tap-highlight-color: transparent;
+      transition: border-color 0.15s, color 0.15s;
+      text-decoration: none; display: inline-block;
+    }
+    .card-action-btn:hover { border-color: #71717a; color: #e4e4e7; }
+    .card-action-btn.open-article { color: #93c5fd; border-color: #1e3a5f; }
+    .card-action-btn.open-article:hover { border-color: #3b82f6; }
+    .card-action-btn.listen { color: #a5b4fc; border-color: #312e81; }
+    .card-action-btn.listen:hover { border-color: #6366f1; }
+
     /* ── Sort row ── */
 
     .sort-row {
@@ -478,6 +510,9 @@
 
   <div class="filter-row">
     <input type="search" class="filter-search" id="filter-text" placeholder="Search title or channel…" autocomplete="off" autocorrect="off" spellcheck="false">
+    <select id="category-filter" class="category-select">
+      <option value="">All Categories</option>
+    </select>
     <button class="btn-filter" id="btn-filter-labels">Filter</button>
   </div>
 
@@ -569,11 +604,11 @@
 <div class="overlay" id="add-overlay" role="dialog" aria-modal="true">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-label">Add video</div>
+    <div class="modal-label" id="add-modal-label">Add to watchlist</div>
 
     <div class="field">
-      <label for="add-url">YouTube URL</label>
-      <input type="url" id="add-url" placeholder="https://www.youtube.com/watch?v=…"
+      <label for="add-url">URL</label>
+      <input type="url" id="add-url" placeholder="https://www.youtube.com/watch?v=… or article URL"
         autocomplete="off" autocorrect="off" spellcheck="false">
       <span class="fetch-status" id="fetch-status"></span>
     </div>
@@ -581,7 +616,7 @@
     <div class="field-row">
       <div class="field">
         <label for="add-title">Title</label>
-        <input type="text" id="add-title" placeholder="Video title">
+        <input type="text" id="add-title" placeholder="Title">
       </div>
       <div class="field field-emoji">
         <label for="add-emoji">Emoji</label>
@@ -589,9 +624,18 @@
       </div>
     </div>
 
-    <div class="field">
-      <label for="add-channel">Channel</label>
-      <input type="text" id="add-channel" placeholder="Channel name">
+    <div class="field-row">
+      <div class="field">
+        <label for="add-channel">Channel / Source</label>
+        <input type="text" id="add-channel" placeholder="Channel or source name">
+      </div>
+      <div class="field" style="flex:0 0 140px">
+        <label for="add-category">Category</label>
+        <select id="add-category" class="category-select" style="max-width:100%;width:100%;padding:10px 10px">
+          <option value="youtube">YouTube</option>
+          <option value="ars_technica">Ars Technica</option>
+        </select>
+      </div>
     </div>
 
     <div class="modal-actions">
@@ -629,8 +673,21 @@
   let allLabels      = [];
   let selectedIds    = new Set();
   let trashActive    = false;
+  let activeCategory = '';   // source filter value
 
   function isTrashMode() { return trashActive; }
+
+  // ── Category display names ─────────────────────────────────────────────────
+
+  const CATEGORY_NAMES = {
+    'youtube':      'YouTube',
+    'ars_technica': 'Ars Technica',
+  };
+
+  function categoryDisplayName(source) {
+    return CATEGORY_NAMES[source]
+      ?? source.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  }
 
   // Active filter state
   let filterText    = '';
@@ -733,6 +790,7 @@
     }
     if (filterAfter)  params.set('after',  filterAfter);
     if (filterBefore) params.set('before', filterBefore);
+    if (activeCategory) params.set('source', activeCategory);
 
     const data = await fetch('/api/videos?' + params).then(r => r.json());
     render(data.videos);
@@ -754,6 +812,7 @@
 
     const trash = isTrashMode();
     list.innerHTML = sortVideos(videos).map(v => {
+      const isArticle = v.content_type === 'article';
       const badge = v.status === 'started'
         ? '<span class="badge badge-started">Started</span>'
         : '<span class="badge badge-new">New</span>';
@@ -767,10 +826,17 @@
         : '';
       const labelsJson = esc(JSON.stringify(v.labels || []));
       const sel = selectedIds.has(String(v.id));
+      const articleActionsHtml = isArticle
+        ? `<div class="card-article-actions">
+            <a class="card-action-btn open-article" href="${esc(v.url)}" target="_blank" rel="noopener noreferrer">Open Article ↗</a>
+            <a class="card-action-btn listen" href="/reader/${v.id}" target="_blank" rel="noopener noreferrer">Listen 🎧</a>
+          </div>`
+        : '';
       return `
         <li class="video-card${trash ? ' selectable' : ''}${sel ? ' selected' : ''}"
             data-id="${v.id}" data-title="${esc(v.title)}"
             data-url="${esc(v.url)}" data-status="${v.status}"
+            data-content-type="${esc(v.content_type || 'video')}"
             data-summary="${esc(v.summary || '')}"
             data-labels="${labelsJson}">
           <span class="card-channel">${esc(v.emoji)} ${esc(v.channel_name)}</span>
@@ -781,6 +847,7 @@
             <button class="card-trash-btn" data-id="${v.id}" title="Move to Trash">🗑</button>
           </div>
           ${chipsHtml}
+          ${articleActionsHtml}
         </li>`;
     }).join('');
   }
@@ -866,6 +933,9 @@
       return;
     }
 
+    // Article action buttons are <a> links — let them navigate naturally
+    if (e.target.closest('.card-article-actions')) return;
+
     const card = e.target.closest('.video-card');
     if (!card) return;
 
@@ -874,6 +944,12 @@
       if (selectedIds.has(id)) { selectedIds.delete(id); card.classList.remove('selected'); }
       else                     { selectedIds.add(id);    card.classList.add('selected');    }
       updateBulkBar();
+      return;
+    }
+
+    // For articles, tapping the card opens the article directly (no action modal)
+    if (card.dataset.contentType === 'article') {
+      openUrl(card.dataset.url);
       return;
     }
 
@@ -1203,14 +1279,40 @@
     document.getElementById('btn-add-submit').disabled = !(url && title);
   }
 
-  document.getElementById('btn-show-add').addEventListener('click', () => {
+  function autoDetectCategory(url) {
+    if (/youtube\.com|youtu\.be/.test(url)) return 'youtube';
+    if (/arstechnica\.com/.test(url))       return 'ars_technica';
+    return null;
+  }
+
+  async function loadCategorySelectOptions(selectId) {
+    const sel = document.getElementById(selectId);
+    try {
+      const cats = await fetch('/api/categories').then(r => r.json());
+      // Build a set of sources already in the select
+      const existing = new Set(Array.from(sel.options).map(o => o.value).filter(Boolean));
+      // Add any categories from the API that aren't already listed
+      for (const cat of cats) {
+        if (!existing.has(cat.source)) {
+          const opt = document.createElement('option');
+          opt.value = cat.source;
+          opt.textContent = categoryDisplayName(cat.source) + ' (' + cat.count + ')';
+          sel.appendChild(opt);
+        }
+      }
+    } catch {}
+  }
+
+  document.getElementById('btn-show-add').addEventListener('click', async () => {
     ['add-url','add-title','add-channel'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('add-emoji').value = '📺';
+    document.getElementById('add-category').value = 'youtube';
     document.getElementById('fetch-status').textContent = '';
     document.getElementById('fetch-status').className   = 'fetch-status';
     document.getElementById('btn-add-submit').disabled  = true;
     document.getElementById('btn-add-submit').textContent = 'Add to watchlist';
     document.getElementById('add-overlay').classList.add('open');
+    await loadCategorySelectOptions('add-category');
     setTimeout(() => document.getElementById('add-url').focus(), 100);
   });
 
@@ -1219,8 +1321,16 @@
     updateAddBtn();
     const url = document.getElementById('add-url').value.trim();
     if (!url) { setFetchStatus('', ''); return; }
-    setFetchStatus('Fetching title…', '');
-    fetchTimer = setTimeout(() => fetchPreview(url), 600);
+
+    // Auto-detect category from URL
+    const detected = autoDetectCategory(url);
+    if (detected) document.getElementById('add-category').value = detected;
+
+    // Only auto-fetch title for YouTube URLs
+    if (/youtube\.com|youtu\.be/.test(url)) {
+      setFetchStatus('Fetching title…', '');
+      fetchTimer = setTimeout(() => fetchPreview(url), 600);
+    }
   });
 
   document.getElementById('add-title').addEventListener('input', updateAddBtn);
@@ -1247,23 +1357,25 @@
   }
 
   document.getElementById('btn-add-submit').addEventListener('click', async () => {
-    const url     = document.getElementById('add-url').value.trim();
-    const title   = document.getElementById('add-title').value.trim();
-    const channel = document.getElementById('add-channel').value.trim();
-    const emoji   = document.getElementById('add-emoji').value.trim() || '📺';
+    const url      = document.getElementById('add-url').value.trim();
+    const title    = document.getElementById('add-title').value.trim();
+    const channel  = document.getElementById('add-channel').value.trim();
+    const emoji    = document.getElementById('add-emoji').value.trim() || '📺';
+    const source   = document.getElementById('add-category').value || 'youtube';
+    const content_type = source === 'youtube' ? 'video' : 'article';
     if (!url || !title) return;
     const btn = document.getElementById('btn-add-submit');
     btn.disabled = true; btn.textContent = 'Adding…';
     const res = await fetch('/api/videos', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url, title, channel_name: channel, emoji }),
+      body: JSON.stringify({ url, title, channel_name: channel, emoji, source, content_type }),
     });
     if (res.ok) {
       closeAddModal(); load();
     } else {
       btn.disabled = false; btn.textContent = 'Add to watchlist';
-      setFetchStatus('Error adding video — try again', 'err');
+      setFetchStatus('Error adding — try again', 'err');
     }
   });
 
@@ -1359,10 +1471,51 @@
     copyText(md).then(() => flashCopyBtn(document.getElementById('btn-copy-md'), 'Markdown'));
   });
 
+  // ── Category filter ────────────────────────────────────────────────────────
+
+  async function loadCategories() {
+    try {
+      const cats = await fetch('/api/categories').then(r => r.json());
+      const sel = document.getElementById('category-filter');
+      // Remove all options except the first "All Categories"
+      while (sel.options.length > 1) sel.remove(1);
+      for (const cat of cats) {
+        const opt = document.createElement('option');
+        opt.value = cat.source;
+        opt.textContent = categoryDisplayName(cat.source) + ' (' + cat.count + ')';
+        sel.appendChild(opt);
+      }
+      // Restore selection
+      if (activeCategory) sel.value = activeCategory;
+      sel.classList.toggle('active', !!activeCategory);
+    } catch {}
+  }
+
+  document.getElementById('category-filter').addEventListener('change', e => {
+    activeCategory = e.target.value;
+    e.target.classList.toggle('active', !!activeCategory);
+    // Update URL without reload
+    const url = new URL(window.location.href);
+    if (activeCategory) url.searchParams.set('category', activeCategory);
+    else url.searchParams.delete('category');
+    history.pushState({}, '', url.toString());
+    load();
+  });
+
   // ── Init ───────────────────────────────────────────────────────────────────
 
   async function init() {
+    // Read category from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const catFromUrl = urlParams.get('category') || '';
+    if (catFromUrl) {
+      activeCategory = catFromUrl;
+      document.getElementById('category-filter').value = catFromUrl;
+      document.getElementById('category-filter').classList.add('active');
+    }
+
     await loadLabels();
+    await loadCategories();
     load();
   }
 

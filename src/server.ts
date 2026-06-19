@@ -12,9 +12,10 @@ import {
   getVideos, getVideoById, addVideo, hardDelete, markStarted, saveSummary,
   getLabels, createLabel, deleteLabel,
   addLabelToVideo, removeLabelFromVideo, setVideoLabels, trashVideo, restoreFromTrash,
-  getTrashCount, purgeTrash,
+  getTrashCount, purgeTrash, getCategories,
   VideoFilter,
 } from './db';
+import { buildReaderHtml } from './reader';
 
 const execFileAsync = promisify(execFile);
 
@@ -89,7 +90,7 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 // ── Videos ──────────────────────────────────────────────────────────────────
 
 app.get('/api/videos', (req: Request, res: Response) => {
-  const { q, after, before, labels: labelsRaw, label_mode } = req.query as Record<string, string>;
+  const { q, after, before, labels: labelsRaw, label_mode, source } = req.query as Record<string, string>;
   const filter: VideoFilter = {};
   if (q) filter.q = q;
   if (after) filter.after = after;
@@ -98,19 +99,21 @@ app.get('/api/videos', (req: Request, res: Response) => {
     filter.labels = labelsRaw.split(',').map(Number).filter(n => !isNaN(n) && n > 0);
   }
   if (label_mode === 'and' || label_mode === 'or') filter.label_mode = label_mode;
+  if (source) filter.source = source;
   const videos = getVideos(filter);
   const trash_count = getTrashCount();
   res.json({ videos, trash_count });
 });
 
 app.post('/api/videos', async (req: Request, res: Response) => {
-  let { url, title = '', channel_name = '', emoji = '📺', summary } = req.body ?? {};
+  let { url, title = '', channel_name = '', emoji = '📺', summary,
+        content_type = 'video', source = 'youtube', source_metadata } = req.body ?? {};
   if (typeof url !== 'string' || !url.trim()) {
     res.status(400).json({ error: 'url is required' }); return;
   }
   url = url.trim();
 
-  if (!title.trim()) {
+  if (!title.trim() && content_type === 'video') {
     try {
       const oEmbed = await fetch(
         `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`
@@ -124,12 +127,38 @@ app.post('/api/videos', async (req: Request, res: Response) => {
   }
 
   if (!title.trim()) {
-    res.status(400).json({ error: 'title is required and could not be fetched from YouTube' }); return;
+    res.status(400).json({ error: 'title is required' }); return;
   }
 
   const summaryStr = typeof summary === 'string' && summary.trim() ? summary.trim() : undefined;
-  const video = addVideo(url, title.trim(), String(channel_name), String(emoji), summaryStr);
+  const video = addVideo(
+    url, title.trim(), String(channel_name), String(emoji),
+    summaryStr, String(source), String(content_type),
+    typeof source_metadata === 'string' ? source_metadata : undefined,
+  );
   res.status(201).json(video);
+});
+
+app.get('/api/categories', (_req: Request, res: Response) => {
+  res.json(getCategories());
+});
+
+app.get('/reader/:id', (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).send('Invalid id'); return; }
+  const video = getVideoById(id);
+  if (!video) { res.status(404).send('Not found'); return; }
+
+  let articleText = '';
+  if (video.source_metadata) {
+    try {
+      const meta = JSON.parse(video.source_metadata) as Record<string, unknown>;
+      articleText = typeof meta.text === 'string' ? meta.text : '';
+    } catch {}
+  }
+
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(buildReaderHtml(video.title, video.channel_name, video.added_at, video.url, articleText));
 });
 
 app.get('/api/preview', async (req: Request, res: Response) => {
