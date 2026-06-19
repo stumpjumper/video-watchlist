@@ -20,43 +20,10 @@ export function buildReaderHtml(
   addedAt: string,
   sourceUrl: string,
   text: string,
+  audioSrc: string | null,
 ): string {
-  const noText = !text.trim();
-
-  // Build paragraph HTML: split on double newlines; fall back to ~800-char sentence boundaries
-  let paragraphsHtml = '';
-  if (!noText) {
-    let paras: string[];
-    if (text.includes('\n\n')) {
-      paras = text.split(/\n\n+/).map(p => p.replace(/\n/g, ' ').trim()).filter(Boolean);
-    } else {
-      // No double newlines — split at sentence boundaries around ~800 chars
-      paras = [];
-      let remaining = text.trim();
-      while (remaining.length > 0) {
-        if (remaining.length <= 800) {
-          paras.push(remaining);
-          break;
-        }
-        // Find last sentence boundary before 800 chars
-        const chunk = remaining.slice(0, 800);
-        const lastDot = Math.max(
-          chunk.lastIndexOf('. '),
-          chunk.lastIndexOf('! '),
-          chunk.lastIndexOf('? '),
-        );
-        const cutAt = lastDot > 200 ? lastDot + 1 : 800;
-        paras.push(remaining.slice(0, cutAt).trim());
-        remaining = remaining.slice(cutAt).trim();
-      }
-    }
-
-    paragraphsHtml = paras
-      .map((p, i) => `<p class="article-para" id="para-${i}">${escHtml(p)}</p>`)
-      .join('\n');
-  }
-
-  const paragraphCount = noText ? 0 : paragraphsHtml.split('class="article-para"').length - 1;
+  const hasText = text.trim().length > 0;
+  const videoId = sourceUrl; // not used for id here; id passed via data attr in the page
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -77,293 +44,321 @@ export function buildReaderHtml(
       -webkit-text-size-adjust: 100%;
     }
 
-    /* Sticky controls bar */
-    .controls-bar {
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      background: rgba(17,17,17,0.88);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
+    /* ── Top bar ── */
+    .top-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
       border-bottom: 1px solid #2a2a2a;
-      padding: 10px 16px;
+    }
+    .back-link {
+      color: #6366f1; text-decoration: none; font-size: 14px;
+      white-space: nowrap; min-height: 44px; display: flex; align-items: center;
+    }
+    .back-link:hover { color: #a5b4fc; }
+    .page-title {
+      font-size: 14px; color: #71717a; overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap;
+    }
+
+    /* ── Audio player ── */
+    .player {
+      background: #18181b;
+      border-bottom: 1px solid #27272a;
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .player-row {
       display: flex;
       align-items: center;
       gap: 10px;
       flex-wrap: wrap;
     }
 
-    .back-link {
-      color: #6366f1;
-      text-decoration: none;
-      font-size: 14px;
-      white-space: nowrap;
+    .play-btn {
+      width: 48px; height: 48px; border-radius: 50%;
+      background: #6366f1; border: none; cursor: pointer;
+      color: #fff; font-size: 20px;
+      display: flex; align-items: center; justify-content: center;
       flex-shrink: 0;
-      padding: 6px 0;
-      min-height: 44px;
-      display: flex;
-      align-items: center;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.15s;
     }
-    .back-link:hover { color: #a5b4fc; }
+    .play-btn:hover { background: #4f46e5; }
+    .play-btn:active { background: #4338ca; }
 
-    .ctrl-sep {
-      width: 1px;
-      height: 24px;
-      background: #3f3f46;
-      flex-shrink: 0;
-    }
-
-    .ctrl-btn {
-      background: none;
-      border: 1px solid #3f3f46;
-      color: #a1a1aa;
-      padding: 8px 14px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 15px;
-      white-space: nowrap;
-      min-height: 44px;
-      min-width: 44px;
+    .skip-btn {
+      background: none; border: 1px solid #3f3f46; border-radius: 8px;
+      color: #a1a1aa; font-size: 13px; padding: 8px 12px; cursor: pointer;
+      white-space: nowrap; min-height: 44px; min-width: 44px;
       -webkit-tap-highlight-color: transparent;
       transition: border-color 0.15s, color 0.15s;
     }
-    .ctrl-btn:hover { border-color: #71717a; color: #e4e4e7; }
-    .ctrl-btn:disabled { opacity: 0.35; cursor: default; }
-    .ctrl-btn.playing { border-color: #6366f1; color: #a5b4fc; }
+    .skip-btn:hover { border-color: #71717a; color: #e4e4e7; }
 
-    .speed-wrap {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 13px;
-      color: #71717a;
-      white-space: nowrap;
+    .speed-btn {
+      background: none; border: 1px solid #3f3f46; border-radius: 8px;
+      color: #a1a1aa; font-size: 13px; padding: 8px 12px; cursor: pointer;
+      min-height: 44px; min-width: 52px;
+      -webkit-tap-highlight-color: transparent;
+      transition: border-color 0.15s, color 0.15s;
     }
-    .speed-slider {
-      width: 90px;
-      accent-color: #6366f1;
-      cursor: pointer;
-    }
+    .speed-btn:hover { border-color: #71717a; color: #e4e4e7; }
+    .speed-btn.active { border-color: #6366f1; color: #a5b4fc; }
 
-    /* Article content */
-    .content {
-      max-width: 750px;
-      margin: 0 auto;
-      padding: 32px 20px 80px;
+    .time-display {
+      font-size: 13px; color: #71717a; white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+      margin-left: auto;
     }
 
-    h1.article-title {
-      font-size: 26px;
-      font-weight: 700;
-      color: #f4f4f5;
-      line-height: 1.3;
-      margin-bottom: 10px;
+    /* Progress bar */
+    .progress-wrap {
+      display: flex; align-items: center; gap: 10px;
     }
+    .progress-bar {
+      flex: 1; height: 4px; background: #27272a; border-radius: 2px;
+      cursor: pointer; position: relative;
+    }
+    .progress-fill {
+      height: 100%; background: #6366f1; border-radius: 2px;
+      width: 0%; transition: width 0.25s linear;
+      pointer-events: none;
+    }
+    .progress-bar:active .progress-fill { transition: none; }
 
-    .article-meta {
-      font-size: 14px;
-      color: #71717a;
-      margin-bottom: 28px;
-      padding-bottom: 20px;
+    /* ── Generate state ── */
+    .generate-wrap {
+      background: #18181b;
       border-bottom: 1px solid #27272a;
+      padding: 16px;
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
     }
-    .article-meta a {
-      color: #6366f1;
-      text-decoration: none;
+    .generate-btn {
+      background: #6366f1; border: none; border-radius: 10px;
+      color: #fff; font-size: 15px; padding: 12px 20px; cursor: pointer;
+      min-height: 48px; white-space: nowrap;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.15s;
     }
+    .generate-btn:hover { background: #4f46e5; }
+    .generate-btn:disabled { background: #3f3f46; color: #71717a; cursor: default; }
+    .generate-status {
+      font-size: 14px; color: #71717a;
+    }
+
+    /* ── No text ── */
+    .no-text-wrap {
+      background: #18181b; border-bottom: 1px solid #27272a;
+      padding: 14px 16px; font-size: 14px; color: #52525b;
+    }
+
+    /* ── Article body ── */
+    .content {
+      max-width: 750px; margin: 0 auto; padding: 28px 20px 80px;
+    }
+    h1.article-title {
+      font-size: 24px; font-weight: 700; color: #f4f4f5;
+      line-height: 1.3; margin-bottom: 8px;
+    }
+    .article-meta {
+      font-size: 14px; color: #71717a; margin-bottom: 24px;
+      padding-bottom: 18px; border-bottom: 1px solid #27272a;
+    }
+    .article-meta a { color: #6366f1; text-decoration: none; }
     .article-meta a:hover { text-decoration: underline; }
-
     .article-para {
-      margin-bottom: 1.4em;
-      color: #d4d4d8;
-      scroll-margin-top: 80px;
-      padding: 4px 6px;
-      border-radius: 4px;
-      transition: background 0.2s;
+      margin-bottom: 1.4em; color: #d4d4d8;
     }
-    .article-para.active {
-      background: rgba(255, 200, 0, 0.15);
-    }
-
-    .no-text-msg {
-      color: #71717a;
-      font-size: 16px;
-      line-height: 1.6;
-      padding: 32px 0;
-    }
-    .no-text-msg a {
-      color: #6366f1;
-      text-decoration: none;
-    }
-    .no-text-msg a:hover { text-decoration: underline; }
+    .no-text-body { color: #71717a; font-size: 16px; line-height: 1.6; padding: 24px 0; }
+    .no-text-body a { color: #6366f1; text-decoration: none; }
+    .no-text-body a:hover { text-decoration: underline; }
 
     @media (max-width: 599px) {
-      h1.article-title { font-size: 22px; }
+      h1.article-title { font-size: 20px; }
       body { font-size: 17px; }
-      .content { padding: 24px 16px 64px; }
+      .content { padding: 20px 16px 64px; }
     }
   </style>
 </head>
-<body>
+<body data-audio-src="${escHtml(audioSrc ?? '')}" data-video-id="${escHtml(sourceUrl)}">
 
-<div class="controls-bar">
+<div class="top-bar">
   <a class="back-link" href="/">← Watchlist</a>
-  <div class="ctrl-sep"></div>
-  ${noText ? `<span style="font-size:13px;color:#52525b">No article text available</span>` : `
-  <button class="ctrl-btn" id="btn-play"  title="Play">▶ Play</button>
-  <button class="ctrl-btn" id="btn-pause" title="Pause" disabled>⏸ Pause</button>
-  <button class="ctrl-btn" id="btn-stop"  title="Stop"  disabled>⏹ Stop</button>
-  <div class="ctrl-sep"></div>
-  <div class="speed-wrap">
-    <span>Speed: <span id="speed-label">1.0</span>×</span>
-    <input type="range" class="speed-slider" id="speed-slider"
-      min="0.5" max="2.5" step="0.1" value="1.0">
-  </div>
-  `}
+  <span class="page-title">${escHtml(title)}</span>
 </div>
+
+${audioSrc
+  ? `<div class="player" id="player">
+  <audio id="audio" src="${escHtml(audioSrc)}" preload="metadata"></audio>
+  <div class="player-row">
+    <button class="play-btn" id="play-btn" title="Play / Pause">▶</button>
+    <button class="skip-btn" id="skip-back" title="Back 10s">↩ 10s</button>
+    <button class="skip-btn" id="skip-fwd" title="Forward 30s">30s ↪</button>
+    <button class="speed-btn active" id="speed-btn" title="Cycle speed">1×</button>
+    <span class="time-display" id="time-display">0:00 / --:--</span>
+  </div>
+  <div class="progress-wrap">
+    <div class="progress-bar" id="progress-bar">
+      <div class="progress-fill" id="progress-fill"></div>
+    </div>
+  </div>
+</div>`
+  : hasText
+    ? `<div class="generate-wrap" id="generate-wrap">
+  <button class="generate-btn" id="generate-btn">🎧 Generate Audio</button>
+  <span class="generate-status" id="generate-status">Uses Ava (Premium) voice · generates once &amp; caches</span>
+</div>`
+    : `<div class="no-text-wrap">No article text available — audio cannot be generated.</div>`
+}
 
 <div class="content">
   <h1 class="article-title">${escHtml(title)}</h1>
   <div class="article-meta">
     ${escHtml(channelName)} &nbsp;·&nbsp;
     ${fmtDate(addedAt)}
-    &nbsp;·&nbsp; <a href="${escHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer">Original article ↗</a>
+    &nbsp;·&nbsp; <a href="${escHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer">Original ↗</a>
   </div>
 
-  ${noText
-    ? `<div class="no-text-msg">
-        <p>Article text not available for listening.</p>
-        <p style="margin-top:12px"><a href="${escHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer">Open the original article instead ↗</a></p>
-      </div>`
-    : `<div id="article-body">${paragraphsHtml}</div>`
+  ${hasText
+    ? `<div id="article-body">${text.split(/\n\n+/).map(p => p.replace(/\n/g, ' ').trim()).filter(Boolean).map(p => `<p class="article-para">${escHtml(p)}</p>`).join('\n')}</div>`
+    : `<div class="no-text-body"><p>No article text.</p><p style="margin-top:10px"><a href="${escHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer">Open original ↗</a></p></div>`
   }
 </div>
 
-${noText ? '' : `
 <script>
-  // ── State ──────────────────────────────────────────────────────────────────
-  const PARA_COUNT  = ${paragraphCount};
-  let currentIdx    = 0;
-  let isPlaying     = false;
-  let currentRate   = 1.0;
-  let currentUtter  = null;
+(function () {
+  // ── Audio player ─────────────────────────────────────────────────────────
+  const audio = document.getElementById('audio');
+  if (audio) {
+    const playBtn  = document.getElementById('play-btn');
+    const skipBack = document.getElementById('skip-back');
+    const skipFwd  = document.getElementById('skip-fwd');
+    const speedBtn = document.getElementById('speed-btn');
+    const timeLbl  = document.getElementById('time-display');
+    const bar      = document.getElementById('progress-bar');
+    const fill     = document.getElementById('progress-fill');
 
-  const btnPlay  = document.getElementById('btn-play');
-  const btnPause = document.getElementById('btn-pause');
-  const btnStop  = document.getElementById('btn-stop');
-  const slider   = document.getElementById('speed-slider');
-  const speedLbl = document.getElementById('speed-label');
+    const SPEEDS = [1, 1.25, 1.5, 1.75, 2, 0.75];
+    let speedIdx = 0;
 
-  function getPara(idx) {
-    return document.getElementById('para-' + idx);
+    function fmt(s) {
+      if (!isFinite(s)) return '--:--';
+      const m = Math.floor(s / 60);
+      const sec = Math.floor(s % 60);
+      return m + ':' + String(sec).padStart(2, '0');
+    }
+
+    function updatePlay() {
+      playBtn.textContent = audio.paused ? '▶' : '⏸';
+    }
+
+    function updateTime() {
+      const cur = audio.currentTime;
+      const dur = audio.duration;
+      timeLbl.textContent = fmt(cur) + ' / ' + fmt(dur);
+      fill.style.width = (dur > 0 ? (cur / dur * 100) : 0) + '%';
+    }
+
+    // Media Session API — headphone controls, lock screen
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: ${JSON.stringify(title)},
+        artist: ${JSON.stringify(channelName)},
+      });
+      navigator.mediaSession.setActionHandler('play',  () => audio.play());
+      navigator.mediaSession.setActionHandler('pause', () => audio.pause());
+      navigator.mediaSession.setActionHandler('seekbackward', () => { audio.currentTime = Math.max(0, audio.currentTime - 10); });
+      navigator.mediaSession.setActionHandler('seekforward',  () => { audio.currentTime = Math.min(audio.duration, audio.currentTime + 30); });
+    }
+
+    audio.addEventListener('play',       updatePlay);
+    audio.addEventListener('pause',      updatePlay);
+    audio.addEventListener('ended',      updatePlay);
+    audio.addEventListener('timeupdate', updateTime);
+    audio.addEventListener('loadedmetadata', updateTime);
+
+    playBtn.addEventListener('click', () => {
+      if (audio.paused) audio.play(); else audio.pause();
+    });
+    skipBack.addEventListener('click', () => { audio.currentTime = Math.max(0, audio.currentTime - 10); });
+    skipFwd.addEventListener('click',  () => { audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + 30); });
+
+    speedBtn.addEventListener('click', () => {
+      speedIdx = (speedIdx + 1) % SPEEDS.length;
+      const rate = SPEEDS[speedIdx];
+      audio.playbackRate = rate;
+      speedBtn.textContent = rate + '×';
+    });
+
+    // Tap progress bar to seek
+    bar.addEventListener('click', e => {
+      const rect = bar.getBoundingClientRect();
+      const pct  = (e.clientX - rect.left) / rect.width;
+      audio.currentTime = pct * (audio.duration || 0);
+    });
+
+    // Restore position from sessionStorage on reload
+    const POS_KEY = 'reader-pos-' + location.pathname;
+    const saved = parseFloat(sessionStorage.getItem(POS_KEY) || '0');
+    if (saved > 5) audio.currentTime = saved;
+
+    setInterval(() => {
+      if (!audio.paused) sessionStorage.setItem(POS_KEY, String(Math.floor(audio.currentTime)));
+    }, 5000);
   }
 
-  function setHighlight(idx) {
-    // Remove previous
-    document.querySelectorAll('.article-para.active').forEach(el => el.classList.remove('active'));
-    if (idx >= 0 && idx < PARA_COUNT) {
-      const el = getPara(idx);
-      if (el) {
-        el.classList.add('active');
-        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  // ── Generate button ───────────────────────────────────────────────────────
+  const genBtn    = document.getElementById('generate-btn');
+  const genStatus = document.getElementById('generate-status');
+  if (genBtn) {
+    // Extract video ID from the current URL path: /reader/123
+    const pathId = location.pathname.split('/').pop();
+
+    genBtn.addEventListener('click', async () => {
+      genBtn.disabled = true;
+      genStatus.textContent = 'Generating… this takes roughly 1 minute per 10 min of audio';
+
+      const res = await fetch('/api/videos/' + pathId + '/audio', { method: 'POST' });
+      const data = await res.json();
+
+      if (data.status === 'ready') {
+        location.reload();
+        return;
       }
-    }
-  }
 
-  function updateButtons(playing) {
-    btnPlay.disabled  =  playing;
-    btnPause.disabled = !playing;
-    btnStop.disabled  = !playing;
-    btnPlay.classList.toggle('playing', playing);
-  }
-
-  function speakPara(idx) {
-    if (idx >= PARA_COUNT) {
-      // Done
-      isPlaying = false;
-      currentIdx = 0;
-      setHighlight(-1);
-      updateButtons(false);
-      return;
-    }
-
-    const el = getPara(idx);
-    if (!el) { speakPara(idx + 1); return; }
-
-    const text = el.innerText.trim();
-    if (!text) { speakPara(idx + 1); return; }
-
-    setHighlight(idx);
-    currentIdx = idx;
-
-    const utt = new SpeechSynthesisUtterance(text);
-    utt.rate = currentRate;
-    currentUtter = utt;
-
-    utt.onend = () => {
-      if (isPlaying) speakPara(idx + 1);
-    };
-    utt.onerror = (e) => {
-      // 'interrupted' fires on pause/cancel — not a real error
-      if (e.error !== 'interrupted' && e.error !== 'canceled' && isPlaying) {
-        speakPara(idx + 1);
+      if (data.status === 'generating') {
+        const estSec = data.estimatedSec || 60;
+        genStatus.textContent = 'Generating… (~' + Math.ceil(estSec / 60) + ' min) — will auto-refresh when ready';
+        poll(pathId);
+      } else {
+        genStatus.textContent = 'Error: ' + (data.error || 'unknown');
+        genBtn.disabled = false;
       }
-    };
+    });
 
-    window.speechSynthesis.speak(utt);
-  }
-
-  function startFrom(idx) {
-    window.speechSynthesis.cancel();
-    isPlaying = true;
-    updateButtons(true);
-    speakPara(idx);
-  }
-
-  btnPlay.addEventListener('click', () => {
-    if ('speechSynthesis' in window) {
-      startFrom(currentIdx);
-    } else {
-      alert('Your browser does not support text-to-speech.');
+    function poll(id) {
+      setTimeout(async () => {
+        try {
+          const r = await fetch('/api/videos/' + id + '/audio/status');
+          const d = await r.json();
+          if (d.status === 'ready') {
+            location.reload();
+          } else {
+            poll(id);
+          }
+        } catch {
+          poll(id);
+        }
+      }, 4000);
     }
-  });
-
-  btnPause.addEventListener('click', () => {
-    // speechSynthesis.pause() is unreliable on iOS; cancel + remember position
-    window.speechSynthesis.cancel();
-    isPlaying = false;
-    updateButtons(false);
-    // currentIdx is already set to the paragraph that was speaking
-    setHighlight(currentIdx);
-  });
-
-  btnStop.addEventListener('click', () => {
-    window.speechSynthesis.cancel();
-    isPlaying = false;
-    currentIdx = 0;
-    setHighlight(-1);
-    updateButtons(false);
-  });
-
-  slider.addEventListener('input', () => {
-    currentRate = parseFloat(slider.value);
-    speedLbl.textContent = currentRate.toFixed(1);
-  });
-
-  // Allow tapping a paragraph to start reading from there
-  document.getElementById('article-body').addEventListener('click', e => {
-    const para = e.target.closest('.article-para');
-    if (!para) return;
-    const id = para.id; // para-N
-    const idx = parseInt(id.split('-')[1], 10);
-    if (!isNaN(idx)) startFrom(idx);
-  });
-
-  // Clean up on page unload
-  window.addEventListener('pagehide', () => window.speechSynthesis.cancel());
-  window.addEventListener('beforeunload', () => window.speechSynthesis.cancel());
+  }
+})();
 </script>
-`}
 </body>
 </html>`;
 }

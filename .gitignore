@@ -8,3 +8,4 @@ logs/
 .env
 certs/
 README_local.md
+audio/

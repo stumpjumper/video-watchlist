@@ -16,6 +16,10 @@ import {
   VideoFilter,
 } from './db';
 import { buildReaderHtml } from './reader';
+import {
+  generateAudio, audioExists, audioPath, audioUrl, audioDirSizeBytes,
+  estimateDurationSec, AUDIO_DIR,
+} from './audio';
 
 const execFileAsync = promisify(execFile);
 
@@ -143,7 +147,7 @@ app.get('/api/categories', (_req: Request, res: Response) => {
   res.json(getCategories());
 });
 
-app.get('/reader/:id', (req: Request, res: Response) => {
+app.get('/reader/:id', async (req: Request, res: Response) => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).send('Invalid id'); return; }
   const video = getVideoById(id);
@@ -164,7 +168,67 @@ app.get('/reader/:id', (req: Request, res: Response) => {
   }
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.send(buildReaderHtml(video.title, video.channel_name, video.added_at, video.url, articleText));
+  res.send(buildReaderHtml(video.title, video.channel_name, video.added_at, video.url, articleText,
+    await audioExists(id) ? audioUrl(id) : null));
+});
+
+// ── Audio ────────────────────────────────────────────────────────────────────
+
+// Serve generated audio files
+app.use('/audio', express.static(AUDIO_DIR, { maxAge: '7d' }));
+
+// Check / trigger audio generation
+app.post('/api/videos/:id/audio', async (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
+  const video = getVideoById(id);
+  if (!video) { res.status(404).json({ error: 'Not found' }); return; }
+
+  if (await audioExists(id)) {
+    res.json({ status: 'ready', url: audioUrl(id) });
+    return;
+  }
+
+  let articleText = '';
+  if (video.source_metadata) {
+    try {
+      const sanitized = video.source_metadata.replace(/[\x00-\x1f]/g, c =>
+        c === '\n' ? '\\n' : c === '\r' ? '\\r' : c === '\t' ? '\\t' : '',
+      );
+      const meta = JSON.parse(sanitized) as Record<string, unknown>;
+      articleText = typeof meta.text === 'string' ? meta.text : '';
+    } catch (e) {
+      console.error('[audio] failed to parse source_metadata for video', id, e);
+    }
+  }
+
+  if (!articleText.trim()) {
+    res.status(422).json({ error: 'No article text available for this item' });
+    return;
+  }
+
+  const estSec = estimateDurationSec(articleText);
+  res.json({ status: 'generating', estimatedSec: estSec });
+
+  // Generate in background — client polls /api/videos/:id/audio/status
+  generateAudio(id, articleText).catch(e =>
+    console.error('[audio] generation failed for video', id, e),
+  );
+});
+
+app.get('/api/videos/:id/audio/status', async (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
+  if (await audioExists(id)) {
+    res.json({ status: 'ready', url: audioUrl(id) });
+  } else {
+    res.json({ status: 'generating' });
+  }
+});
+
+app.get('/api/audio/stats', async (_req: Request, res: Response) => {
+  const bytes = await audioDirSizeBytes();
+  res.json({ bytes, mb: Math.round(bytes / 1024 / 1024 * 10) / 10 });
 });
 
 app.get('/api/preview', async (req: Request, res: Response) => {
