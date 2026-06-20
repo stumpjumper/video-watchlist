@@ -229,6 +229,10 @@ export function markStarted(id: number): boolean {
   return (db.prepare(`UPDATE videos SET status = 'started' WHERE id = ?`).run(id).changes as number) > 0;
 }
 
+export function markFinished(id: number): boolean {
+  return (db.prepare(`UPDATE videos SET status = 'finished' WHERE id = ?`).run(id).changes as number) > 0;
+}
+
 export function saveSummary(id: number, summary: string): boolean {
   return (db.prepare('UPDATE videos SET summary = ? WHERE id = ?').run(summary, id).changes as number) > 0;
 }

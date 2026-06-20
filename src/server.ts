@@ -9,7 +9,7 @@ import { promisify } from 'util';
 import { mkdtemp, readdir, readFile, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import {
-  getVideos, getVideoById, addVideo, hardDelete, markStarted, saveSummary,
+  getVideos, getVideoById, addVideo, hardDelete, markStarted, markFinished, saveSummary,
   getLabels, createLabel, deleteLabel,
   addLabelToVideo, removeLabelFromVideo, setVideoLabels, trashVideo, restoreFromTrash,
   getTrashCount, purgeTrash, getCategories,
@@ -18,6 +18,7 @@ import {
 import { buildReaderHtml } from './reader';
 import {
   generateAudio, audioExists, audioUrl, audioDirSizeBytes, AUDIO_DIR,
+  fetchAndCacheText, readCachedText,
 } from './audio';
 
 const execFileAsync = promisify(execFile);
@@ -156,7 +157,25 @@ app.get('/reader/:id', async (req: Request, res: Response) => {
   res.send(buildReaderHtml(video.title, video.channel_name, video.added_at, video.url,
     await audioExists(id) ? audioUrl(id) : null,
     audioGenerating.has(id),
-    audioFailed.get(id) ?? null));
+    audioFailed.get(id) ?? null,
+    id));
+});
+
+app.get('/api/videos/:id/text', async (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
+  const video = getVideoById(id);
+  if (!video) { res.status(404).json({ error: 'Not found' }); return; }
+
+  const cached = await readCachedText(id);
+  if (cached) { res.json({ text: cached }); return; }
+
+  try {
+    const text = await fetchAndCacheText(id, video.url);
+    res.json({ text });
+  } catch (e: any) {
+    res.status(502).json({ error: e.message ?? 'fetch failed' });
+  }
 });
 
 // ── Audio ────────────────────────────────────────────────────────────────────
@@ -202,6 +221,24 @@ app.post('/api/videos/:id/audio', async (req: Request, res: Response) => {
       audioFailed.set(id, msg);
       console.error('[audio] generation failed for video', id, e);
     });
+});
+
+app.get('/api/videos/:id/next', async (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
+  const { q, after, before, labels: labelsRaw, label_mode, source } = req.query as Record<string, string>;
+  const filter: VideoFilter = {};
+  if (q) filter.q = q;
+  if (after) filter.after = after;
+  if (before) filter.before = before;
+  if (labelsRaw) filter.labels = labelsRaw.split(',').map(Number).filter(n => !isNaN(n) && n > 0);
+  if (label_mode === 'and' || label_mode === 'or') filter.label_mode = label_mode;
+  if (source) filter.source = source;
+  const videos = getVideos(filter);
+  const idx = videos.findIndex(v => v.id === id);
+  const next = idx >= 0 && idx < videos.length - 1 ? videos[idx + 1] : null;
+  if (!next) { res.json(null); return; }
+  res.json({ id: next.id, title: next.title, channel_name: next.channel_name, has_audio: await audioExists(next.id) });
 });
 
 app.get('/api/videos/:id/audio/status', async (req: Request, res: Response) => {
@@ -250,6 +287,12 @@ app.delete('/api/videos/:id', (req: Request, res: Response) => {
 app.post('/api/videos/:id/started', (req: Request, res: Response) => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id) || !markStarted(id)) { res.status(404).json({ error: 'not found' }); return; }
+  res.json({ success: true });
+});
+
+app.post('/api/videos/:id/finished', (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id) || !markFinished(id)) { res.status(404).json({ error: 'not found' }); return; }
   res.json({ success: true });
 });
 
