@@ -158,7 +158,10 @@ app.get('/reader/:id', async (req: Request, res: Response) => {
     await audioExists(id) ? audioUrl(id) : null,
     audioGenerating.has(id),
     audioFailed.get(id) ?? null,
-    id));
+    id,
+    video.status,
+    video.labels,
+    video.published_at));
 });
 
 app.get('/api/videos/:id/text', async (req: Request, res: Response) => {

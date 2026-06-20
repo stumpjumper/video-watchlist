@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-Extract article text from a URL.
+Extract article text + publication date from a URL.
 Uses site-specific extraction for known sites, falls back to trafilatura.
+Output: JSON {"text": "...", "published_at": "..."|null}
 Usage: extract_article.py <url>
 """
-import sys, re, subprocess, urllib.request
+import sys, re, subprocess, urllib.request, json
 from html.parser import HTMLParser
 
 TRAFILATURA = '/Users/nano/.local/bin/trafilatura'
@@ -61,14 +62,68 @@ def extract_via_container(html, container_classes):
         return '\n\n'.join(p.paragraphs)
     return None
 
-SITE_RULES = {
-    'arstechnica.com': ['post-content'],
-}
+class MetaDateExtractor(HTMLParser):
+    """Extract publication date from <meta> tags and JSON-LD."""
+    DATE_PROPS = {
+        'article:published_time', 'article:published_date',
+        'og:article:published_time',
+    }
+    DATE_NAMES = {'publish_date', 'date', 'dc.date', 'dcterms.created'}
+
+    def __init__(self):
+        super().__init__()
+        self.published_at = None
+        self._in_ld = False
+        self._ld_buf = []
+
+    def handle_starttag(self, tag, attrs):
+        if self.published_at:
+            return
+        d = dict(attrs)
+        if tag == 'meta':
+            prop = (d.get('property') or '').lower()
+            name = (d.get('name') or '').lower()
+            content = d.get('content', '').strip()
+            if content and (prop in self.DATE_PROPS or name in self.DATE_NAMES):
+                self.published_at = content
+        if tag == 'script' and d.get('type') == 'application/ld+json':
+            self._in_ld = True
+            self._ld_buf = []
+
+    def handle_endtag(self, tag):
+        if tag == 'script' and self._in_ld:
+            self._in_ld = False
+            if not self.published_at:
+                try:
+                    data = json.loads(''.join(self._ld_buf))
+                    # handle single object or @graph array
+                    items = data if isinstance(data, list) else [data]
+                    for item in items:
+                        if isinstance(item, dict):
+                            date = item.get('datePublished') or item.get('dateCreated')
+                            if date:
+                                self.published_at = str(date)
+                                break
+                except Exception:
+                    pass
+
+    def handle_data(self, data):
+        if self._in_ld:
+            self._ld_buf.append(data)
+
+def extract_published_at(html):
+    p = MetaDateExtractor()
+    p.feed(html)
+    return p.published_at or None
 
 def extract_trafilatura(url):
     r = subprocess.run([TRAFILATURA, '-u', url],
                        capture_output=True, text=True, timeout=35)
     return r.stdout.strip() or None
+
+SITE_RULES = {
+    'arstechnica.com': ['post-content'],
+}
 
 def main():
     if len(sys.argv) < 2:
@@ -82,7 +137,10 @@ def main():
                 html = fetch_html(url)
                 text = extract_via_container(html, classes)
                 if text:
-                    print(text)
+                    print(json.dumps({
+                        'text': text,
+                        'published_at': extract_published_at(html),
+                    }))
                     return
             except Exception as e:
                 sys.stderr.write(f'site extractor failed: {e}\n')
@@ -91,7 +149,13 @@ def main():
     try:
         text = extract_trafilatura(url)
         if text:
-            print(text)
+            published_at = None
+            try:
+                html = fetch_html(url)
+                published_at = extract_published_at(html)
+            except Exception:
+                pass
+            print(json.dumps({'text': text, 'published_at': published_at}))
             return
     except Exception as e:
         sys.stderr.write(f'trafilatura failed: {e}\n')

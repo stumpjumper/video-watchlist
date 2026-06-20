@@ -1,3 +1,5 @@
+import { VideoLabel } from './db';
+
 function escHtml(s: string): string {
   return s
     .replace(/&/g, '&amp;')
@@ -23,43 +25,53 @@ export function buildReaderHtml(
   isGenerating: boolean,
   genError: string | null,
   videoId: number,
+  status: string,
+  labels: VideoLabel[],
+  publishedAt: string | null,
 ): string {
+  const initialLabelIds = JSON.stringify(labels.map(l => l.label_id));
+
+  function metaDate(): string {
+    if (publishedAt) {
+      const pub = fmtDate(publishedAt);
+      const add = fmtDate(addedAt);
+      if (pub !== add) {
+        return 'Published ' + escHtml(pub)
+          + ' &nbsp;·&nbsp; <span style="color:var(--text-faint)">Added ' + escHtml(add) + '</span>';
+      }
+      return escHtml(pub);
+    }
+    return escHtml(fmtDate(addedAt));
+  }
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${escHtml(title)}</title>
+  <link rel="stylesheet" href="/shared.css">
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      background: #111;
-      color: #e4e4e7;
-      font-family: system-ui, -apple-system, sans-serif;
-      min-height: 100vh;
-      -webkit-text-size-adjust: 100%;
-    }
-
     /* ── Top bar ── */
     .top-bar {
       display: flex; align-items: center; gap: 12px;
-      padding: 12px 16px; border-bottom: 1px solid #2a2a2a;
+      padding: 12px 16px; border-bottom: 1px solid var(--bg-raised);
     }
     .back-link {
-      color: #6366f1; text-decoration: none; font-size: 14px;
+      color: var(--accent); text-decoration: none; font-size: 14px;
       white-space: nowrap; min-height: 44px; display: flex; align-items: center;
       flex-shrink: 0;
     }
-    .back-link:hover { color: #a5b4fc; }
+    .back-link:hover { color: var(--accent-muted); }
     .page-title {
-      font-size: 14px; color: #71717a;
+      font-size: 14px; color: var(--text-muted);
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      flex: 1; min-width: 0;
     }
 
     /* ── Audio player ── */
     .player {
-      background: #18181b; border-bottom: 1px solid #27272a;
+      background: var(--bg-base); border-bottom: 1px solid var(--bg-raised);
       padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;
     }
     .player-row {
@@ -67,94 +79,74 @@ export function buildReaderHtml(
     }
     .play-btn {
       width: 52px; height: 52px; border-radius: 50%;
-      background: #6366f1; border: none; cursor: pointer;
+      background: var(--accent); border: none; cursor: pointer;
       color: #fff; font-size: 22px;
       display: flex; align-items: center; justify-content: center;
       flex-shrink: 0; -webkit-tap-highlight-color: transparent;
       transition: background 0.15s;
     }
-    .play-btn:hover { background: #4f46e5; }
-    .play-btn:active { background: #4338ca; }
-    .skip-btn {
-      background: none; border: 1px solid #3f3f46; border-radius: 8px;
-      color: #a1a1aa; font-size: 13px; padding: 8px 12px; cursor: pointer;
-      white-space: nowrap; min-height: 44px;
-      -webkit-tap-highlight-color: transparent;
-      transition: border-color 0.15s, color 0.15s;
-    }
-    .skip-btn:hover { border-color: #71717a; color: #e4e4e7; }
+    .play-btn:hover  { background: var(--accent-hover); }
+    .play-btn:active { background: var(--accent-press); }
     .speed-select {
-      background: none; border: 1px solid #3f3f46; border-radius: 8px;
+      background: none; border: 1px solid var(--border); border-radius: 8px;
       color: #a1a1aa; font-size: 13px; padding: 8px 10px; cursor: pointer;
       min-height: 44px; appearance: none; -webkit-appearance: none;
       -webkit-tap-highlight-color: transparent;
       transition: border-color 0.15s, color 0.15s;
     }
-    .speed-select:hover { border-color: #71717a; color: #e4e4e7; }
-    .autoplay-btn {
-      background: none; border: 1px solid #3f3f46; border-radius: 8px;
-      color: #a1a1aa; font-size: 12px; padding: 8px 10px; cursor: pointer;
-      min-height: 44px; white-space: nowrap;
-      -webkit-tap-highlight-color: transparent;
-      transition: border-color 0.15s, color 0.15s;
-    }
-    .autoplay-btn.on  { border-color: #4f46e5; color: #a5b4fc; }
-    .autoplay-btn:hover { border-color: #71717a; color: #e4e4e7; }
-    .next-status {
-      font-size: 12px; color: #71717a; padding: 0 2px;
-      min-height: 16px;
-    }
+    .speed-select:hover { border-color: var(--border-mid); color: var(--text); }
     .time-display {
-      font-size: 13px; color: #71717a; white-space: nowrap;
+      font-size: 13px; color: var(--text-muted); white-space: nowrap;
       font-variant-numeric: tabular-nums; margin-left: auto;
     }
     .progress-wrap { display: flex; align-items: center; gap: 10px; }
     .progress-bar {
-      flex: 1; height: 4px; background: #27272a; border-radius: 2px;
+      flex: 1; height: 4px; background: var(--bg-raised); border-radius: 2px;
       cursor: pointer; position: relative;
     }
     .progress-fill {
-      height: 100%; background: #6366f1; border-radius: 2px;
+      height: 100%; background: var(--accent); border-radius: 2px;
       width: 0%; transition: width 0.25s linear; pointer-events: none;
     }
     .progress-bar:active .progress-fill { transition: none; }
+    .next-status {
+      font-size: 12px; color: var(--text-muted); padding: 0 2px;
+      min-height: 16px;
+    }
 
     /* ── Generate / error state ── */
     .action-wrap {
-      background: #18181b; border-bottom: 1px solid #27272a;
+      background: var(--bg-base); border-bottom: 1px solid var(--bg-raised);
       padding: 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
     }
     .generate-btn {
-      background: #6366f1; border: none; border-radius: 10px;
+      background: var(--accent); border: none; border-radius: 10px;
       color: #fff; font-size: 15px; padding: 12px 20px; cursor: pointer;
       min-height: 48px; white-space: nowrap;
       -webkit-tap-highlight-color: transparent; transition: background 0.15s;
     }
-    .generate-btn:hover { background: #4f46e5; }
-    .generate-btn:disabled { background: #3f3f46; color: #71717a; cursor: default; }
-    .action-status { font-size: 14px; color: #71717a; }
-    .action-status.error { color: #f87171; }
+    .generate-btn:hover    { background: var(--accent-hover); }
+    .generate-btn:disabled { background: var(--border); color: var(--text-muted); cursor: default; }
+    .action-status       { font-size: 14px; color: var(--text-muted); }
+    .action-status.error { color: var(--red); }
 
     /* ── Article info ── */
     .article-info {
       max-width: 750px; margin: 0 auto; padding: 28px 20px;
     }
     h1.article-title {
-      font-size: 24px; font-weight: 700; color: #f4f4f5;
+      font-size: 24px; font-weight: 700; color: var(--text-head);
       line-height: 1.3; margin-bottom: 10px;
     }
-    .article-meta {
-      font-size: 14px; color: #71717a;
-    }
-    .article-meta a { color: #6366f1; text-decoration: none; }
+    .article-meta { font-size: 14px; color: var(--text-muted); }
+    .article-meta a { color: var(--accent); text-decoration: none; }
     .article-meta a:hover { text-decoration: underline; }
-
     .article-body {
       max-width: 750px; margin: 0 auto; padding: 0 20px 40px;
       font-size: 16px; line-height: 1.75; color: #d4d4d8;
     }
     .article-body p { margin-bottom: 1.1em; }
-    .article-body-loading { color: #52525b; font-style: italic; }
+    .article-body-loading { color: var(--text-faint); font-style: italic; }
 
     @media (max-width: 599px) {
       h1.article-title { font-size: 20px; }
@@ -168,6 +160,8 @@ export function buildReaderHtml(
 <div class="top-bar">
   <a class="back-link" href="/">← Watchlist</a>
   <span class="page-title">${escHtml(title)}</span>
+  <span class="badge badge-${escHtml(status)}" id="status-badge">${escHtml(status)}</span>
+  <button class="btn-ghost sm" id="btn-reader-labels">Labels</button>
 </div>
 
 ${audioSrc
@@ -175,8 +169,8 @@ ${audioSrc
   <audio id="audio" src="${escHtml(audioSrc)}" preload="metadata"></audio>
   <div class="player-row">
     <button class="play-btn" id="play-btn" title="Play / Pause">▶</button>
-    <button class="skip-btn" id="skip-back" title="Back 10s">↩ 10s</button>
-    <button class="skip-btn" id="skip-fwd"  title="Forward 30s">30s ↪</button>
+    <button class="btn-ghost" style="min-height:44px" id="skip-back" title="Back 10s">↩ 10s</button>
+    <button class="btn-ghost" style="min-height:44px" id="skip-fwd"  title="Forward 30s">30s ↪</button>
     <select class="speed-select" id="speed-select" title="Playback speed">
       <option value="0.75">0.75×</option>
       <option value="1" selected>1×</option>
@@ -186,7 +180,7 @@ ${audioSrc
       <option value="2">2×</option>
     </select>
     <span class="time-display" id="time-display">0:00 / --:--</span>
-    <button class="autoplay-btn" id="autoplay-btn" title="Toggle autoplay">↻ Auto</button>
+    <button class="btn-ghost" style="min-height:44px" id="autoplay-btn" title="Toggle autoplay">↻ Auto</button>
   </div>
   <div class="progress-wrap">
     <div class="progress-bar" id="progress-bar">
@@ -210,7 +204,7 @@ ${audioSrc
 <div class="article-info">
   <h1 class="article-title">${escHtml(title)}</h1>
   <div class="article-meta">
-    ${escHtml(channelName)} &nbsp;·&nbsp; ${fmtDate(addedAt)}
+    ${escHtml(channelName)} &nbsp;·&nbsp; ${metaDate()}
     &nbsp;·&nbsp; <a href="${escHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer">Original ↗</a>
   </div>
 </div>
@@ -219,30 +213,42 @@ ${audioSrc
   <p class="article-body-loading">Loading article…</p>
 </div>
 
+<div class="overlay" id="labels-overlay">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-label">Labels</div>
+    <div class="label-picker" id="label-picker-list"></div>
+    <div class="modal-actions" style="margin-top:16px">
+      <button class="btn btn-primary" id="labels-apply-btn">Apply</button>
+      <button class="btn btn-cancel" id="labels-cancel-btn">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <script>
 (function () {
-  const VIDEO_ID    = ${videoId};
+  const VIDEO_ID     = ${videoId};
   const AUTOPLAY_KEY = 'reader-autoplay';
   const POS_KEY      = 'reader-pos-' + VIDEO_ID;
 
   // ── Audio player ─────────────────────────────────────────────────────────
   const audio = document.getElementById('audio');
   if (audio) {
-    const playBtn      = document.getElementById('play-btn');
-    const skipBack     = document.getElementById('skip-back');
-    const skipFwd      = document.getElementById('skip-fwd');
-    const speedSelect  = document.getElementById('speed-select');
-    const timeLbl      = document.getElementById('time-display');
-    const bar          = document.getElementById('progress-bar');
-    const fill         = document.getElementById('progress-fill');
-    const autoplayBtn  = document.getElementById('autoplay-btn');
-    const nextStatus   = document.getElementById('next-status');
+    const playBtn     = document.getElementById('play-btn');
+    const skipBack    = document.getElementById('skip-back');
+    const skipFwd     = document.getElementById('skip-fwd');
+    const speedSelect = document.getElementById('speed-select');
+    const timeLbl     = document.getElementById('time-display');
+    const bar         = document.getElementById('progress-bar');
+    const fill        = document.getElementById('progress-fill');
+    const autoplayBtn = document.getElementById('autoplay-btn');
+    const nextStatus  = document.getElementById('next-status');
 
     // ── Autoplay toggle ───────────────────────────────────────────────────
     let autoplay = localStorage.getItem(AUTOPLAY_KEY) !== 'false';
     function renderAutoplay() {
       autoplayBtn.textContent = '↻ Auto';
-      autoplayBtn.className = 'autoplay-btn' + (autoplay ? ' on' : '');
+      autoplayBtn.className = 'btn-ghost' + (autoplay ? ' active' : '');
       autoplayBtn.title = autoplay ? 'Autoplay on — click to disable' : 'Autoplay off — click to enable';
     }
     renderAutoplay();
@@ -259,7 +265,8 @@ ${audioSrc
     }
     const savedPos = parseFloat(localStorage.getItem(POS_KEY) || '0');
     audio.addEventListener('loadedmetadata', () => {
-      if (savedPos > 5) audio.currentTime = savedPos;
+      if (savedPos > 5 && audio.duration && savedPos < audio.duration - 2)
+        audio.currentTime = savedPos;
       updateTime();
     });
     audio.addEventListener('pause', savePos);
@@ -283,10 +290,12 @@ ${audioSrc
         title: ${JSON.stringify(title)},
         artist: ${JSON.stringify(channelName)},
       });
-      navigator.mediaSession.setActionHandler('play',         () => audio.play());
-      navigator.mediaSession.setActionHandler('pause',        () => audio.pause());
-      navigator.mediaSession.setActionHandler('seekbackward', () => { audio.currentTime = Math.max(0, audio.currentTime - 10); });
-      navigator.mediaSession.setActionHandler('seekforward',  () => { audio.currentTime = Math.min(audio.duration, audio.currentTime + 30); });
+      navigator.mediaSession.setActionHandler('play',          () => audio.play());
+      navigator.mediaSession.setActionHandler('pause',         () => audio.pause());
+      navigator.mediaSession.setActionHandler('previoustrack', () => { audio.currentTime = Math.max(0, audio.currentTime - 10); });
+      navigator.mediaSession.setActionHandler('seekbackward',  () => { audio.currentTime = Math.max(0, audio.currentTime - 10); });
+      navigator.mediaSession.setActionHandler('nexttrack',      () => { audio.currentTime = Math.max(0, audio.currentTime - 10); });
+      navigator.mediaSession.setActionHandler('seekforward',   () => { audio.currentTime = Math.min(audio.duration, audio.currentTime + 30); });
     }
 
     audio.addEventListener('play',       updatePlay);
@@ -307,7 +316,6 @@ ${audioSrc
       updatePlay();
       localStorage.removeItem(POS_KEY);
 
-      // Mark as finished
       fetch('/api/videos/' + VIDEO_ID + '/finished', { method: 'POST' }).catch(() => {});
 
       if (!autoplay) return;
@@ -323,26 +331,27 @@ ${audioSrc
           const gr = await fetch('/api/videos/' + next.id + '/audio', { method: 'POST' });
           const gd = await gr.json();
           if (gd.status !== 'ready') {
-            await new Promise(resolve => {
-              function check() {
-                setTimeout(async () => {
-                  try {
-                    const sr = await fetch('/api/videos/' + next.id + '/audio/status');
-                    const sd = await sr.json();
-                    if (sd.status === 'ready') { resolve(); }
-                    else if (sd.status === 'failed') {
-                      nextStatus.textContent = 'Generation failed: ' + next.title;
-                      resolve('failed');
-                    } else { check(); }
-                  } catch { check(); }
-                }, 4000);
-              }
-              check();
-            }).then(result => { if (result === 'failed') return; });
-            if (nextStatus.textContent.startsWith('Generation failed')) return;
+            const waitResult = await new Promise(function(resolve) {
+              var autoAttempts = 0;
+              var timer = setInterval(async function() {
+                autoAttempts++;
+                if (autoAttempts > 30) { clearInterval(timer); resolve('timeout'); return; }
+                try {
+                  var sr = await fetch('/api/videos/' + next.id + '/audio/status');
+                  var sd = await sr.json();
+                  if (sd.status === 'ready')       { clearInterval(timer); resolve('ready'); }
+                  else if (sd.status === 'failed') { clearInterval(timer); resolve('failed'); }
+                } catch {}
+              }, 4000);
+            });
+            if (waitResult !== 'ready') {
+              nextStatus.textContent = 'Generation failed: ' + next.title;
+              return;
+            }
           }
         }
 
+        localStorage.removeItem('reader-pos-' + next.id);
         location.href = '/reader/' + next.id + location.search;
       } catch (e) {
         nextStatus.textContent = 'Autoplay error';
@@ -354,6 +363,37 @@ ${audioSrc
   const genBtn    = document.getElementById('generate-btn');
   const genStatus = document.getElementById('action-status');
   if (genBtn) {
+    function poll(id) {
+      var attempts = 0;
+      function tick() {
+        setTimeout(async function() {
+          attempts++;
+          if (attempts > 30) {
+            genStatus.className = 'action-status error';
+            genStatus.textContent = 'Timed out waiting for audio — try again';
+            genBtn.disabled = false;
+            genBtn.textContent = '🎧 Retry';
+            return;
+          }
+          try {
+            const r = await fetch('/api/videos/' + id + '/audio/status');
+            const d = await r.json();
+            if (d.status === 'ready') {
+              location.replace('/reader/' + id + location.search);
+            } else if (d.status === 'failed') {
+              genStatus.className = 'action-status error';
+              genStatus.textContent = 'Failed: ' + (d.error || 'unknown error');
+              genBtn.disabled = false;
+              genBtn.textContent = '🎧 Retry';
+            } else {
+              tick();
+            }
+          } catch { tick(); }
+        }, 4000);
+      }
+      tick();
+    }
+
     ${isGenerating ? 'poll(VIDEO_ID);' : ''}
 
     genBtn.addEventListener('click', async () => {
@@ -365,7 +405,7 @@ ${audioSrc
       try {
         const res = await fetch('/api/videos/' + VIDEO_ID + '/audio', { method: 'POST' });
         const data = await res.json();
-        if (data.status === 'ready') { location.reload(); return; }
+        if (data.status === 'ready')      { location.reload(); return; }
         if (data.status === 'generating') { poll(VIDEO_ID); return; }
         genStatus.className = 'action-status error';
         genStatus.textContent = 'Error: ' + (data.error || 'unknown');
@@ -378,26 +418,8 @@ ${audioSrc
         genBtn.textContent = '🎧 Retry';
       }
     });
-
-    function poll(id) {
-      setTimeout(async () => {
-        try {
-          const r = await fetch('/api/videos/' + id + '/audio/status');
-          const d = await r.json();
-          if (d.status === 'ready') {
-            location.reload();
-          } else if (d.status === 'failed') {
-            genStatus.className = 'action-status error';
-            genStatus.textContent = 'Failed: ' + (d.error || 'unknown error');
-            genBtn.disabled = false;
-            genBtn.textContent = '🎧 Retry';
-          } else {
-            poll(id);
-          }
-        } catch { poll(id); }
-      }, 4000);
-    }
   }
+
   // ── Article text ─────────────────────────────────────────────────────────
   const bodyEl = document.getElementById('article-body');
   fetch('/api/videos/' + VIDEO_ID + '/text')
@@ -416,6 +438,62 @@ ${audioSrc
     .catch(() => {
       bodyEl.innerHTML = '<p class="article-body-loading">Could not load article text.</p>';
     });
+
+  // ── Labels modal ─────────────────────────────────────────────────────────
+  var currentLabelIds = ${initialLabelIds};
+  var allLabels       = [];
+  var labelsOverlay   = document.getElementById('labels-overlay');
+  var labelList       = document.getElementById('label-picker-list');
+  var applyBtn        = document.getElementById('labels-apply-btn');
+  var cancelBtn       = document.getElementById('labels-cancel-btn');
+  var btnLabels       = document.getElementById('btn-reader-labels');
+
+  btnLabels.addEventListener('click', async function() {
+    try {
+      var r = await fetch('/api/labels');
+      allLabels = await r.json();
+      var html = '';
+      allLabels.forEach(function(lbl) {
+        var sel = currentLabelIds.includes(lbl.id);
+        html += '<div class="label-picker-item' + (sel ? ' selected' : '') + '" data-id="' + lbl.id + '">'
+          + '<div class="label-picker-check">' + (sel ? '✓' : '') + '</div>'
+          + '<span class="label-picker-name">' + lbl.name + '</span>'
+          + '</div>';
+      });
+      labelList.innerHTML = html;
+      labelList.querySelectorAll('.label-picker-item').forEach(function(item) {
+        item.addEventListener('click', function() {
+          var sel = item.classList.contains('selected');
+          item.classList.toggle('selected', !sel);
+          item.querySelector('.label-picker-check').textContent = sel ? '' : '✓';
+        });
+      });
+      labelsOverlay.classList.add('open');
+    } catch (e) {
+      alert('Could not load labels');
+    }
+  });
+
+  applyBtn.addEventListener('click', async function() {
+    var selected = Array.from(labelList.querySelectorAll('.label-picker-item.selected'))
+      .map(function(el) { return parseInt(el.dataset.id, 10); });
+    try {
+      await fetch('/api/videos/' + VIDEO_ID + '/labels', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ labelIds: selected }),
+      });
+      currentLabelIds = selected;
+      labelsOverlay.classList.remove('open');
+    } catch (e) {
+      alert('Failed to update labels');
+    }
+  });
+
+  cancelBtn.addEventListener('click', function() { labelsOverlay.classList.remove('open'); });
+  labelsOverlay.addEventListener('click', function(e) {
+    if (e.target === labelsOverlay) labelsOverlay.classList.remove('open');
+  });
 })();
 </script>
 </body>

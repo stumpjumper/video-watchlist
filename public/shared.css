@@ -1,0 +1,149 @@
+/* shared.css — design tokens + shared components for all pages */
+
+:root {
+  --bg-base:    #18181b;
+  --bg-surface: #1c1c1f;
+  --bg-raised:  #27272a;
+  --bg-inset:   #1e1e21;
+  --border:     #3f3f46;
+  --border-mid: #52525b;
+
+  --accent:       #6366f1;
+  --accent-hover: #4f46e5;
+  --accent-press: #4338ca;
+  --accent-muted: #a5b4fc;
+  --accent-bg:    #1e1e3f;
+
+  --text:       #e4e4e7;
+  --text-head:  #f4f4f5;
+  --text-muted: #71717a;
+  --text-faint: #52525b;
+  --text-link:  #93c5fd;
+
+  --green:        #4ade80;
+  --green-bg:     #14291a;
+  --green-border: #16a34a;
+  --orange:       #fb923c;
+  --red:          #f87171;
+  --red-bg:       #2d1f1f;
+  --red-border:   #7f1d1d;
+}
+
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg-base);
+  color: var(--text);
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  min-height: 100vh;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* ── Ghost button — the shared border-outline pattern ── */
+.btn-ghost {
+  background: none;
+  border: 1px solid var(--border);
+  color: #a1a1aa;
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  white-space: nowrap;
+  line-height: 1;
+  transition: border-color 0.15s, color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-ghost:hover  { border-color: var(--border-mid); color: var(--text); }
+.btn-ghost.active { border-color: var(--accent); color: var(--accent-muted); }
+.btn-ghost.sm     { padding: 5px 12px; border-radius: 6px; }
+
+/* ── Status badges ── */
+.badge {
+  display: inline-block; font-size: 11px; font-weight: 700;
+  padding: 2px 8px; border-radius: 99px;
+  text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap;
+}
+.badge-new      { background: #1e3a5f; color: var(--text-link); }
+.badge-started  { background: #3b1f0a; color: var(--orange); }
+.badge-finished { background: var(--green-bg); color: var(--green); }
+
+/* ── Modal overlay ── */
+.overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.7); z-index: 100;
+  align-items: flex-end; justify-content: center;
+}
+.overlay.open { display: flex; }
+
+.modal {
+  background: var(--bg-raised); border-top: 1px solid var(--border);
+  border-radius: 16px 16px 0 0; padding: 20px 20px 36px; width: 100%;
+}
+
+@media (min-width: 600px) {
+  .overlay { align-items: center; padding: 24px; }
+  .modal   { border: 1px solid var(--border); border-radius: 12px; padding: 28px; max-width: 480px; }
+}
+
+.modal-handle {
+  width: 40px; height: 4px; background: var(--border-mid);
+  border-radius: 2px; margin: 0 auto 20px;
+}
+@media (min-width: 600px) { .modal-handle { display: none; } }
+
+.modal-label {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 8px;
+}
+.modal-title {
+  font-size: 17px; color: var(--text-head); font-weight: 500;
+  margin-bottom: 10px; line-height: 1.4;
+}
+.modal-actions { display: flex; flex-direction: column; gap: 10px; }
+.modal-divider { height: 1px; background: var(--border); margin: 2px 0; }
+
+/* ── Full-width modal buttons ── */
+.btn {
+  border: none; padding: 15px 18px; border-radius: 10px; cursor: pointer;
+  font-size: 16px; font-weight: 500; text-align: left; width: 100%;
+  -webkit-tap-highlight-color: transparent; transition: filter 0.1s;
+}
+.btn:active   { filter: brightness(0.85); }
+.btn:disabled { opacity: 0.4; cursor: default; }
+.btn-primary   { background: #1e3154; border: 1px solid #3b82f6; color: var(--text-link); }
+.btn-green     { background: var(--green-bg); border: 1px solid var(--green-border); color: var(--green); }
+.btn-orange    { background: #2c1a09; border: 1px solid #c2410c; color: var(--orange); }
+.btn-secondary { background: var(--border); color: var(--text); border: none; }
+.btn-muted     { background: none; border: 1px solid var(--border); color: var(--text-muted); }
+.btn-danger    { background: none; border: 1px solid var(--border); color: var(--red); }
+.btn-danger:active { background: var(--red-bg); border-color: var(--red); }
+.btn-cancel    { background: var(--bg-raised); color: var(--text-muted); border: 1px solid var(--border); }
+.btn-indigo    { background: var(--accent-bg); border: 1px solid var(--accent); color: var(--accent-muted); }
+
+@media (min-width: 600px) {
+  .btn { padding: 11px 16px; font-size: 14px; border-radius: 7px; }
+}
+
+/* ── Label picker ── */
+.label-picker { display: flex; flex-direction: column; gap: 8px; margin: 12px 0 4px; }
+.label-picker-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; background: var(--bg-surface); border-radius: 8px;
+  border: 1px solid var(--border); cursor: pointer;
+  -webkit-tap-highlight-color: transparent; transition: border-color 0.12s;
+}
+.label-picker-item.selected             { border-color: var(--accent); background: var(--accent-bg); }
+.label-picker-item input[type=checkbox] { display: none; }
+.label-picker-check {
+  width: 18px; height: 18px; border-radius: 4px;
+  border: 1px solid var(--border); background: var(--bg-base);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; font-size: 12px; color: var(--accent-muted);
+  transition: border-color 0.12s, background 0.12s;
+}
+.label-picker-item.selected .label-picker-check { border-color: var(--accent); background: #3730a3; }
+.label-picker-name  { font-size: 15px; color: var(--text); flex: 1; }
+.label-picker-since { font-size: 11px; color: var(--text-faint); white-space: nowrap; }

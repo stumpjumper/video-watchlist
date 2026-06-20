@@ -4,6 +4,7 @@ import { writeFile, readFile, unlink, mkdir, stat, readdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
 import { tmpdir } from 'os';
+import { savePublishedAt } from './db';
 
 const execFileAsync = promisify(execFile);
 
@@ -24,9 +25,10 @@ export async function readCachedText(id: number): Promise<string | null> {
 }
 
 export async function fetchAndCacheText(id: number, url: string): Promise<string> {
-  const text = await fetchArticleText(url);
+  const { text, publishedAt } = await fetchArticleText(url);
   await mkdir(TEXT_DIR, { recursive: true }).catch(() => {});
   await writeFile(textPath(id), text, 'utf8').catch(() => {});
+  if (publishedAt) savePublishedAt(id, publishedAt);
   return text;
 }
 
@@ -53,23 +55,27 @@ export async function audioDirSizeBytes(): Promise<number> {
   } catch { return 0; }
 }
 
-export async function fetchArticleText(url: string): Promise<string> {
+async function fetchArticleText(url: string): Promise<{text: string, publishedAt: string | null}> {
   const script = path.join(__dirname, '..', 'scripts', 'extract_article.py');
   const { stdout } = await execFileAsync('python3', [script, url], {
     timeout: 40_000,
     maxBuffer: 10 * 1024 * 1024,
   });
-  const text = stdout.trim();
-  if (!text) throw new Error('article extraction returned empty output');
-  return text;
+  const raw = stdout.trim();
+  if (!raw) throw new Error('article extraction returned empty output');
+  try {
+    const parsed = JSON.parse(raw) as { text: string; published_at: string | null };
+    return { text: parsed.text, publishedAt: parsed.published_at ?? null };
+  } catch {
+    return { text: raw, publishedAt: null };
+  }
 }
 
 export async function generateAudio(id: number, url: string): Promise<void> {
   if (!existsSync(AUDIO_DIR)) await mkdir(AUDIO_DIR, { recursive: true });
   if (!existsSync(TEXT_DIR))  await mkdir(TEXT_DIR,  { recursive: true });
 
-  const text = await fetchArticleText(url);
-  await writeFile(textPath(id), text, 'utf8').catch(() => {});
+  const text = await fetchAndCacheText(id, url);
 
   const txtFile  = path.join(tmpdir(), `watchlist-${id}-${Date.now()}.txt`);
   const aiffFile = path.join(tmpdir(), `watchlist-${id}-${Date.now()}.aiff`);

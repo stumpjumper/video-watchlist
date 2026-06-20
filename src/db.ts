@@ -79,6 +79,15 @@ if (userVersion < 1) {
   }
 }
 
+if (userVersion < 2) {
+  db.exec('BEGIN');
+  try {
+    db.exec(`ALTER TABLE videos ADD COLUMN published_at TEXT`);
+    db.exec('PRAGMA user_version = 2');
+    db.exec('COMMIT');
+  } catch (e) { db.exec('ROLLBACK'); throw e; }
+}
+
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export interface Label {
@@ -106,6 +115,7 @@ export interface Video {
   content_type: string;
   external_id: string | null;
   source_metadata: string | null;
+  published_at: string | null;
   labels: VideoLabel[];
 }
 
@@ -344,4 +354,9 @@ export function purgeTrash(): number {
   const ids = rows.map(r => r.video_id);
   const ph = ids.map(() => '?').join(',');
   return (db.prepare(`DELETE FROM videos WHERE id IN (${ph})`).run(...ids).changes as number);
+}
+
+export function savePublishedAt(id: number, publishedAt: string): void {
+  db.prepare(`UPDATE videos SET published_at = ? WHERE id = ? AND published_at IS NULL`)
+    .run(publishedAt, id);
 }

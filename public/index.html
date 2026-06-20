@@ -4,194 +4,126 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Watchlist</title>
+  <link rel="stylesheet" href="/shared.css">
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      background: #18181b;
-      color: #e4e4e7;
-      font-family: system-ui, -apple-system, sans-serif;
-      font-size: 16px;
-      line-height: 1.5;
-      min-height: 100vh;
-      -webkit-text-size-adjust: 100%;
-    }
-
     .container { max-width: 860px; margin: 0 auto; padding: 24px 16px 64px; }
 
     /* ── Header ── */
-
     header {
       display: flex; align-items: center; gap: 8px;
       margin-bottom: 20px; padding-bottom: 16px;
-      border-bottom: 1px solid #3f3f46; flex-wrap: wrap;
+      border-bottom: 1px solid var(--border); flex-wrap: wrap;
     }
-    h1 { font-size: 20px; font-weight: 600; color: #f4f4f5; flex-shrink: 0; }
-    .count { color: #71717a; font-size: 14px; flex: 1; min-width: 60px; }
+    h1    { font-size: 20px; font-weight: 600; color: var(--text-head); flex-shrink: 0; }
+    .count { color: var(--text-muted); font-size: 14px; flex: 1; min-width: 60px; }
 
-    .hdr-btn {
-      background: none; border: 1px solid #3f3f46; color: #a1a1aa;
-      padding: 5px 12px; border-radius: 6px; cursor: pointer;
-      font-size: 13px; white-space: nowrap;
-      transition: border-color 0.15s, color 0.15s;
-      -webkit-tap-highlight-color: transparent;
-    }
-    .hdr-btn:hover         { border-color: #71717a; color: #e4e4e7; }
-    .hdr-btn.active        { border-color: #6366f1; color: #a5b4fc; }
-    .hdr-btn.add-btn       { color: #4ade80; }
-    .hdr-btn.add-btn:hover { border-color: #4ade80; }
-    .hdr-btn.trash-btn     { position: relative; }
-    .hdr-btn.trash-btn.has-items { color: #f87171; border-color: #7f1d1d; }
-    .hdr-btn.trash-btn.has-items:hover { border-color: #f87171; }
-    .hdr-btn.trash-btn.active { border-color: #f87171; color: #f87171; }
+    /* Header button modifiers on top of .btn-ghost.sm */
+    .add-btn             { color: var(--green); }
+    .add-btn:hover       { border-color: var(--green); }
+    .trash-btn           { position: relative; }
+    .trash-btn.has-items { color: var(--red); border-color: var(--red-border); }
+    .trash-btn.has-items:hover { border-color: var(--red); }
+    .trash-btn.active    { border-color: var(--red); color: var(--red); }
 
     /* ── Filter row ── */
-
-    .filter-row {
-      display: flex; align-items: center; gap: 8px;
-      margin-bottom: 10px;
-    }
+    .filter-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
     .filter-search {
-      flex: 1;
-      background: #1c1c1f; border: 1px solid #3f3f46; color: #e4e4e7;
+      flex: 1; background: var(--bg-surface); border: 1px solid var(--border); color: var(--text);
       padding: 8px 12px; border-radius: 8px; font-size: 14px;
-      outline: none; -webkit-appearance: none;
-      transition: border-color 0.15s;
+      outline: none; -webkit-appearance: none; transition: border-color 0.15s;
     }
-    .filter-search:focus { border-color: #6366f1; }
-    .filter-search::placeholder { color: #52525b; }
+    .filter-search:focus                      { border-color: var(--accent); }
+    .filter-search::placeholder               { color: var(--text-faint); }
     .filter-search::-webkit-search-cancel-button { display: none; }
 
-    .btn-filter {
-      background: none; border: 1px solid #3f3f46; color: #a1a1aa;
-      padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 13px;
-      white-space: nowrap; transition: border-color 0.15s, color 0.15s;
-      -webkit-tap-highlight-color: transparent; flex-shrink: 0;
-    }
-    .btn-filter:hover  { border-color: #71717a; color: #e4e4e7; }
-    .btn-filter.active { border-color: #6366f1; color: #a5b4fc; }
-
-    /* ── Badges ── */
-
-    .badge {
-      display: inline-block; font-size: 11px; font-weight: 700;
-      padding: 2px 8px; border-radius: 99px;
-      text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap;
-    }
-    .badge-new      { background: #1e3a5f; color: #93c5fd; }
-    .badge-started  { background: #3b1f0a; color: #fb923c; }
-    .badge-finished { background: #14291a; color: #4ade80; }
-
     /* ── Label chips ── */
-
     .label-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
     .label-chip {
       font-size: 11px; padding: 2px 7px; border-radius: 99px;
-      background: #27272a; border: 1px solid #3f3f46; color: #a1a1aa;
+      background: var(--bg-raised); border: 1px solid var(--border); color: #a1a1aa;
       white-space: nowrap;
     }
-    .label-chip-date { color: #52525b; }
+    .label-chip-date { color: var(--text-faint); }
 
-    /* ── Active list ── */
-
+    /* ── List ── */
     #list { list-style: none; }
 
     .video-card {
       display: flex; flex-direction: column; gap: 4px;
-      padding: 14px 16px; background: #1c1c1f;
+      padding: 14px 16px; background: var(--bg-surface);
       border-radius: 12px; margin-bottom: 8px;
       cursor: pointer; -webkit-tap-highlight-color: transparent;
       transition: background 0.12s; user-select: none; -webkit-user-select: none;
     }
     .video-card:active { background: #26262a; }
-
     .card-channel {
-      font-size: 12px; color: #71717a;
+      font-size: 12px; color: var(--text-muted);
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
-    .card-title {
-      color: #93c5fd; font-size: 16px; font-weight: 500; line-height: 1.35;
-    }
-    .card-footer {
-      display: flex; align-items: center; gap: 8px; margin-top: 2px;
-    }
-    .card-badge { /* inherits from .badge */ }
-    .card-date  { font-size: 12px; color: #52525b; margin-left: auto; }
+    .card-title   { color: var(--text-link); font-size: 16px; font-weight: 500; line-height: 1.35; }
+    .card-footer  { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
+    .card-date    { font-size: 12px; color: var(--text-faint); margin-left: auto; }
     .card-trash-btn {
       background: none; border: none; padding: 4px 6px;
-      color: #3f3f46; cursor: pointer; font-size: 15px; line-height: 1;
+      color: var(--border); cursor: pointer; font-size: 15px; line-height: 1;
       border-radius: 4px; flex-shrink: 0;
-      -webkit-tap-highlight-color: transparent;
-      transition: color 0.12s;
+      -webkit-tap-highlight-color: transparent; transition: color 0.12s;
     }
-    .card-trash-btn:hover  { color: #f87171; }
-    .card-trash-btn:active { color: #f87171; }
+    .card-trash-btn:hover, .card-trash-btn:active { color: var(--red); }
 
     /* ── Bulk action bar (trash mode) ── */
-
     .bulk-bar {
       display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
       margin-bottom: 12px; padding: 10px 14px;
-      background: #1c1c1f; border: 1px solid #3f3f46; border-radius: 8px;
+      background: var(--bg-surface); border: 1px solid var(--border); border-radius: 8px;
     }
-    .bulk-count { flex: 1; font-size: 13px; color: #71717a; min-width: 60px; }
+    .bulk-count { flex: 1; font-size: 13px; color: var(--text-muted); min-width: 60px; }
     .bulk-btn {
-      background: none; border: 1px solid #3f3f46; color: #a1a1aa;
+      background: none; border: 1px solid var(--border); color: #a1a1aa;
       padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 13px;
       white-space: nowrap; -webkit-tap-highlight-color: transparent;
       transition: border-color 0.12s, color 0.12s;
     }
     .bulk-btn:disabled { opacity: 0.35; cursor: default; }
-    .bulk-btn.sel-all  { }
-    .bulk-btn.sel-all:not(:disabled):hover { border-color: #71717a; color: #e4e4e7; }
-    .bulk-btn.restore  { color: #4ade80; border-color: #166534; }
-    .bulk-btn.restore:not(:disabled):hover  { background: #14291e; border-color: #4ade80; }
-    .bulk-btn.del      { color: #f87171; border-color: #7f1d1d; }
-    .bulk-btn.del:not(:disabled):hover      { background: #2d1f1f; border-color: #f87171; }
+    .bulk-btn.restore  { color: var(--green); border-color: #166534; }
+    .bulk-btn.restore:not(:disabled):hover { background: var(--green-bg); border-color: var(--green); }
+    .bulk-btn.del      { color: var(--red); border-color: var(--red-border); }
+    .bulk-btn.del:not(:disabled):hover     { background: var(--red-bg); border-color: var(--red); }
     .bulk-btn.confirming { animation: pulse-border 0.3s ease; }
-
     @keyframes pulse-border { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
 
     /* ── Selectable cards (trash mode) ── */
-
     .video-card.selectable { padding-left: 44px; position: relative; cursor: default; }
     .video-card.selectable::before {
-      content: '';
-      position: absolute; left: 14px; top: 16px;
+      content: ''; position: absolute; left: 14px; top: 16px;
       width: 20px; height: 20px; border-radius: 50%;
-      border: 2px solid #52525b; background: #27272a;
+      border: 2px solid var(--border-mid); background: var(--bg-raised);
       transition: background 0.12s, border-color 0.12s;
     }
     .video-card.selectable.selected { background: #1a1a35; }
-    .video-card.selectable.selected::before { background: #4338ca; border-color: #6366f1; }
+    .video-card.selectable.selected::before { background: #4338ca; border-color: var(--accent); }
     .video-card.selectable.selected::after {
-      content: '✓';
-      position: absolute; left: 14px; top: 16px;
-      width: 20px; height: 20px;
-      font-size: 11px; font-weight: 700; color: #fff;
-      text-align: center; line-height: 20px;
+      content: '✓'; position: absolute; left: 14px; top: 16px;
+      width: 20px; height: 20px; font-size: 11px; font-weight: 700;
+      color: #fff; text-align: center; line-height: 20px;
     }
 
     /* ── Desktop layout ── */
-
     @media (min-width: 600px) {
       .video-card {
         display: grid;
         grid-template-columns: 160px 1fr 80px 96px 28px;
         grid-template-areas: "channel title badge date trash" ". chips chips chips chips";
         grid-template-rows: auto auto;
-        gap: 0; column-gap: 16px;
-        align-items: center;
-        padding: 10px 14px;
-        border-radius: 8px;
-        margin-bottom: 4px;
+        gap: 0; column-gap: 16px; align-items: center;
+        padding: 10px 14px; border-radius: 8px; margin-bottom: 4px;
         flex-direction: unset;
       }
-      .card-channel   { grid-area: channel;  font-size: 13px; align-self: center; }
-      .card-title     { grid-area: title;    font-size: 15px; }
+      .card-channel   { grid-area: channel; font-size: 13px; align-self: center; }
+      .card-title     { grid-area: title;   font-size: 15px; }
       .card-footer    { display: contents; }
       .card-badge     { grid-area: badge; }
-      .card-date      { grid-area: date; text-align: right; margin-left: 0; font-size: 13px; color: #71717a; }
+      .card-date      { grid-area: date; text-align: right; margin-left: 0; font-size: 13px; color: var(--text-muted); }
       .card-trash-btn { grid-area: trash; padding: 2px 4px; }
       .card-chips-row { grid-area: chips; }
 
@@ -199,9 +131,9 @@
         display: grid;
         grid-template-columns: 160px 1fr 80px 96px 28px;
         column-gap: 16px; padding: 0 14px 10px; margin-bottom: 4px;
-        border-bottom: 1px solid #3f3f46;
+        border-bottom: 1px solid var(--border);
         font-size: 11px; font-weight: 600;
-        text-transform: uppercase; letter-spacing: 0.06em; color: #71717a;
+        text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted);
       }
       .list-header span:last-child { text-align: right; }
 
@@ -212,289 +144,168 @@
     }
 
     @media (max-width: 599px) {
-      .list-header { display: none; }
+      .list-header    { display: none; }
       .card-chips-row { margin-top: 2px; }
     }
 
     /* ── Category filter ── */
-
     .category-select {
-      background: #1c1c1f; border: 1px solid #3f3f46; color: #a1a1aa;
+      background: var(--bg-surface); border: 1px solid var(--border); color: #a1a1aa;
       padding: 8px 12px; border-radius: 8px; font-size: 13px;
-      outline: none; cursor: pointer;
-      -webkit-appearance: none; appearance: none;
-      transition: border-color 0.15s, color 0.15s;
-      flex-shrink: 0;
-      max-width: 160px;
+      outline: none; cursor: pointer; -webkit-appearance: none; appearance: none;
+      transition: border-color 0.15s, color 0.15s; flex-shrink: 0; max-width: 160px;
     }
-    .category-select:focus { border-color: #6366f1; color: #e4e4e7; }
-    .category-select.active { border-color: #6366f1; color: #a5b4fc; }
-
-    /* ── Article card action buttons ── */
-    .card-article-actions {
-      display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px;
-    }
-    .card-action-btn {
-      background: none; border: 1px solid #3f3f46; color: #a1a1aa;
-      padding: 5px 10px; border-radius: 6px; cursor: pointer;
-      font-size: 12px; white-space: nowrap;
-      -webkit-tap-highlight-color: transparent;
-      transition: border-color 0.15s, color 0.15s;
-      text-decoration: none; display: inline-block;
-    }
-    .card-action-btn:hover { border-color: #71717a; color: #e4e4e7; }
-    .card-action-btn.open-article { color: #93c5fd; border-color: #1e3a5f; }
-    .card-action-btn.open-article:hover { border-color: #3b82f6; }
-    .card-action-btn.listen { color: #a5b4fc; border-color: #312e81; }
-    .card-action-btn.listen:hover { border-color: #6366f1; }
+    .category-select:focus  { border-color: var(--accent); color: var(--text); }
+    .category-select.active { border-color: var(--accent); color: var(--accent-muted); }
 
     /* ── Sort row ── */
-
-    .sort-row {
-      display: flex; align-items: center; gap: 8px; margin-bottom: 14px;
-    }
-    .sort-label { font-size: 12px; color: #52525b; white-space: nowrap; }
+    .sort-row { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+    .sort-label  { font-size: 12px; color: var(--text-faint); white-space: nowrap; }
     .sort-select {
-      background: #1c1c1f; border: 1px solid #3f3f46; color: #a1a1aa;
+      background: var(--bg-surface); border: 1px solid var(--border); color: #a1a1aa;
       padding: 5px 10px; border-radius: 6px; font-size: 13px;
-      outline: none; cursor: pointer;
-      -webkit-appearance: none; appearance: none;
+      outline: none; cursor: pointer; -webkit-appearance: none; appearance: none;
       transition: border-color 0.15s, color 0.15s;
     }
-    .sort-select:focus { border-color: #71717a; color: #e4e4e7; }
+    .sort-select:focus { border-color: var(--border-mid); color: var(--text); }
     .sort-dir {
-      background: none; border: 1px solid #3f3f46; color: #71717a;
+      background: none; border: 1px solid var(--border); color: var(--text-muted);
       width: 32px; height: 30px; border-radius: 6px; cursor: pointer;
       font-size: 15px; display: flex; align-items: center; justify-content: center;
       flex-shrink: 0; transition: color 0.15s, border-color 0.15s;
       -webkit-tap-highlight-color: transparent;
     }
-    .sort-dir:active { color: #e4e4e7; border-color: #71717a; }
-    .sort-dir.desc   { color: #a1a1aa; }
-    .sort-dir.asc    { color: #a5b4fc; border-color: #6366f1; }
+    .sort-dir:active { color: var(--text); border-color: var(--border-mid); }
+    .sort-dir.asc    { color: var(--accent-muted); border-color: var(--accent); }
 
     /* ── Empty ── */
+    .empty { color: var(--text-faint); text-align: center; padding: 64px 0; font-size: 16px; }
 
-    .empty { color: #52525b; text-align: center; padding: 64px 0; font-size: 16px; }
-
-    /* ── Modals ── */
-
-    .overlay {
-      display: none; position: fixed; inset: 0;
-      background: rgba(0,0,0,0.7); z-index: 100;
-      align-items: flex-end; justify-content: center;
-    }
-    .overlay.open { display: flex; }
-
-    .modal {
-      background: #27272a; border-top: 1px solid #3f3f46;
-      border-radius: 16px 16px 0 0; padding: 20px 20px 36px; width: 100%;
-    }
-
-    @media (min-width: 600px) {
-      .overlay { align-items: center; padding: 24px; }
-      .modal { border: 1px solid #3f3f46; border-radius: 12px; padding: 28px; max-width: 480px; }
-    }
-
-    .modal-handle {
-      width: 40px; height: 4px; background: #52525b;
-      border-radius: 2px; margin: 0 auto 20px;
-    }
-    @media (min-width: 600px) { .modal-handle { display: none; } }
-
-    .modal-label {
-      font-size: 11px; font-weight: 600; text-transform: uppercase;
-      letter-spacing: 0.08em; color: #71717a; margin-bottom: 8px;
-    }
-    .modal-title {
-      font-size: 17px; color: #f4f4f5; font-weight: 500;
-      margin-bottom: 10px; line-height: 1.4;
-    }
+    /* ── Action modal URL row ── */
     .modal-url-row {
       display: flex; align-items: center; gap: 8px; margin-bottom: 16px;
-      padding: 8px 10px; background: #18181b;
-      border-radius: 6px; border: 1px solid #3f3f46;
+      padding: 8px 10px; background: var(--bg-base);
+      border-radius: 6px; border: 1px solid var(--border);
     }
     .modal-url {
-      flex: 1; font-size: 12px; color: #71717a;
+      flex: 1; font-size: 12px; color: var(--text-muted);
       font-family: ui-monospace, monospace;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
     }
     .btn-copy {
-      background: none; border: 1px solid #3f3f46; color: #a1a1aa;
+      background: none; border: 1px solid var(--border); color: #a1a1aa;
       padding: 3px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;
       white-space: nowrap; flex-shrink: 0; transition: color 0.1s, border-color 0.1s;
       -webkit-tap-highlight-color: transparent;
     }
-    .btn-copy.copied { color: #4ade80; border-color: #4ade80; }
-
-    .modal-actions { display: flex; flex-direction: column; gap: 10px; }
-    .modal-divider { height: 1px; background: #3f3f46; margin: 2px 0; }
-
-    /* ── Label picker (archive sub-state) ── */
-
-    .label-picker { display: flex; flex-direction: column; gap: 8px; margin: 12px 0 4px; }
-    .label-picker-item {
-      display: flex; align-items: center; gap: 10px;
-      padding: 10px 12px; background: #1c1c1f; border-radius: 8px;
-      border: 1px solid #3f3f46; cursor: pointer;
-      -webkit-tap-highlight-color: transparent;
-      transition: border-color 0.12s;
-    }
-    .label-picker-item.selected { border-color: #6366f1; background: #1e1e3f; }
-    .label-picker-item input[type="checkbox"] { display: none; }
-    .label-picker-check {
-      width: 18px; height: 18px; border-radius: 4px;
-      border: 1px solid #3f3f46; background: #18181b;
-      display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0; font-size: 12px; color: #a5b4fc;
-      transition: border-color 0.12s, background 0.12s;
-    }
-    .label-picker-item.selected .label-picker-check {
-      border-color: #6366f1; background: #3730a3;
-    }
-    .label-picker-name  { font-size: 15px; color: #e4e4e7; flex: 1; }
-    .label-picker-since { font-size: 11px; color: #52525b; white-space: nowrap; }
-
-    /* ── Add modal fields ── */
-
-    .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
-    .field label { font-size: 12px; color: #a1a1aa; font-weight: 500; }
-    .field-row { display: flex; gap: 8px; }
-    .field-row .field { flex: 1; margin-bottom: 0; }
-    .field-row .field-emoji { flex: 0 0 72px; }
-
-    input[type="text"], input[type="url"] {
-      background: #18181b; border: 1px solid #3f3f46;
-      color: #e4e4e7; padding: 10px 12px; border-radius: 8px;
-      font-size: 15px; width: 100%; outline: none;
-      transition: border-color 0.15s; -webkit-appearance: none;
-    }
-    input:focus { border-color: #6366f1; }
-    input::placeholder { color: #52525b; }
-
-    .fetch-status { font-size: 12px; color: #71717a; min-height: 16px; margin-top: -8px; }
-    .fetch-status.ok  { color: #4ade80; }
-    .fetch-status.err { color: #f87171; }
-
-    .btn {
-      border: none; padding: 15px 18px; border-radius: 10px; cursor: pointer;
-      font-size: 16px; font-weight: 500; text-align: left; width: 100%;
-      -webkit-tap-highlight-color: transparent; transition: filter 0.1s;
-    }
-    .btn:active   { filter: brightness(0.85); }
-    .btn:disabled { opacity: 0.4; cursor: default; }
-    .btn-primary   { background: #1e3154; border: 1px solid #3b82f6; color: #93c5fd; }
-    .btn-green     { background: #14291e; border: 1px solid #16a34a; color: #4ade80; }
-    .btn-orange    { background: #2c1a09; border: 1px solid #c2410c; color: #fb923c; }
-    .btn-secondary { background: #3f3f46; color: #e4e4e7; border: none; }
-    .btn-muted     { background: none; border: 1px solid #3f3f46; color: #71717a; }
-    .btn-danger    { background: none; border: 1px solid #3f3f46; color: #f87171; }
-    .btn-danger:active { background: #2d1f1f; border-color: #f87171; }
-    .btn-cancel    { background: #27272a; color: #71717a; border: 1px solid #3f3f46; }
-    .btn-indigo    { background: #1e1e3f; border: 1px solid #6366f1; color: #a5b4fc; }
-
-    @media (min-width: 600px) {
-      .btn { padding: 11px 16px; font-size: 14px; border-radius: 7px; }
-    }
+    .btn-copy.copied { color: var(--green); border-color: var(--green); }
 
     /* ── Filter modal ── */
-
     .filter-modal-body { margin: 12px 0; }
     .filter-section-label {
       font-size: 11px; font-weight: 600; text-transform: uppercase;
-      letter-spacing: 0.08em; color: #71717a; margin-bottom: 8px; margin-top: 16px;
+      letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 8px; margin-top: 16px;
     }
     .filter-section-label:first-child { margin-top: 0; }
     .filter-label-list { display: flex; flex-direction: column; gap: 6px; }
     .filter-label-item {
       display: flex; align-items: center; gap: 10px;
-      padding: 9px 12px; background: #1c1c1f; border-radius: 8px;
-      border: 1px solid #3f3f46; cursor: pointer;
-      -webkit-tap-highlight-color: transparent;
+      padding: 9px 12px; background: var(--bg-surface); border-radius: 8px;
+      border: 1px solid var(--border); cursor: pointer; -webkit-tap-highlight-color: transparent;
     }
-    .filter-label-item.selected { border-color: #6366f1; background: #1e1e3f; }
-    .filter-label-item .label-picker-check { /* reuse */ }
-    .filter-label-name { font-size: 14px; color: #e4e4e7; flex: 1; }
-    .filter-mode-row {
-      display: flex; gap: 8px; margin-top: 10px;
-    }
+    .filter-label-item.selected { border-color: var(--accent); background: var(--accent-bg); }
+    .filter-label-name { font-size: 14px; color: var(--text); flex: 1; }
+    .filter-mode-row   { display: flex; gap: 8px; margin-top: 10px; }
     .filter-mode-btn {
       flex: 1; padding: 8px; border-radius: 7px; cursor: pointer;
       font-size: 13px; font-weight: 500; text-align: center;
-      background: #1c1c1f; border: 1px solid #3f3f46; color: #71717a;
+      background: var(--bg-surface); border: 1px solid var(--border); color: var(--text-muted);
       -webkit-tap-highlight-color: transparent;
     }
-    .filter-mode-btn.active { border-color: #6366f1; color: #a5b4fc; background: #1e1e3f; }
+    .filter-mode-btn.active { border-color: var(--accent); color: var(--accent-muted); background: var(--accent-bg); }
     .filter-date-row { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
     .filter-date-row input[type="date"] {
-      flex: 1; background: #1c1c1f; border: 1px solid #3f3f46; color: #e4e4e7;
+      flex: 1; background: var(--bg-surface); border: 1px solid var(--border); color: var(--text);
       padding: 8px 10px; border-radius: 7px; font-size: 13px; outline: none;
       -webkit-appearance: none; color-scheme: dark;
     }
-    .filter-date-sep { font-size: 12px; color: #52525b; }
-    .filter-actions { display: flex; gap: 8px; margin-top: 16px; }
+    .filter-date-sep { font-size: 12px; color: var(--text-faint); }
+    .filter-actions  { display: flex; gap: 8px; margin-top: 16px; }
     .filter-actions .btn { flex: 1; text-align: center; }
 
     /* ── Labels management modal ── */
-
     .labels-list { display: flex; flex-direction: column; gap: 6px; margin: 12px 0; }
     .labels-list-item {
       display: flex; align-items: center; gap: 10px;
-      padding: 10px 12px; background: #1c1c1f; border-radius: 8px;
-      border: 1px solid #3f3f46;
+      padding: 10px 12px; background: var(--bg-surface);
+      border-radius: 8px; border: 1px solid var(--border);
     }
-    .labels-list-name { flex: 1; font-size: 15px; color: #e4e4e7; }
-    .labels-list-count { font-size: 12px; color: #52525b; }
+    .labels-list-name  { flex: 1; font-size: 15px; color: var(--text); }
+    .labels-list-count { font-size: 12px; color: var(--text-faint); }
     .btn-del-label {
-      background: none; border: none; color: #52525b; cursor: pointer;
+      background: none; border: none; color: var(--text-faint); cursor: pointer;
       font-size: 16px; padding: 2px 6px; border-radius: 4px;
       -webkit-tap-highlight-color: transparent;
     }
-    .btn-del-label:hover { color: #f87171; }
+    .btn-del-label:hover     { color: var(--red); }
     .btn-del-label[disabled] { opacity: 0.3; cursor: default; }
     .new-label-row { display: flex; gap: 8px; margin-top: 4px; }
     .new-label-row input { flex: 1; padding: 8px 10px; font-size: 14px; }
     .btn-add-label {
-      background: #14291e; border: 1px solid #16a34a; color: #4ade80;
+      background: var(--green-bg); border: 1px solid var(--green-border); color: var(--green);
       padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 14px;
       white-space: nowrap; -webkit-tap-highlight-color: transparent;
     }
     .btn-add-label:disabled { opacity: 0.4; cursor: default; }
 
-    /* ── Summary overlay ── */
+    /* ── Add modal fields ── */
+    .field       { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+    .field label { font-size: 12px; color: #a1a1aa; font-weight: 500; }
+    .field-row   { display: flex; gap: 8px; }
+    .field-row .field       { flex: 1; margin-bottom: 0; }
+    .field-row .field-emoji { flex: 0 0 72px; }
 
-    .summary-modal {
-      display: flex; flex-direction: column; max-height: 85vh;
+    input[type="text"], input[type="url"] {
+      background: var(--bg-base); border: 1px solid var(--border);
+      color: var(--text); padding: 10px 12px; border-radius: 8px;
+      font-size: 15px; width: 100%; outline: none;
+      transition: border-color 0.15s; -webkit-appearance: none;
     }
-    @media (min-width: 600px) { .summary-modal { max-height: 80vh; } }
+    input:focus        { border-color: var(--accent); }
+    input::placeholder { color: var(--text-faint); }
 
+    .fetch-status     { font-size: 12px; color: var(--text-muted); min-height: 16px; margin-top: -8px; }
+    .fetch-status.ok  { color: var(--green); }
+    .fetch-status.err { color: var(--red); }
+
+    /* ── Summary modal ── */
+    .summary-modal { display: flex; flex-direction: column; max-height: 85vh; }
+    @media (min-width: 600px) { .summary-modal { max-height: 80vh; } }
     .summary-html {
       flex: 1; min-height: 0;
-      background: #1e1e21; border: 1px solid #3f3f46; border-radius: 8px;
+      background: var(--bg-inset); border: 1px solid var(--border); border-radius: 8px;
       padding: 16px 18px; margin: 12px 0 16px;
       overflow-y: auto; -webkit-overflow-scrolling: touch;
       font-size: 14px; line-height: 1.6; color: #d4d4d8;
     }
     .summary-html h3 {
-      color: #f4f4f5; font-size: 11px; font-weight: 700;
+      color: var(--text-head); font-size: 11px; font-weight: 700;
       text-transform: uppercase; letter-spacing: 0.07em; margin: 14px 0 6px;
     }
     .summary-html h3:first-child { margin-top: 0; }
-    .summary-html p  { margin-bottom: 10px; }
-    .summary-html ul, .summary-html ol { padding-left: 18px; margin-bottom: 10px; }
-    .summary-html li { margin-bottom: 5px; }
-    .summary-html strong { color: #e4e4e7; }
+    .summary-html p                     { margin-bottom: 10px; }
+    .summary-html ul, .summary-html ol  { padding-left: 18px; margin-bottom: 10px; }
+    .summary-html li                    { margin-bottom: 5px; }
+    .summary-html strong                { color: var(--text); }
 
     .copy-row { display: flex; gap: 8px; margin-bottom: 10px; }
     .btn-copy-opt {
-      flex: 1; background: #3f3f46; border: 1px solid #52525b;
-      color: #a1a1aa; padding: 9px 0; border-radius: 7px;
-      cursor: pointer; font-size: 13px;
+      flex: 1; background: var(--border); border: 1px solid var(--border-mid);
+      color: #a1a1aa; padding: 9px 0; border-radius: 7px; cursor: pointer; font-size: 13px;
       -webkit-tap-highlight-color: transparent; transition: background 0.1s;
     }
-    .btn-copy-opt:active  { background: #52525b; }
-    .btn-copy-opt.copied  { color: #4ade80; border-color: #4ade80; }
+    .btn-copy-opt:active   { background: var(--border-mid); }
+    .btn-copy-opt.copied   { color: var(--green); border-color: var(--green); }
     .btn-copy-opt:disabled { opacity: 0.4; cursor: default; }
   </style>
 </head>
@@ -504,9 +315,9 @@
   <header>
     <h1>📺 Watchlist</h1>
     <span class="count" id="count"></span>
-    <button class="hdr-btn" id="btn-labels">Labels</button>
-    <button class="hdr-btn trash-btn" id="btn-show-trash">Trash</button>
-    <button class="hdr-btn add-btn" id="btn-show-add">+ Add</button>
+    <button class="btn-ghost sm" id="btn-labels">Labels</button>
+    <button class="btn-ghost sm trash-btn" id="btn-show-trash">Trash</button>
+    <button class="btn-ghost sm add-btn" id="btn-show-add">+ Add</button>
   </header>
 
   <div class="filter-row">
@@ -514,7 +325,7 @@
     <select id="category-filter" class="category-select">
       <option value="">All Categories</option>
     </select>
-    <button class="btn-filter" id="btn-filter-labels">Filter</button>
+    <button class="btn-ghost" id="btn-filter-labels">Filter</button>
   </div>
 
   <div class="sort-row">
@@ -532,7 +343,6 @@
     <span>Channel</span><span>Title</span><span>Status</span><span>Added</span>
   </div>
 
-  <!-- Bulk action bar: shown in trash mode -->
   <div class="bulk-bar" id="bulk-bar" style="display:none">
     <button class="bulk-btn sel-all" id="btn-select-all">Select all</button>
     <span class="bulk-count" id="bulk-count">0 selected</span>
@@ -548,7 +358,7 @@
 <div class="overlay" id="action-overlay" role="dialog" aria-modal="true">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-label" id="action-modal-label">Open video</div>
+    <div class="modal-label" id="action-modal-label">Open</div>
     <div class="modal-title" id="action-title"></div>
     <div class="modal-url-row" id="action-url-row">
       <span class="modal-url" id="action-url"></span>
@@ -567,12 +377,12 @@
       <div class="filter-section-label">Labels</div>
       <div class="filter-label-list" id="filter-label-list"></div>
       <div class="filter-mode-row" id="filter-mode-row" style="display:none">
-        <button class="filter-mode-btn active" data-mode="or" id="fmode-or">Any label (OR)</button>
-        <button class="filter-mode-btn" data-mode="and" id="fmode-and">All labels (AND)</button>
+        <button class="filter-mode-btn active" data-mode="or"  id="fmode-or">Any label (OR)</button>
+        <button class="filter-mode-btn"        data-mode="and" id="fmode-and">All labels (AND)</button>
       </div>
       <div class="filter-section-label">Date added</div>
       <div class="filter-date-row">
-        <input type="date" id="filter-after" placeholder="From">
+        <input type="date" id="filter-after"  placeholder="From">
         <span class="filter-date-sep">–</span>
         <input type="date" id="filter-before" placeholder="To">
       </div>
@@ -674,11 +484,9 @@
   let allLabels      = [];
   let selectedIds    = new Set();
   let trashActive    = false;
-  let activeCategory = '';   // source filter value
+  let activeCategory = '';
 
   function isTrashMode() { return trashActive; }
-
-  // ── Category display names ─────────────────────────────────────────────────
 
   const CATEGORY_NAMES = {
     'youtube':      'YouTube',
@@ -690,12 +498,52 @@
       ?? source.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   }
 
-  // Active filter state
-  let filterText    = '';
-  let filterLabels  = [];       // array of label IDs
-  let filterMode    = 'or';
-  let filterAfter   = '';
-  let filterBefore  = '';
+  let filterText   = '';
+  let filterLabels = [];
+  let filterMode   = 'or';
+  let filterAfter  = '';
+  let filterBefore = '';
+
+  // ── State persistence ─────────────────────────────────────────────────────
+
+  const STATE_KEY = 'watchlist-state';
+
+  function saveState() {
+    try {
+      localStorage.setItem(STATE_KEY, JSON.stringify({
+        filterText, filterLabels, filterMode, filterAfter, filterBefore,
+        sortBy, sortDir, activeCategory, trashActive,
+        scrollY: window.scrollY,
+      }));
+    } catch {}
+  }
+
+  function restoreState() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(STATE_KEY) || 'null');
+      if (!saved) return 0;
+      filterText     = saved.filterText     || '';
+      filterLabels   = saved.filterLabels   || [];
+      filterMode     = saved.filterMode     || 'or';
+      filterAfter    = saved.filterAfter    || '';
+      filterBefore   = saved.filterBefore   || '';
+      sortBy         = saved.sortBy         || 'added_at';
+      sortDir        = saved.sortDir        || 'desc';
+      activeCategory = saved.activeCategory || '';
+      trashActive    = !!saved.trashActive;
+
+      document.getElementById('filter-text').value      = filterText;
+      document.getElementById('sort-field').value       = sortBy;
+      document.getElementById('filter-after').value     = filterAfter;
+      document.getElementById('filter-before').value    = filterBefore;
+      const sortDirBtn = document.getElementById('sort-dir');
+      sortDirBtn.textContent = sortDir === 'asc' ? '↑' : '↓';
+      sortDirBtn.className   = 'sort-dir ' + sortDir;
+      updateFilterBtn();
+      return saved.scrollY || 0;
+    } catch {}
+    return 0;
+  }
 
   // ── Utils ──────────────────────────────────────────────────────────────────
 
@@ -729,10 +577,24 @@
     try { ok = document.execCommand('copy'); } catch {}
     document.body.removeChild(ta);
     if (ok) return Promise.resolve();
-    if (navigator.clipboard && navigator.clipboard.writeText) {
+    if (navigator.clipboard && navigator.clipboard.writeText)
       return navigator.clipboard.writeText(text).catch(() => Promise.resolve());
-    }
     return Promise.resolve();
+  }
+
+  // ── Filter params (single source of truth for list + reader URLs) ──────────
+
+  function buildFilterParams() {
+    const p = new URLSearchParams();
+    const activeLabels = trashActive ? [2, ...filterLabels] : filterLabels;
+    if (filterText)          p.set('q',          filterText);
+    if (activeLabels.length) p.set('labels',      activeLabels.join(','));
+    if (activeLabels.length > 1)
+      p.set('label_mode', trashActive ? 'and' : filterMode);
+    if (filterAfter)  p.set('after',  filterAfter);
+    if (filterBefore) p.set('before', filterBefore);
+    if (activeCategory) p.set('source', activeCategory);
+    return p;
   }
 
   // ── Labels ─────────────────────────────────────────────────────────────────
@@ -774,28 +636,18 @@
     sortDir = sortDir === 'desc' ? 'asc' : 'desc';
     const btn = document.getElementById('sort-dir');
     btn.textContent = sortDir === 'asc' ? '↑' : '↓';
-    btn.className   = `sort-dir ${sortDir}`;
+    btn.className   = 'sort-dir ' + sortDir;
     load();
   });
 
-  // ── Load & render main list ─────────────────────────────────────────────────
+  // ── Load & render ───────────────────────────────────────────────────────────
 
   async function load() {
-    const params = new URLSearchParams();
-    if (filterText) params.set('q', filterText);
-    const activeLabels = trashActive ? [2, ...filterLabels] : filterLabels;
-    if (activeLabels.length) params.set('labels', activeLabels.join(','));
-    if (activeLabels.length > 1) {
-      // Trash is always AND'd so it stays required regardless of the user's OR/AND setting
-      params.set('label_mode', trashActive ? 'and' : filterMode);
-    }
-    if (filterAfter)  params.set('after',  filterAfter);
-    if (filterBefore) params.set('before', filterBefore);
-    if (activeCategory) params.set('source', activeCategory);
-
+    const params = buildFilterParams();
     const data = await fetch('/api/videos?' + params).then(r => r.json());
     render(data.videos);
     updateTrashBtn(data.trash_count || 0);
+    saveState();
   }
 
   function render(videos) {
@@ -810,11 +662,16 @@
     const nNew      = videos.filter(v => v.status === 'new').length;
     const nStarted  = videos.filter(v => v.status === 'started').length;
     const nFinished = videos.filter(v => v.status === 'finished').length;
-    count.textContent = [nNew && nNew+' new', nStarted && nStarted+' started', nFinished && nFinished+' finished'].filter(Boolean).join(', ');
+    count.textContent = [
+      nNew      && nNew      + ' new',
+      nStarted  && nStarted  + ' started',
+      nFinished && nFinished + ' finished',
+    ].filter(Boolean).join(', ');
 
     const trash = isTrashMode();
+    const readerQ = buildFilterParams().toString();
+
     list.innerHTML = sortVideos(videos).map(v => {
-      const isArticle = v.content_type === 'article';
       const badge = v.status === 'finished'
         ? '<span class="badge badge-finished">Finished</span>'
         : v.status === 'started'
@@ -824,44 +681,30 @@
         ? (v.labels || [])
         : (v.labels || []).filter(l => l.label_id !== 2);
       const chipsHtml = displayLabels.length
-        ? `<div class="card-chips-row label-chips">${displayLabels.map(l =>
-            `<span class="label-chip">${esc(l.label_name)} <span class="label-chip-date">· ${fmtDateShort(l.labeled_at)}</span></span>`
-          ).join('')}</div>`
+        ? '<div class="card-chips-row label-chips">' +
+          displayLabels.map(l =>
+            '<span class="label-chip">' + esc(l.label_name) +
+            ' <span class="label-chip-date">· ' + fmtDateShort(l.labeled_at) + '</span></span>'
+          ).join('') + '</div>'
         : '';
       const labelsJson = esc(JSON.stringify(v.labels || []));
       const sel = selectedIds.has(String(v.id));
-      const readerParams = new URLSearchParams();
-      const activeLabelsForReader = trashActive ? [2, ...filterLabels] : filterLabels;
-      if (filterText) readerParams.set('q', filterText);
-      if (activeLabelsForReader.length) readerParams.set('labels', activeLabelsForReader.join(','));
-      if (activeLabelsForReader.length > 1) readerParams.set('label_mode', trashActive ? 'and' : filterMode);
-      if (filterAfter)  readerParams.set('after',  filterAfter);
-      if (filterBefore) readerParams.set('before', filterBefore);
-      if (activeCategory) readerParams.set('source', activeCategory);
-      const readerQ = readerParams.toString() ? '?' + readerParams.toString() : '';
-      const articleActionsHtml = isArticle
-        ? `<div class="card-article-actions">
-            <a class="card-action-btn open-article" href="${esc(v.url)}" target="_blank" rel="noopener noreferrer">Open Article ↗</a>
-            <a class="card-action-btn listen" href="/reader/${v.id}${readerQ}" target="_blank" rel="noopener noreferrer">Listen 🎧</a>
-          </div>`
-        : '';
-      return `
-        <li class="video-card${trash ? ' selectable' : ''}${sel ? ' selected' : ''}"
-            data-id="${v.id}" data-title="${esc(v.title)}"
-            data-url="${esc(v.url)}" data-status="${v.status}"
-            data-content-type="${esc(v.content_type || 'video')}"
-            data-summary="${esc(v.summary || '')}"
-            data-labels="${labelsJson}">
-          <span class="card-channel">${esc(v.emoji)} ${esc(v.channel_name)}</span>
-          <span class="card-title">${esc(v.title)}</span>
-          <div class="card-footer">
-            <span class="card-badge">${badge}</span>
-            <span class="card-date">${fmtDate(v.added_at)}</span>
-            <button class="card-trash-btn" data-id="${v.id}" title="Move to Trash">🗑</button>
-          </div>
-          ${chipsHtml}
-          ${articleActionsHtml}
-        </li>`;
+
+      return '<li class="video-card' + (trash ? ' selectable' : '') + (sel ? ' selected' : '') + '"' +
+        ' data-id="' + v.id + '" data-title="' + esc(v.title) + '"' +
+        ' data-url="' + esc(v.url) + '" data-status="' + v.status + '"' +
+        ' data-content-type="' + esc(v.content_type || 'video') + '"' +
+        ' data-summary="' + esc(v.summary || '') + '"' +
+        ' data-labels="' + labelsJson + '">' +
+        '<span class="card-channel">' + esc(v.emoji) + ' ' + esc(v.channel_name) + '</span>' +
+        '<span class="card-title">' + esc(v.title) + '</span>' +
+        '<div class="card-footer">' +
+          '<span class="card-badge">' + badge + '</span>' +
+          '<span class="card-date">' + fmtDate(v.published_at || v.added_at) + '</span>' +
+          '<button class="card-trash-btn" data-id="' + v.id + '" title="Move to Trash">🗑</button>' +
+        '</div>' +
+        chipsHtml +
+        '</li>';
     }).join('');
   }
 
@@ -870,7 +713,7 @@
   function updateTrashBtn(count) {
     const btn = document.getElementById('btn-show-trash');
     const inTrash = isTrashMode();
-    btn.textContent = inTrash ? 'Exit Trash' : (count > 0 ? `Trash (${count})` : 'Trash');
+    btn.textContent = inTrash ? 'Exit Trash' : (count > 0 ? 'Trash (' + count + ')' : 'Trash');
     btn.classList.toggle('has-items', !inTrash && count > 0);
     btn.classList.toggle('active', inTrash);
     document.getElementById('bulk-bar').style.display = inTrash ? '' : 'none';
@@ -880,15 +723,13 @@
 
   function updateBulkBar() {
     const n = selectedIds.size;
-    document.getElementById('bulk-count').textContent = n === 0 ? '0 selected' : `${n} selected`;
+    document.getElementById('bulk-count').textContent = n === 0 ? '0 selected' : n + ' selected';
     document.getElementById('btn-bulk-restore').disabled = n === 0;
     document.getElementById('btn-bulk-delete').disabled  = n === 0;
   }
 
   document.getElementById('btn-show-trash').addEventListener('click', () => {
-    trashActive = !trashActive;
-    selectedIds.clear();
-    load();
+    trashActive = !trashActive; selectedIds.clear(); load();
   });
 
   document.getElementById('btn-select-all').addEventListener('click', () => {
@@ -902,52 +743,41 @@
     updateBulkBar();
   });
 
-  function confirmBulkAction(btn, label, onConfirm) {
-    if (btn.dataset.confirm === 'pending') {
-      onConfirm();
-      return;
-    }
+  function confirmBulkAction(btn, onConfirm) {
+    if (btn.dataset.confirm === 'pending') { onConfirm(); return; }
     btn.dataset.confirm = 'pending';
     const orig = btn.textContent;
-    btn.textContent = `Sure? (${selectedIds.size})`;
+    btn.textContent = 'Sure? (' + selectedIds.size + ')';
     btn.classList.add('confirming');
-    const t = setTimeout(() => {
-      btn.dataset.confirm = '';
-      btn.textContent = orig;
+    btn._confirmTimer = setTimeout(() => {
+      btn.dataset.confirm = ''; btn.textContent = orig;
     }, 3000);
-    btn._confirmTimer = t;
   }
 
   document.getElementById('btn-bulk-restore').addEventListener('click', function() {
-    confirmBulkAction(this, 'Restore', async () => {
+    confirmBulkAction(this, async () => {
       const ids = [...selectedIds];
-      await Promise.all(ids.map(id => fetch(`/api/videos/${id}/restore`, { method: 'POST' })));
-      selectedIds.clear();
-      load();
+      await Promise.all(ids.map(id => fetch('/api/videos/' + id + '/restore', { method: 'POST' })));
+      selectedIds.clear(); load();
     });
   });
 
   document.getElementById('btn-bulk-delete').addEventListener('click', function() {
-    confirmBulkAction(this, 'Delete', async () => {
+    confirmBulkAction(this, async () => {
       const ids = [...selectedIds];
-      await Promise.all(ids.map(id => fetch(`/api/videos/${id}`, { method: 'DELETE' })));
-      selectedIds.clear();
-      load();
+      await Promise.all(ids.map(id => fetch('/api/videos/' + id, { method: 'DELETE' })));
+      selectedIds.clear(); load();
     });
   });
 
-  // ── Active list clicks ─────────────────────────────────────────────────────
+  // ── Card clicks ────────────────────────────────────────────────────────────
 
   document.getElementById('list').addEventListener('click', async e => {
     const trashBtn = e.target.closest('.card-trash-btn');
     if (trashBtn) {
-      await fetch(`/api/videos/${trashBtn.dataset.id}/trash`, { method: 'POST' });
-      load();
-      return;
+      await fetch('/api/videos/' + trashBtn.dataset.id + '/trash', { method: 'POST' });
+      load(); return;
     }
-
-    // Article action buttons are <a> links — let them navigate naturally
-    if (e.target.closest('.card-article-actions')) return;
 
     const card = e.target.closest('.video-card');
     if (!card) return;
@@ -956,79 +786,96 @@
       const id = card.dataset.id;
       if (selectedIds.has(id)) { selectedIds.delete(id); card.classList.remove('selected'); }
       else                     { selectedIds.add(id);    card.classList.add('selected');    }
-      updateBulkBar();
-      return;
-    }
-
-    // For articles, tapping the card opens the article directly (no action modal)
-    if (card.dataset.contentType === 'article') {
-      openUrl(card.dataset.url);
-      return;
+      updateBulkBar(); return;
     }
 
     let labels = [];
     try { labels = JSON.parse(card.dataset.labels || '[]'); } catch {}
     current = {
-      id:      card.dataset.id,
-      title:   card.dataset.title,
-      url:     card.dataset.url,
-      status:  card.dataset.status,
-      summary: card.dataset.summary || '',
+      id:          card.dataset.id,
+      title:       card.dataset.title,
+      url:         card.dataset.url,
+      status:      card.dataset.status,
+      contentType: card.dataset.contentType || 'video',
+      summary:     card.dataset.summary || '',
       labels,
     };
-    document.getElementById('action-title').textContent = current.title;
-    document.getElementById('action-url').textContent   = current.url;
+    const isArticle = current.contentType === 'article';
+    document.getElementById('action-title').textContent    = current.title;
+    document.getElementById('action-url').textContent      = current.url;
     document.getElementById('action-url-row').style.display = '';
-    document.getElementById('action-modal-label').textContent = 'Open video';
-    buildActionBtns(current.status);
+    document.getElementById('action-modal-label').textContent = isArticle ? 'Open article' : 'Open video';
+    buildActionBtns(current.status, current.contentType);
     document.getElementById('action-overlay').classList.add('open');
   });
 
   // ── Action modal ───────────────────────────────────────────────────────────
 
-  function buildActionBtns(status) {
+  function buildActionBtns(status, contentType) {
     const el = document.getElementById('action-btns');
+    const isArticle = contentType === 'article';
 
-    if (status === 'new') {
-      el.innerHTML = `
-        <button class="btn btn-primary"   id="ab-started">Mark as started &amp; open</button>
-        <button class="btn btn-secondary" id="ab-just">Just open</button>
-        <div class="modal-divider"></div>
-        <button class="btn btn-muted"     id="ab-summary">Summary</button>
-        <button class="btn btn-indigo"    id="ab-labels">Labels…</button>
-        <button class="btn btn-cancel"    id="ab-cancel">Cancel</button>`;
+    if (isArticle) {
+      el.innerHTML =
+        (status === 'new'
+          ? '<button class="btn btn-primary" id="ab-open">Open reader &amp; mark started</button>'
+          : '<button class="btn btn-secondary" id="ab-open">Open reader</button>') +
+        '<button class="btn btn-muted" id="ab-source">Open original ↗</button>' +
+        '<div class="modal-divider"></div>' +
+        '<button class="btn btn-indigo" id="ab-labels">Labels…</button>' +
+        '<button class="btn btn-cancel" id="ab-cancel">Cancel</button>';
+
+      document.getElementById('ab-open').addEventListener('click', () => {
+        if (!current) return;
+        if (current.status === 'new')
+          fetch('/api/videos/' + current.id + '/started', { method: 'POST' }).catch(() => {});
+        const q = buildFilterParams().toString();
+        location.href = '/reader/' + current.id + (q ? '?' + q : '');
+        closeActionModal();
+      });
+
+      document.getElementById('ab-source').addEventListener('click', () => {
+        if (!current) return;
+        openUrl(current.url); closeActionModal();
+      });
     } else {
-      el.innerHTML = `
-        <button class="btn btn-secondary" id="ab-just">Just open</button>
-        <div class="modal-divider"></div>
-        <button class="btn btn-muted"     id="ab-summary">Summary</button>
-        <button class="btn btn-indigo"    id="ab-labels">Labels…</button>
-        <button class="btn btn-cancel"    id="ab-cancel">Cancel</button>`;
+      if (status === 'new') {
+        el.innerHTML =
+          '<button class="btn btn-primary"   id="ab-started">Mark as started &amp; open</button>' +
+          '<button class="btn btn-secondary" id="ab-just">Just open</button>' +
+          '<div class="modal-divider"></div>' +
+          '<button class="btn btn-muted"  id="ab-summary">Summary</button>' +
+          '<button class="btn btn-indigo" id="ab-labels">Labels…</button>' +
+          '<button class="btn btn-cancel" id="ab-cancel">Cancel</button>';
+      } else {
+        el.innerHTML =
+          '<button class="btn btn-secondary" id="ab-just">Just open</button>' +
+          '<div class="modal-divider"></div>' +
+          '<button class="btn btn-muted"  id="ab-summary">Summary</button>' +
+          '<button class="btn btn-indigo" id="ab-labels">Labels…</button>' +
+          '<button class="btn btn-cancel" id="ab-cancel">Cancel</button>';
+      }
+
+      const started = document.getElementById('ab-started');
+      if (started) started.addEventListener('click', () => {
+        if (!current) return;
+        openUrl(current.url);
+        fetch('/api/videos/' + current.id + '/started', { method: 'POST' }).then(load);
+        closeActionModal();
+      });
+
+      document.getElementById('ab-just').addEventListener('click', () => {
+        if (!current) return;
+        openUrl(current.url); closeActionModal();
+      });
+
+      document.getElementById('ab-summary').addEventListener('click', () => {
+        if (!current) return;
+        const v = { ...current }; closeActionModal(); openSummaryOverlay(v);
+      });
     }
 
-    const started = document.getElementById('ab-started');
-    if (started) started.addEventListener('click', () => {
-      if (!current) return;
-      openUrl(current.url);
-      fetch(`/api/videos/${current.id}/started`, { method: 'POST' }).then(load);
-      closeActionModal();
-    });
-
-    document.getElementById('ab-just').addEventListener('click', () => {
-      if (!current) return;
-      openUrl(current.url);
-      closeActionModal();
-    });
-
-    document.getElementById('ab-summary').addEventListener('click', () => {
-      if (!current) return;
-      const v = { ...current };
-      closeActionModal();
-      openSummaryOverlay(v);
-    });
-
     document.getElementById('ab-labels').addEventListener('click', showLabelEditor);
-
     document.getElementById('ab-cancel').addEventListener('click', closeActionModal);
   }
 
@@ -1042,21 +889,18 @@
     (current.labels || []).forEach(l => { labeledAtMap[l.label_id] = l.labeled_at; });
 
     const el = document.getElementById('action-btns');
-    el.innerHTML = `
-      <div class="label-picker" id="label-editor-picker">
-        ${allLabels.map(l => {
-          const on = currentLabelIds.includes(l.id);
-          const since = on ? `<span class="label-picker-since">since ${fmtDateShort(labeledAtMap[l.id])}</span>` : '';
-          return `
-            <div class="label-picker-item${on ? ' selected' : ''}" data-label-id="${l.id}" data-on="${on}">
-              <span class="label-picker-check">${on ? '✓' : ''}</span>
-              <span class="label-picker-name">${esc(l.name)}</span>
-              ${since}
-            </div>`;
-        }).join('')}
-      </div>
-      <button class="btn btn-indigo" id="ab-labels-apply">Apply</button>
-      <button class="btn btn-cancel" id="ab-labels-back">Cancel</button>`;
+    el.innerHTML =
+      '<div class="label-picker" id="label-editor-picker">' +
+      allLabels.map(l => {
+        const on = currentLabelIds.includes(l.id);
+        const since = on ? '<span class="label-picker-since">since ' + fmtDateShort(labeledAtMap[l.id]) + '</span>' : '';
+        return '<div class="label-picker-item' + (on ? ' selected' : '') + '" data-label-id="' + l.id + '">' +
+          '<span class="label-picker-check">' + (on ? '✓' : '') + '</span>' +
+          '<span class="label-picker-name">' + esc(l.name) + '</span>' + since + '</div>';
+      }).join('') +
+      '</div>' +
+      '<button class="btn btn-indigo" id="ab-labels-apply">Apply</button>' +
+      '<button class="btn btn-cancel" id="ab-labels-back">Cancel</button>';
 
     document.getElementById('label-editor-picker').addEventListener('click', e => {
       const item = e.target.closest('.label-picker-item');
@@ -1070,19 +914,19 @@
       const selected = Array.from(
         document.querySelectorAll('#label-editor-picker .label-picker-item.selected')
       ).map(el => parseInt(el.dataset.labelId, 10));
-      await fetch(`/api/videos/${current.id}/labels`, {
+      await fetch('/api/videos/' + current.id + '/labels', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ labelIds: selected }),
       });
-      closeActionModal();
-      load();
+      closeActionModal(); load();
     });
 
     document.getElementById('ab-labels-back').addEventListener('click', () => {
       document.getElementById('action-url-row').style.display = '';
-      document.getElementById('action-modal-label').textContent = 'Open video';
-      buildActionBtns(current.status);
+      document.getElementById('action-modal-label').textContent =
+        current && current.contentType === 'article' ? 'Open article' : 'Open video';
+      buildActionBtns(current.status, current.contentType);
     });
   }
 
@@ -1108,32 +952,22 @@
 
   function buildFilterModal() {
     const list = document.getElementById('filter-label-list');
-    const nonSystem = allLabels.filter(l => l.id !== 2); // exclude Trash from filter options
+    const nonSystem = allLabels.filter(l => l.id !== 2);
     list.innerHTML = nonSystem.map(l => {
       const sel = filterLabels.includes(l.id);
-      return `
-        <div class="filter-label-item${sel ? ' selected' : ''}" data-label-id="${l.id}">
-          <span class="label-picker-check">${sel ? '✓' : ''}</span>
-          <span class="filter-label-name">${esc(l.name)}</span>
-        </div>`;
+      return '<div class="filter-label-item' + (sel ? ' selected' : '') + '" data-label-id="' + l.id + '">' +
+        '<span class="label-picker-check">' + (sel ? '✓' : '') + '</span>' +
+        '<span class="filter-label-name">' + esc(l.name) + '</span></div>';
     }).join('');
 
     document.getElementById('filter-after').value  = filterAfter;
     document.getElementById('filter-before').value = filterBefore;
-
     updateFilterModeRow();
 
-    // label click handlers
     list.querySelectorAll('.filter-label-item').forEach(item => {
       item.addEventListener('click', () => {
-        const lid = parseInt(item.dataset.labelId, 10);
-        if (item.classList.contains('selected')) {
-          item.classList.remove('selected');
-          item.querySelector('.label-picker-check').textContent = '';
-        } else {
-          item.classList.add('selected');
-          item.querySelector('.label-picker-check').textContent = '✓';
-        }
+        const on = item.classList.toggle('selected');
+        item.querySelector('.label-picker-check').textContent = on ? '✓' : '';
         updateFilterModeRow();
       });
     });
@@ -1143,7 +977,7 @@
     const selected = document.querySelectorAll('#filter-label-list .filter-label-item.selected');
     const row = document.getElementById('filter-mode-row');
     row.style.display = selected.length > 1 ? '' : 'none';
-    document.getElementById('fmode-or').classList.toggle('active', filterMode === 'or');
+    document.getElementById('fmode-or').classList.toggle('active',  filterMode === 'or');
     document.getElementById('fmode-and').classList.toggle('active', filterMode === 'and');
   }
 
@@ -1151,7 +985,7 @@
     const btn = e.target.closest('[data-mode]');
     if (!btn) return;
     filterMode = btn.dataset.mode;
-    document.getElementById('fmode-or').classList.toggle('active', filterMode === 'or');
+    document.getElementById('fmode-or').classList.toggle('active',  filterMode === 'or');
     document.getElementById('fmode-and').classList.toggle('active', filterMode === 'and');
   });
 
@@ -1172,9 +1006,7 @@
     ).map(el => parseInt(el.dataset.labelId, 10));
     filterAfter  = document.getElementById('filter-after').value;
     filterBefore = document.getElementById('filter-before').value;
-    closeFilterModal();
-    updateFilterBtn();
-    load();
+    closeFilterModal(); updateFilterBtn(); load();
   });
 
   document.getElementById('btn-filter-clear').addEventListener('click', () => {
@@ -1185,10 +1017,7 @@
     });
     document.getElementById('filter-after').value  = '';
     document.getElementById('filter-before').value = '';
-    updateFilterModeRow();
-    updateFilterBtn();
-    closeFilterModal();
-    load();
+    updateFilterModeRow(); updateFilterBtn(); closeFilterModal(); load();
   });
 
   function closeFilterModal() {
@@ -1200,10 +1029,9 @@
     const btn = document.getElementById('btn-filter-labels');
     btn.classList.toggle('active', hasFilter);
     const count = filterLabels.length + (filterAfter ? 1 : 0) + (filterBefore ? 1 : 0);
-    btn.textContent = hasFilter ? `Filter (${count})` : 'Filter';
+    btn.textContent = hasFilter ? 'Filter (' + count + ')' : 'Filter';
   }
 
-  // text search with debounce
   let searchTimer = null;
   document.getElementById('filter-text').addEventListener('input', e => {
     clearTimeout(searchTimer);
@@ -1214,8 +1042,7 @@
   // ── Labels management modal ────────────────────────────────────────────────
 
   async function openLabelsModal() {
-    await loadLabels();
-    renderLabelsList();
+    await loadLabels(); renderLabelsList();
     document.getElementById('labels-overlay').classList.add('open');
   }
 
@@ -1223,28 +1050,27 @@
     const list = document.getElementById('labels-list');
     const ul   = allLabels.filter(l => l.id !== 1 && l.id !== 2);
     if (!ul.length) {
-      list.innerHTML = '<div style="color:#52525b;font-size:14px;padding:8px 0">No labels yet.</div>';
+      list.innerHTML = '<div style="color:var(--text-faint);font-size:14px;padding:8px 0">No labels yet.</div>';
       return;
     }
-    list.innerHTML = ul.map(l => `
-      <div class="labels-list-item">
-        <span class="labels-list-name">${esc(l.name)}</span>
-        <button class="btn-del-label" data-label-id="${l.id}" title="Delete label">✕</button>
-      </div>`).join('');
+    list.innerHTML = ul.map(l =>
+      '<div class="labels-list-item">' +
+        '<span class="labels-list-name">' + esc(l.name) + '</span>' +
+        '<button class="btn-del-label" data-label-id="' + l.id + '" title="Delete label">✕</button>' +
+      '</div>'
+    ).join('');
 
     list.querySelectorAll('.btn-del-label').forEach(btn => {
       btn.addEventListener('click', async () => {
         const id = parseInt(btn.dataset.labelId, 10);
-        const res = await fetch(`/api/labels/${id}`, { method: 'DELETE' });
+        const res = await fetch('/api/labels/' + id, { method: 'DELETE' });
         if (!res.ok) {
           const { error } = await res.json();
-          btn.style.color = '#f87171';
+          btn.style.color = 'var(--red)';
           setTimeout(() => { btn.style.color = ''; }, 1500);
           btn.title = error || 'cannot delete';
         } else {
-          await loadLabels();
-          renderLabelsList();
-          load();
+          await loadLabels(); renderLabelsList(); load();
         }
       });
     });
@@ -1255,9 +1081,8 @@
     document.getElementById('labels-overlay').classList.remove('open');
   });
   document.getElementById('labels-overlay').addEventListener('click', e => {
-    if (e.target === document.getElementById('labels-overlay')) {
+    if (e.target === document.getElementById('labels-overlay'))
       document.getElementById('labels-overlay').classList.remove('open');
-    }
   });
 
   document.getElementById('new-label-input').addEventListener('input', e => {
@@ -1276,10 +1101,9 @@
     if (res.ok) {
       input.value = '';
       document.getElementById('btn-create-label').disabled = true;
-      await loadLabels();
-      renderLabelsList();
+      await loadLabels(); renderLabelsList();
     } else {
-      input.style.borderColor = '#f87171';
+      input.style.borderColor = 'var(--red)';
       setTimeout(() => { input.style.borderColor = ''; }, 1500);
     }
   });
@@ -1302,9 +1126,7 @@
     const sel = document.getElementById(selectId);
     try {
       const cats = await fetch('/api/categories').then(r => r.json());
-      // Build a set of sources already in the select
       const existing = new Set(Array.from(sel.options).map(o => o.value).filter(Boolean));
-      // Add any categories from the API that aren't already listed
       for (const cat of cats) {
         if (!existing.has(cat.source)) {
           const opt = document.createElement('option');
@@ -1330,16 +1152,11 @@
   });
 
   document.getElementById('add-url').addEventListener('input', () => {
-    clearTimeout(fetchTimer);
-    updateAddBtn();
+    clearTimeout(fetchTimer); updateAddBtn();
     const url = document.getElementById('add-url').value.trim();
     if (!url) { setFetchStatus('', ''); return; }
-
-    // Auto-detect category from URL
     const detected = autoDetectCategory(url);
     if (detected) document.getElementById('add-category').value = detected;
-
-    // Only auto-fetch title for YouTube URLs
     if (/youtube\.com|youtu\.be/.test(url)) {
       setFetchStatus('Fetching title…', '');
       fetchTimer = setTimeout(() => fetchPreview(url), 600);
@@ -1350,7 +1167,7 @@
 
   async function fetchPreview(url) {
     try {
-      const res = await fetch(`/api/preview?url=${encodeURIComponent(url)}`);
+      const res = await fetch('/api/preview?url=' + encodeURIComponent(url));
       if (!res.ok) { setFetchStatus('Could not fetch title — enter it manually', 'err'); return; }
       const { title, channel_name } = await res.json();
       document.getElementById('add-title').value   = title        || '';
@@ -1370,11 +1187,11 @@
   }
 
   document.getElementById('btn-add-submit').addEventListener('click', async () => {
-    const url      = document.getElementById('add-url').value.trim();
-    const title    = document.getElementById('add-title').value.trim();
-    const channel  = document.getElementById('add-channel').value.trim();
-    const emoji    = document.getElementById('add-emoji').value.trim() || '📺';
-    const source   = document.getElementById('add-category').value || 'youtube';
+    const url     = document.getElementById('add-url').value.trim();
+    const title   = document.getElementById('add-title').value.trim();
+    const channel = document.getElementById('add-channel').value.trim();
+    const emoji   = document.getElementById('add-emoji').value.trim() || '📺';
+    const source  = document.getElementById('add-category').value || 'youtube';
     const content_type = source === 'youtube' ? 'video' : 'article';
     if (!url || !title) return;
     const btn = document.getElementById('btn-add-submit');
@@ -1418,19 +1235,19 @@
       return;
     }
 
-    contentEl.innerHTML = '<p style="color:#71717a;padding:8px 0">Fetching transcript and generating summary…</p>';
+    contentEl.innerHTML = '<p style="color:var(--text-muted);padding:8px 0">Fetching transcript and generating summary…</p>';
     setCopyBtnsDisabled(true);
 
     try {
-      const res  = await fetch(`/api/videos/${video.id}/summary`, { method: 'POST' });
+      const res  = await fetch('/api/videos/' + video.id + '/summary', { method: 'POST' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'failed');
-      const card = document.querySelector(`.video-card[data-id="${video.id}"]`);
+      const card = document.querySelector('.video-card[data-id="' + video.id + '"]');
       if (card) card.dataset.summary = data.summary;
       contentEl.innerHTML = data.summary;
       setCopyBtnsDisabled(false);
     } catch (err) {
-      contentEl.innerHTML = `<p style="color:#f87171">Could not generate summary: ${err.message}</p>`;
+      contentEl.innerHTML = '<p style="color:var(--red)">Could not generate summary: ' + err.message + '</p>';
       setCopyBtnsDisabled(false);
     }
   }
@@ -1453,13 +1270,13 @@
       const tag   = node.tagName.toLowerCase();
       const inner = Array.from(node.childNodes).map(toMd).join('');
       switch (tag) {
-        case 'h3': case 'h4': return `### ${inner}\n\n`;
-        case 'p':  return `${inner}\n\n`;
-        case 'ul': return Array.from(node.children).map(li => `- ${toMd(li).trim()}`).join('\n') + '\n\n';
-        case 'ol': return Array.from(node.children).map((li, i) => `${i+1}. ${toMd(li).trim()}`).join('\n') + '\n\n';
+        case 'h3': case 'h4': return '### ' + inner + '\n\n';
+        case 'p':  return inner + '\n\n';
+        case 'ul': return Array.from(node.children).map(li => '- ' + toMd(li).trim()).join('\n') + '\n\n';
+        case 'ol': return Array.from(node.children).map((li, i) => (i+1) + '. ' + toMd(li).trim()).join('\n') + '\n\n';
         case 'li': return inner;
-        case 'strong': case 'b': return `**${inner}**`;
-        case 'em':     case 'i': return `*${inner}*`;
+        case 'strong': case 'b': return '**' + inner + '**';
+        case 'em':     case 'i': return '*' + inner + '*';
         default: return inner;
       }
     }
@@ -1490,7 +1307,6 @@
     try {
       const cats = await fetch('/api/categories').then(r => r.json());
       const sel = document.getElementById('category-filter');
-      // Remove all options except the first "All Categories"
       while (sel.options.length > 1) sel.remove(1);
       for (const cat of cats) {
         const opt = document.createElement('option');
@@ -1498,7 +1314,6 @@
         opt.textContent = categoryDisplayName(cat.source) + ' (' + cat.count + ')';
         sel.appendChild(opt);
       }
-      // Restore selection
       if (activeCategory) sel.value = activeCategory;
       sel.classList.toggle('active', !!activeCategory);
     } catch {}
@@ -1507,7 +1322,6 @@
   document.getElementById('category-filter').addEventListener('change', e => {
     activeCategory = e.target.value;
     e.target.classList.toggle('active', !!activeCategory);
-    // Update URL without reload
     const url = new URL(window.location.href);
     if (activeCategory) url.searchParams.set('category', activeCategory);
     else url.searchParams.delete('category');
@@ -1518,7 +1332,8 @@
   // ── Init ───────────────────────────────────────────────────────────────────
 
   async function init() {
-    // Read category from URL
+    const savedScrollY = restoreState();
+
     const urlParams = new URLSearchParams(window.location.search);
     const catFromUrl = urlParams.get('category') || '';
     if (catFromUrl) {
@@ -1529,8 +1344,18 @@
 
     await loadLabels();
     await loadCategories();
-    load();
+    await load();
+
+    if (savedScrollY) window.scrollTo(0, savedScrollY);
   }
+
+  window.addEventListener('pagehide', saveState);
+
+  let scrollSaveTimer = null;
+  window.addEventListener('scroll', () => {
+    clearTimeout(scrollSaveTimer);
+    scrollSaveTimer = setTimeout(saveState, 250);
+  }, { passive: true });
 
   init();
   setInterval(load, 30000);
