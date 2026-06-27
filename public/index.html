@@ -2,22 +2,28 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Watchlist</title>
   <link rel="stylesheet" href="/shared.css">
   <style>
-    .container { max-width: 860px; margin: 0 auto; padding: 24px 16px 64px; }
+    /* ── SPA shell ── */
+    html, body { height: 100%; }
+    body {
+      padding-bottom: calc(72px + env(safe-area-inset-bottom));
+    }
+    #view { min-height: 100%; }
 
-    /* ── Header ── */
-    header {
+    /* ── List view ── */
+    .list-container { max-width: 860px; margin: 0 auto; padding: 24px 16px 16px; }
+
+    .list-header-row {
       display: flex; align-items: center; gap: 8px;
       margin-bottom: 20px; padding-bottom: 16px;
       border-bottom: 1px solid var(--border); flex-wrap: wrap;
     }
-    h1    { font-size: 20px; font-weight: 600; color: var(--text-head); flex-shrink: 0; }
+    h1 { font-size: 20px; font-weight: 600; color: var(--text-head); flex-shrink: 0; }
     .count { color: var(--text-muted); font-size: 14px; flex: 1; min-width: 60px; }
 
-    /* Header button modifiers on top of .btn-ghost.sm */
     .add-btn             { color: var(--green); }
     .add-btn:hover       { border-color: var(--green); }
     .trash-btn           { position: relative; }
@@ -25,18 +31,16 @@
     .trash-btn.has-items:hover { border-color: var(--red); }
     .trash-btn.active    { border-color: var(--red); color: var(--red); }
 
-    /* ── Filter row ── */
     .filter-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
     .filter-search {
       flex: 1; background: var(--bg-surface); border: 1px solid var(--border); color: var(--text);
       padding: 8px 12px; border-radius: 8px; font-size: 14px;
       outline: none; -webkit-appearance: none; transition: border-color 0.15s;
     }
-    .filter-search:focus                      { border-color: var(--accent); }
-    .filter-search::placeholder               { color: var(--text-faint); }
+    .filter-search:focus                       { border-color: var(--accent); }
+    .filter-search::placeholder                { color: var(--text-faint); }
     .filter-search::-webkit-search-cancel-button { display: none; }
 
-    /* ── Label chips ── */
     .label-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
     .label-chip {
       font-size: 11px; padding: 2px 7px; border-radius: 99px;
@@ -45,7 +49,6 @@
     }
     .label-chip-date { color: var(--text-faint); }
 
-    /* ── List ── */
     #list { list-style: none; }
 
     .video-card {
@@ -71,7 +74,6 @@
     }
     .card-trash-btn:hover, .card-trash-btn:active { color: var(--red); }
 
-    /* ── Bulk action bar (trash mode) ── */
     .bulk-bar {
       display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
       margin-bottom: 12px; padding: 10px 14px;
@@ -92,7 +94,6 @@
     .bulk-btn.confirming { animation: pulse-border 0.3s ease; }
     @keyframes pulse-border { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
 
-    /* ── Selectable cards (trash mode) ── */
     .video-card.selectable { padding-left: 44px; position: relative; cursor: default; }
     .video-card.selectable::before {
       content: ''; position: absolute; left: 14px; top: 16px;
@@ -108,7 +109,6 @@
       color: #fff; text-align: center; line-height: 20px;
     }
 
-    /* ── Desktop layout ── */
     @media (min-width: 600px) {
       .video-card {
         display: grid;
@@ -127,7 +127,7 @@
       .card-trash-btn { grid-area: trash; padding: 2px 4px; }
       .card-chips-row { grid-area: chips; }
 
-      .list-header {
+      .list-col-header {
         display: grid;
         grid-template-columns: 160px 1fr 80px 96px 28px;
         column-gap: 16px; padding: 0 14px 10px; margin-bottom: 4px;
@@ -135,20 +135,15 @@
         font-size: 11px; font-weight: 600;
         text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted);
       }
-      .list-header span:last-child { text-align: right; }
-
+      .list-col-header span:last-child { text-align: right; }
       .video-card.selectable::before,
       .video-card.selectable::after { top: 50%; transform: translateY(-50%); }
-
-      .summary-modal { max-width: 640px; }
     }
-
     @media (max-width: 599px) {
-      .list-header    { display: none; }
-      .card-chips-row { margin-top: 2px; }
+      .list-col-header { display: none; }
+      .card-chips-row  { margin-top: 2px; }
     }
 
-    /* ── Category filter ── */
     .category-select {
       background: var(--bg-surface); border: 1px solid var(--border); color: #a1a1aa;
       padding: 8px 12px; border-radius: 8px; font-size: 13px;
@@ -158,7 +153,6 @@
     .category-select:focus  { border-color: var(--accent); color: var(--text); }
     .category-select.active { border-color: var(--accent); color: var(--accent-muted); }
 
-    /* ── Sort row ── */
     .sort-row { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
     .sort-label  { font-size: 12px; color: var(--text-faint); white-space: nowrap; }
     .sort-select {
@@ -178,10 +172,8 @@
     .sort-dir:active { color: var(--text); border-color: var(--border-mid); }
     .sort-dir.asc    { color: var(--accent-muted); border-color: var(--accent); }
 
-    /* ── Empty ── */
     .empty { color: var(--text-faint); text-align: center; padding: 64px 0; font-size: 16px; }
 
-    /* ── Action modal URL row ── */
     .modal-url-row {
       display: flex; align-items: center; gap: 8px; margin-bottom: 16px;
       padding: 8px 10px; background: var(--bg-base);
@@ -200,7 +192,6 @@
     }
     .btn-copy.copied { color: var(--green); border-color: var(--green); }
 
-    /* ── Filter modal ── */
     .filter-modal-body { margin: 12px 0; }
     .filter-section-label {
       font-size: 11px; font-weight: 600; text-transform: uppercase;
@@ -214,8 +205,8 @@
       border: 1px solid var(--border); cursor: pointer; -webkit-tap-highlight-color: transparent;
     }
     .filter-label-item.selected { border-color: var(--accent); background: var(--accent-bg); }
-    .filter-label-name { font-size: 14px; color: var(--text); flex: 1; }
-    .filter-mode-row   { display: flex; gap: 8px; margin-top: 10px; }
+    .filter-label-name  { font-size: 14px; color: var(--text); flex: 1; }
+    .filter-mode-row    { display: flex; gap: 8px; margin-top: 10px; }
     .filter-mode-btn {
       flex: 1; padding: 8px; border-radius: 7px; cursor: pointer;
       font-size: 13px; font-weight: 500; text-align: center;
@@ -233,7 +224,6 @@
     .filter-actions  { display: flex; gap: 8px; margin-top: 16px; }
     .filter-actions .btn { flex: 1; text-align: center; }
 
-    /* ── Labels management modal ── */
     .labels-list { display: flex; flex-direction: column; gap: 6px; margin: 12px 0; }
     .labels-list-item {
       display: flex; align-items: center; gap: 10px;
@@ -241,7 +231,6 @@
       border-radius: 8px; border: 1px solid var(--border);
     }
     .labels-list-name  { flex: 1; font-size: 15px; color: var(--text); }
-    .labels-list-count { font-size: 12px; color: var(--text-faint); }
     .btn-del-label {
       background: none; border: none; color: var(--text-faint); cursor: pointer;
       font-size: 16px; padding: 2px 6px; border-radius: 4px;
@@ -258,7 +247,6 @@
     }
     .btn-add-label:disabled { opacity: 0.4; cursor: default; }
 
-    /* ── Add modal fields ── */
     .field       { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
     .field label { font-size: 12px; color: #a1a1aa; font-weight: 500; }
     .field-row   { display: flex; gap: 8px; }
@@ -278,7 +266,6 @@
     .fetch-status.ok  { color: var(--green); }
     .fetch-status.err { color: var(--red); }
 
-    /* ── Summary modal ── */
     .summary-modal { display: flex; flex-direction: column; max-height: 85vh; }
     @media (min-width: 600px) { .summary-modal { max-height: 80vh; } }
     .summary-html {
@@ -293,10 +280,10 @@
       text-transform: uppercase; letter-spacing: 0.07em; margin: 14px 0 6px;
     }
     .summary-html h3:first-child { margin-top: 0; }
-    .summary-html p                     { margin-bottom: 10px; }
-    .summary-html ul, .summary-html ol  { padding-left: 18px; margin-bottom: 10px; }
-    .summary-html li                    { margin-bottom: 5px; }
-    .summary-html strong                { color: var(--text); }
+    .summary-html p                    { margin-bottom: 10px; }
+    .summary-html ul, .summary-html ol { padding-left: 18px; margin-bottom: 10px; }
+    .summary-html li                   { margin-bottom: 5px; }
+    .summary-html strong               { color: var(--text); }
 
     .copy-row { display: flex; gap: 8px; margin-bottom: 10px; }
     .btn-copy-opt {
@@ -307,51 +294,134 @@
     .btn-copy-opt:active   { background: var(--border-mid); }
     .btn-copy-opt.copied   { color: var(--green); border-color: var(--green); }
     .btn-copy-opt:disabled { opacity: 0.4; cursor: default; }
+
+    /* ── Reader view ── */
+    .reader-container { max-width: 700px; margin: 0 auto; padding: 20px 16px 32px; }
+
+    .btn-back {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: none; border: none; color: var(--text-muted); cursor: pointer;
+      font-size: 14px; padding: 4px 0; margin-bottom: 20px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-back:active { color: var(--text); }
+
+    .reader-header { margin-bottom: 24px; }
+    .reader-channel {
+      font-size: 12px; color: var(--text-muted); text-transform: uppercase;
+      letter-spacing: 0.06em; font-weight: 600; display: block; margin-bottom: 8px;
+    }
+    .reader-title {
+      font-size: 22px; font-weight: 600; color: var(--text-head);
+      line-height: 1.3; margin-bottom: 10px;
+    }
+    .reader-meta {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 13px; color: var(--text-muted);
+    }
+    .reader-label-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+
+    .reader-audio-zone {
+      background: var(--bg-surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 16px; margin-bottom: 24px;
+    }
+    .reader-audio-hint {
+      font-size: 13px; color: var(--text-muted); margin-bottom: 10px;
+    }
+    .reader-audio-status {
+      font-size: 13px; color: var(--text-muted); text-align: center; padding: 8px 0;
+    }
+    .reader-audio-status.generating { color: var(--orange); }
+    .reader-audio-status.failed     { color: var(--red); }
+    .reader-audio-status.ready      { color: var(--green); }
+
+    .article-text {
+      font-size: 16px; line-height: 1.75; color: var(--text);
+      white-space: pre-wrap; word-wrap: break-word;
+    }
+    .article-text-empty {
+      color: var(--text-faint); font-size: 14px;
+      text-align: center; padding: 40px 0;
+    }
+    .article-text-empty p { margin-bottom: 16px; }
+
+    /* ── Mini-player — frosted glass ── */
+    #mini-player {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 50;
+      background: rgba(18, 18, 20, 0.88);
+      backdrop-filter: blur(24px) saturate(180%);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
+      border-top: 1px solid rgba(255,255,255,0.08);
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    .mp-progress-track {
+      height: 2px; background: rgba(255,255,255,0.07);
+      position: relative; cursor: pointer;
+    }
+    .mp-progress-fill {
+      height: 100%; background: var(--accent);
+      width: 0%; will-change: width;
+    }
+
+    .mp-inner {
+      display: flex; align-items: center;
+      padding: 0 8px 0 12px; height: 64px; gap: 2px;
+    }
+    .mp-info {
+      flex: 1; min-width: 0; overflow: hidden;
+      cursor: pointer; padding: 4px 8px 4px 0;
+    }
+    .mp-title {
+      display: block; font-size: 13px; font-weight: 500; color: var(--text-head);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3;
+    }
+    .mp-channel {
+      display: block; font-size: 11px; color: var(--text-muted);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px;
+    }
+
+    .mp-btn {
+      background: none; border: none; color: var(--text); cursor: pointer;
+      min-width: 44px; min-height: 44px; font-size: 18px; line-height: 1;
+      border-radius: 10px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+      -webkit-tap-highlight-color: transparent; transition: opacity 0.1s;
+    }
+    .mp-btn:active { opacity: 0.55; }
+    .mp-btn:disabled { opacity: 0.25; }
+    .mp-btn-play { font-size: 22px; color: var(--text-head); }
+    .mp-btn-seek { font-size: 15px; color: var(--text-muted); }
+    .mp-speed-badge {
+      font-size: 10px; font-weight: 700; color: var(--text-muted);
+      background: var(--bg-raised); border: 1px solid var(--border);
+      padding: 2px 5px; border-radius: 4px; line-height: 1;
+      flex-shrink: 0; white-space: nowrap;
+    }
+
+    @media (min-width: 600px) {
+      .mp-inner { padding: 0 16px 0 20px; }
+    }
   </style>
 </head>
 <body>
 
-<div class="container">
-  <header>
-    <h1>📺 Watchlist</h1>
-    <span class="count" id="count"></span>
-    <button class="btn-ghost sm" id="btn-labels">Labels</button>
-    <button class="btn-ghost sm trash-btn" id="btn-show-trash">Trash</button>
-    <button class="btn-ghost sm add-btn" id="btn-show-add">+ Add</button>
-  </header>
+<div id="view"></div>
 
-  <div class="filter-row">
-    <input type="search" class="filter-search" id="filter-text" placeholder="Search title or channel…" autocomplete="off" autocorrect="off" spellcheck="false">
-    <select id="category-filter" class="category-select">
-      <option value="">All Categories</option>
-    </select>
-    <button class="btn-ghost" id="btn-filter-labels">Filter</button>
+<!-- Mini-player (persistent — never removed from DOM) -->
+<div id="mini-player">
+  <div class="mp-progress-track" id="mp-progress-track">
+    <div class="mp-progress-fill" id="mp-progress"></div>
   </div>
-
-  <div class="sort-row">
-    <span class="sort-label">Sort</span>
-    <select id="sort-field" class="sort-select">
-      <option value="added_at">Date added</option>
-      <option value="status">Status</option>
-      <option value="channel_name">Channel</option>
-      <option value="title">Title</option>
-    </select>
-    <button class="sort-dir desc" id="sort-dir" title="Toggle sort direction">↓</button>
+  <div class="mp-inner">
+    <div class="mp-info" id="mp-info" title="Open reader">
+      <span class="mp-title" id="mp-title">Nothing playing</span>
+      <span class="mp-channel" id="mp-channel"></span>
+    </div>
+    <span class="mp-speed-badge" id="mp-speed-badge" style="display:none"></span>
+    <button class="mp-btn mp-btn-seek" id="mp-seek-back" title="Back 10s" disabled>↩︎</button>
+    <button class="mp-btn mp-btn-play" id="mp-play-pause" title="Play / Pause" disabled>▶</button>
+    <button class="mp-btn mp-btn-seek" id="mp-next-btn" title="Next" disabled>⏭</button>
   </div>
-
-  <div class="list-header" aria-hidden="true">
-    <span>Channel</span><span>Title</span><span>Status</span><span>Added</span>
-  </div>
-
-  <div class="bulk-bar" id="bulk-bar" style="display:none">
-    <button class="bulk-btn sel-all" id="btn-select-all">Select all</button>
-    <span class="bulk-count" id="bulk-count">0 selected</span>
-    <button class="bulk-btn restore" id="btn-bulk-restore" disabled>Restore</button>
-    <button class="bulk-btn del"     id="btn-bulk-delete"  disabled>Delete</button>
-  </div>
-
-  <ul id="list"></ul>
-  <div class="empty" id="empty" style="display:none">Nothing here.</div>
 </div>
 
 <!-- Action modal -->
@@ -474,891 +544,7 @@
   </div>
 </div>
 
-<script>
-  // ── State ──────────────────────────────────────────────────────────────────
-
-  let current        = null;
-  let fetchTimer     = null;
-  let sortBy         = 'added_at';
-  let sortDir        = 'desc';
-  let allLabels      = [];
-  let selectedIds    = new Set();
-  let trashActive    = false;
-  let activeCategory = '';
-
-  function isTrashMode() { return trashActive; }
-
-  const CATEGORY_NAMES = {
-    'youtube':      'YouTube',
-    'ars_technica': 'Ars Technica',
-  };
-
-  function categoryDisplayName(source) {
-    return CATEGORY_NAMES[source]
-      ?? source.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-  }
-
-  let filterText   = '';
-  let filterLabels = [];
-  let filterMode   = 'or';
-  let filterAfter  = '';
-  let filterBefore = '';
-
-  // ── State persistence ─────────────────────────────────────────────────────
-
-  const STATE_KEY = 'watchlist-state';
-
-  function saveState() {
-    try {
-      localStorage.setItem(STATE_KEY, JSON.stringify({
-        filterText, filterLabels, filterMode, filterAfter, filterBefore,
-        sortBy, sortDir, activeCategory, trashActive,
-        scrollY: window.scrollY,
-      }));
-    } catch {}
-  }
-
-  function restoreState() {
-    try {
-      const saved = JSON.parse(localStorage.getItem(STATE_KEY) || 'null');
-      if (!saved) return 0;
-      filterText     = saved.filterText     || '';
-      filterLabels   = saved.filterLabels   || [];
-      filterMode     = saved.filterMode     || 'or';
-      filterAfter    = saved.filterAfter    || '';
-      filterBefore   = saved.filterBefore   || '';
-      sortBy         = saved.sortBy         || 'added_at';
-      sortDir        = saved.sortDir        || 'desc';
-      activeCategory = saved.activeCategory || '';
-      trashActive    = !!saved.trashActive;
-
-      document.getElementById('filter-text').value      = filterText;
-      document.getElementById('sort-field').value       = sortBy;
-      document.getElementById('filter-after').value     = filterAfter;
-      document.getElementById('filter-before').value    = filterBefore;
-      const sortDirBtn = document.getElementById('sort-dir');
-      sortDirBtn.textContent = sortDir === 'asc' ? '↑' : '↓';
-      sortDirBtn.className   = 'sort-dir ' + sortDir;
-      updateFilterBtn();
-      return saved.scrollY || 0;
-    } catch {}
-    return 0;
-  }
-
-  // ── Utils ──────────────────────────────────────────────────────────────────
-
-  function esc(s) {
-    return String(s)
-      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-      .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  }
-
-  function fmtDate(iso) {
-    return new Date(iso).toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' });
-  }
-
-  function fmtDateShort(iso) {
-    return new Date(iso).toLocaleDateString(undefined, { month:'short', day:'numeric' });
-  }
-
-  function openUrl(url) {
-    const a = document.createElement('a');
-    a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  }
-
-  function copyText(text) {
-    const ta = document.createElement('textarea');
-    ta.value = text; ta.setAttribute('readonly', '');
-    ta.style.cssText = 'position:fixed;top:-9999px;left:0;width:2em;height:2em;opacity:0;';
-    document.body.appendChild(ta);
-    ta.focus(); ta.select(); ta.setSelectionRange(0, text.length);
-    let ok = false;
-    try { ok = document.execCommand('copy'); } catch {}
-    document.body.removeChild(ta);
-    if (ok) return Promise.resolve();
-    if (navigator.clipboard && navigator.clipboard.writeText)
-      return navigator.clipboard.writeText(text).catch(() => Promise.resolve());
-    return Promise.resolve();
-  }
-
-  // ── Filter params (single source of truth for list + reader URLs) ──────────
-
-  function buildFilterParams() {
-    const p = new URLSearchParams();
-    const activeLabels = trashActive ? [2, ...filterLabels] : filterLabels;
-    if (filterText)          p.set('q',          filterText);
-    if (activeLabels.length) p.set('labels',      activeLabels.join(','));
-    if (activeLabels.length > 1)
-      p.set('label_mode', trashActive ? 'and' : filterMode);
-    if (filterAfter)  p.set('after',  filterAfter);
-    if (filterBefore) p.set('before', filterBefore);
-    if (activeCategory) p.set('source', activeCategory);
-    return p;
-  }
-
-  // ── Labels ─────────────────────────────────────────────────────────────────
-
-  async function loadLabels() {
-    allLabels = await fetch('/api/labels').then(r => r.json());
-  }
-
-  function userLabels() {
-    return allLabels.filter(l => l.id !== 1 && l.id !== 2);
-  }
-
-  // ── Sort ───────────────────────────────────────────────────────────────────
-
-  function sortVideos(videos) {
-    const statusOrder = { new: 0, started: 1 };
-    return [...videos].sort((a, b) => {
-      let va, vb;
-      if (sortBy === 'added_at') {
-        va = new Date(a.added_at).getTime();
-        vb = new Date(b.added_at).getTime();
-      } else if (sortBy === 'status') {
-        va = statusOrder[a.status] ?? 9;
-        vb = statusOrder[b.status] ?? 9;
-      } else {
-        va = (a[sortBy] || '').toLowerCase();
-        vb = (b[sortBy] || '').toLowerCase();
-      }
-      if (va < vb) return sortDir === 'asc' ? -1 : 1;
-      if (va > vb) return sortDir === 'asc' ?  1 : -1;
-      return 0;
-    });
-  }
-
-  document.getElementById('sort-field').addEventListener('change', e => {
-    sortBy = e.target.value; load();
-  });
-  document.getElementById('sort-dir').addEventListener('click', () => {
-    sortDir = sortDir === 'desc' ? 'asc' : 'desc';
-    const btn = document.getElementById('sort-dir');
-    btn.textContent = sortDir === 'asc' ? '↑' : '↓';
-    btn.className   = 'sort-dir ' + sortDir;
-    load();
-  });
-
-  // ── Load & render ───────────────────────────────────────────────────────────
-
-  async function load() {
-    const params = buildFilterParams();
-    const data = await fetch('/api/videos?' + params).then(r => r.json());
-    render(data.videos);
-    updateTrashBtn(data.trash_count || 0);
-    saveState();
-  }
-
-  function render(videos) {
-    const list  = document.getElementById('list');
-    const empty = document.getElementById('empty');
-    const count = document.getElementById('count');
-
-    if (!videos.length) {
-      list.innerHTML = ''; empty.style.display = ''; count.textContent = ''; return;
-    }
-    empty.style.display = 'none';
-    const nNew      = videos.filter(v => v.status === 'new').length;
-    const nStarted  = videos.filter(v => v.status === 'started').length;
-    const nFinished = videos.filter(v => v.status === 'finished').length;
-    count.textContent = [
-      nNew      && nNew      + ' new',
-      nStarted  && nStarted  + ' started',
-      nFinished && nFinished + ' finished',
-    ].filter(Boolean).join(', ');
-
-    const trash = isTrashMode();
-    const readerQ = buildFilterParams().toString();
-
-    list.innerHTML = sortVideos(videos).map(v => {
-      const badge = v.status === 'finished'
-        ? '<span class="badge badge-finished">Finished</span>'
-        : v.status === 'started'
-          ? '<span class="badge badge-started">Started</span>'
-          : '<span class="badge badge-new">New</span>';
-      const displayLabels = trash
-        ? (v.labels || [])
-        : (v.labels || []).filter(l => l.label_id !== 2);
-      const chipsHtml = displayLabels.length
-        ? '<div class="card-chips-row label-chips">' +
-          displayLabels.map(l =>
-            '<span class="label-chip">' + esc(l.label_name) +
-            ' <span class="label-chip-date">· ' + fmtDateShort(l.labeled_at) + '</span></span>'
-          ).join('') + '</div>'
-        : '';
-      const labelsJson = esc(JSON.stringify(v.labels || []));
-      const sel = selectedIds.has(String(v.id));
-
-      return '<li class="video-card' + (trash ? ' selectable' : '') + (sel ? ' selected' : '') + '"' +
-        ' data-id="' + v.id + '" data-title="' + esc(v.title) + '"' +
-        ' data-url="' + esc(v.url) + '" data-status="' + v.status + '"' +
-        ' data-content-type="' + esc(v.content_type || 'video') + '"' +
-        ' data-summary="' + esc(v.summary || '') + '"' +
-        ' data-labels="' + labelsJson + '">' +
-        '<span class="card-channel">' + esc(v.emoji) + ' ' + esc(v.channel_name) + '</span>' +
-        '<span class="card-title">' + esc(v.title) + '</span>' +
-        '<div class="card-footer">' +
-          '<span class="card-badge">' + badge + '</span>' +
-          '<span class="card-date">' + fmtDate(v.published_at || v.added_at) + '</span>' +
-          '<button class="card-trash-btn" data-id="' + v.id + '" title="Move to Trash">🗑</button>' +
-        '</div>' +
-        chipsHtml +
-        '</li>';
-    }).join('');
-  }
-
-  // ── Trash mode & bulk actions ──────────────────────────────────────────────
-
-  function updateTrashBtn(count) {
-    const btn = document.getElementById('btn-show-trash');
-    const inTrash = isTrashMode();
-    btn.textContent = inTrash ? 'Exit Trash' : (count > 0 ? 'Trash (' + count + ')' : 'Trash');
-    btn.classList.toggle('has-items', !inTrash && count > 0);
-    btn.classList.toggle('active', inTrash);
-    document.getElementById('bulk-bar').style.display = inTrash ? '' : 'none';
-    if (!inTrash) selectedIds.clear();
-    updateBulkBar();
-  }
-
-  function updateBulkBar() {
-    const n = selectedIds.size;
-    document.getElementById('bulk-count').textContent = n === 0 ? '0 selected' : n + ' selected';
-    document.getElementById('btn-bulk-restore').disabled = n === 0;
-    document.getElementById('btn-bulk-delete').disabled  = n === 0;
-  }
-
-  document.getElementById('btn-show-trash').addEventListener('click', () => {
-    trashActive = !trashActive; selectedIds.clear(); load();
-  });
-
-  document.getElementById('btn-select-all').addEventListener('click', () => {
-    const cards = document.querySelectorAll('#list .video-card.selectable');
-    const allSelected = cards.length > 0 && [...cards].every(c => c.classList.contains('selected'));
-    if (allSelected) {
-      cards.forEach(c => { c.classList.remove('selected'); selectedIds.delete(c.dataset.id); });
-    } else {
-      cards.forEach(c => { c.classList.add('selected'); selectedIds.add(c.dataset.id); });
-    }
-    updateBulkBar();
-  });
-
-  function confirmBulkAction(btn, onConfirm) {
-    if (btn.dataset.confirm === 'pending') { onConfirm(); return; }
-    btn.dataset.confirm = 'pending';
-    const orig = btn.textContent;
-    btn.textContent = 'Sure? (' + selectedIds.size + ')';
-    btn.classList.add('confirming');
-    btn._confirmTimer = setTimeout(() => {
-      btn.dataset.confirm = ''; btn.textContent = orig;
-    }, 3000);
-  }
-
-  document.getElementById('btn-bulk-restore').addEventListener('click', function() {
-    confirmBulkAction(this, async () => {
-      const ids = [...selectedIds];
-      await Promise.all(ids.map(id => fetch('/api/videos/' + id + '/restore', { method: 'POST' })));
-      selectedIds.clear(); load();
-    });
-  });
-
-  document.getElementById('btn-bulk-delete').addEventListener('click', function() {
-    confirmBulkAction(this, async () => {
-      const ids = [...selectedIds];
-      await Promise.all(ids.map(id => fetch('/api/videos/' + id, { method: 'DELETE' })));
-      selectedIds.clear(); load();
-    });
-  });
-
-  // ── Card clicks ────────────────────────────────────────────────────────────
-
-  document.getElementById('list').addEventListener('click', async e => {
-    const trashBtn = e.target.closest('.card-trash-btn');
-    if (trashBtn) {
-      await fetch('/api/videos/' + trashBtn.dataset.id + '/trash', { method: 'POST' });
-      load(); return;
-    }
-
-    const card = e.target.closest('.video-card');
-    if (!card) return;
-
-    if (card.classList.contains('selectable')) {
-      const id = card.dataset.id;
-      if (selectedIds.has(id)) { selectedIds.delete(id); card.classList.remove('selected'); }
-      else                     { selectedIds.add(id);    card.classList.add('selected');    }
-      updateBulkBar(); return;
-    }
-
-    let labels = [];
-    try { labels = JSON.parse(card.dataset.labels || '[]'); } catch {}
-    current = {
-      id:          card.dataset.id,
-      title:       card.dataset.title,
-      url:         card.dataset.url,
-      status:      card.dataset.status,
-      contentType: card.dataset.contentType || 'video',
-      summary:     card.dataset.summary || '',
-      labels,
-    };
-    const isArticle = current.contentType === 'article';
-    document.getElementById('action-title').textContent    = current.title;
-    document.getElementById('action-url').textContent      = current.url;
-    document.getElementById('action-url-row').style.display = '';
-    document.getElementById('action-modal-label').textContent = isArticle ? 'Open article' : 'Open video';
-    buildActionBtns(current.status, current.contentType);
-    document.getElementById('action-overlay').classList.add('open');
-  });
-
-  // ── Action modal ───────────────────────────────────────────────────────────
-
-  function buildActionBtns(status, contentType) {
-    const el = document.getElementById('action-btns');
-    const isArticle = contentType === 'article';
-
-    if (isArticle) {
-      el.innerHTML =
-        (status === 'new'
-          ? '<button class="btn btn-primary" id="ab-open">Open reader &amp; mark started</button>'
-          : '<button class="btn btn-secondary" id="ab-open">Open reader</button>') +
-        '<button class="btn btn-muted" id="ab-source">Open original ↗</button>' +
-        '<div class="modal-divider"></div>' +
-        '<button class="btn btn-indigo" id="ab-labels">Labels…</button>' +
-        '<button class="btn btn-cancel" id="ab-cancel">Cancel</button>';
-
-      document.getElementById('ab-open').addEventListener('click', () => {
-        if (!current) return;
-        if (current.status === 'new')
-          fetch('/api/videos/' + current.id + '/started', { method: 'POST' }).catch(() => {});
-        const q = buildFilterParams().toString();
-        location.href = '/reader/' + current.id + (q ? '?' + q : '');
-        closeActionModal();
-      });
-
-      document.getElementById('ab-source').addEventListener('click', () => {
-        if (!current) return;
-        openUrl(current.url); closeActionModal();
-      });
-    } else {
-      if (status === 'new') {
-        el.innerHTML =
-          '<button class="btn btn-primary"   id="ab-started">Mark as started &amp; open</button>' +
-          '<button class="btn btn-secondary" id="ab-just">Just open</button>' +
-          '<div class="modal-divider"></div>' +
-          '<button class="btn btn-muted"  id="ab-summary">Summary</button>' +
-          '<button class="btn btn-indigo" id="ab-labels">Labels…</button>' +
-          '<button class="btn btn-cancel" id="ab-cancel">Cancel</button>';
-      } else {
-        el.innerHTML =
-          '<button class="btn btn-secondary" id="ab-just">Just open</button>' +
-          '<div class="modal-divider"></div>' +
-          '<button class="btn btn-muted"  id="ab-summary">Summary</button>' +
-          '<button class="btn btn-indigo" id="ab-labels">Labels…</button>' +
-          '<button class="btn btn-cancel" id="ab-cancel">Cancel</button>';
-      }
-
-      const started = document.getElementById('ab-started');
-      if (started) started.addEventListener('click', () => {
-        if (!current) return;
-        openUrl(current.url);
-        fetch('/api/videos/' + current.id + '/started', { method: 'POST' }).then(load);
-        closeActionModal();
-      });
-
-      document.getElementById('ab-just').addEventListener('click', () => {
-        if (!current) return;
-        openUrl(current.url); closeActionModal();
-      });
-
-      document.getElementById('ab-summary').addEventListener('click', () => {
-        if (!current) return;
-        const v = { ...current }; closeActionModal(); openSummaryOverlay(v);
-      });
-    }
-
-    document.getElementById('ab-labels').addEventListener('click', showLabelEditor);
-    document.getElementById('ab-cancel').addEventListener('click', closeActionModal);
-  }
-
-  function showLabelEditor() {
-    if (!current) return;
-    document.getElementById('action-modal-label').textContent = 'Edit labels';
-    document.getElementById('action-url-row').style.display = 'none';
-
-    const currentLabelIds = (current.labels || []).map(l => l.label_id);
-    const labeledAtMap = {};
-    (current.labels || []).forEach(l => { labeledAtMap[l.label_id] = l.labeled_at; });
-
-    const el = document.getElementById('action-btns');
-    el.innerHTML =
-      '<div class="label-picker" id="label-editor-picker">' +
-      allLabels.map(l => {
-        const on = currentLabelIds.includes(l.id);
-        const since = on ? '<span class="label-picker-since">since ' + fmtDateShort(labeledAtMap[l.id]) + '</span>' : '';
-        return '<div class="label-picker-item' + (on ? ' selected' : '') + '" data-label-id="' + l.id + '">' +
-          '<span class="label-picker-check">' + (on ? '✓' : '') + '</span>' +
-          '<span class="label-picker-name">' + esc(l.name) + '</span>' + since + '</div>';
-      }).join('') +
-      '</div>' +
-      '<button class="btn btn-indigo" id="ab-labels-apply">Apply</button>' +
-      '<button class="btn btn-cancel" id="ab-labels-back">Cancel</button>';
-
-    document.getElementById('label-editor-picker').addEventListener('click', e => {
-      const item = e.target.closest('.label-picker-item');
-      if (!item) return;
-      const on = item.classList.toggle('selected');
-      item.querySelector('.label-picker-check').textContent = on ? '✓' : '';
-    });
-
-    document.getElementById('ab-labels-apply').addEventListener('click', async () => {
-      if (!current) return;
-      const selected = Array.from(
-        document.querySelectorAll('#label-editor-picker .label-picker-item.selected')
-      ).map(el => parseInt(el.dataset.labelId, 10));
-      await fetch('/api/videos/' + current.id + '/labels', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ labelIds: selected }),
-      });
-      closeActionModal(); load();
-    });
-
-    document.getElementById('ab-labels-back').addEventListener('click', () => {
-      document.getElementById('action-url-row').style.display = '';
-      document.getElementById('action-modal-label').textContent =
-        current && current.contentType === 'article' ? 'Open article' : 'Open video';
-      buildActionBtns(current.status, current.contentType);
-    });
-  }
-
-  document.getElementById('btn-copy-url').addEventListener('click', () => {
-    if (!current) return;
-    copyText(current.url).then(() => {
-      const btn = document.getElementById('btn-copy-url');
-      btn.textContent = 'Copied!'; btn.classList.add('copied');
-      setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
-    });
-  });
-
-  document.getElementById('action-overlay').addEventListener('click', e => {
-    if (e.target === document.getElementById('action-overlay')) closeActionModal();
-  });
-
-  function closeActionModal() {
-    document.getElementById('action-overlay').classList.remove('open');
-    current = null;
-  }
-
-  // ── Filter modal ───────────────────────────────────────────────────────────
-
-  function buildFilterModal() {
-    const list = document.getElementById('filter-label-list');
-    const nonSystem = allLabels.filter(l => l.id !== 2);
-    list.innerHTML = nonSystem.map(l => {
-      const sel = filterLabels.includes(l.id);
-      return '<div class="filter-label-item' + (sel ? ' selected' : '') + '" data-label-id="' + l.id + '">' +
-        '<span class="label-picker-check">' + (sel ? '✓' : '') + '</span>' +
-        '<span class="filter-label-name">' + esc(l.name) + '</span></div>';
-    }).join('');
-
-    document.getElementById('filter-after').value  = filterAfter;
-    document.getElementById('filter-before').value = filterBefore;
-    updateFilterModeRow();
-
-    list.querySelectorAll('.filter-label-item').forEach(item => {
-      item.addEventListener('click', () => {
-        const on = item.classList.toggle('selected');
-        item.querySelector('.label-picker-check').textContent = on ? '✓' : '';
-        updateFilterModeRow();
-      });
-    });
-  }
-
-  function updateFilterModeRow() {
-    const selected = document.querySelectorAll('#filter-label-list .filter-label-item.selected');
-    const row = document.getElementById('filter-mode-row');
-    row.style.display = selected.length > 1 ? '' : 'none';
-    document.getElementById('fmode-or').classList.toggle('active',  filterMode === 'or');
-    document.getElementById('fmode-and').classList.toggle('active', filterMode === 'and');
-  }
-
-  document.getElementById('filter-mode-row').addEventListener('click', e => {
-    const btn = e.target.closest('[data-mode]');
-    if (!btn) return;
-    filterMode = btn.dataset.mode;
-    document.getElementById('fmode-or').classList.toggle('active',  filterMode === 'or');
-    document.getElementById('fmode-and').classList.toggle('active', filterMode === 'and');
-  });
-
-  document.getElementById('btn-filter-labels').addEventListener('click', () => {
-    buildFilterModal();
-    document.getElementById('filter-overlay').classList.add('open');
-  });
-
-  document.getElementById('filter-overlay').addEventListener('click', e => {
-    if (e.target === document.getElementById('filter-overlay')) closeFilterModal();
-  });
-
-  document.getElementById('btn-filter-cancel').addEventListener('click', closeFilterModal);
-
-  document.getElementById('btn-filter-apply').addEventListener('click', () => {
-    filterLabels = Array.from(
-      document.querySelectorAll('#filter-label-list .filter-label-item.selected')
-    ).map(el => parseInt(el.dataset.labelId, 10));
-    filterAfter  = document.getElementById('filter-after').value;
-    filterBefore = document.getElementById('filter-before').value;
-    closeFilterModal(); updateFilterBtn(); load();
-  });
-
-  document.getElementById('btn-filter-clear').addEventListener('click', () => {
-    filterLabels = []; filterAfter = ''; filterBefore = '';
-    document.querySelectorAll('#filter-label-list .filter-label-item.selected').forEach(el => {
-      el.classList.remove('selected');
-      el.querySelector('.label-picker-check').textContent = '';
-    });
-    document.getElementById('filter-after').value  = '';
-    document.getElementById('filter-before').value = '';
-    updateFilterModeRow(); updateFilterBtn(); closeFilterModal(); load();
-  });
-
-  function closeFilterModal() {
-    document.getElementById('filter-overlay').classList.remove('open');
-  }
-
-  function updateFilterBtn() {
-    const hasFilter = filterLabels.length > 0 || filterAfter || filterBefore;
-    const btn = document.getElementById('btn-filter-labels');
-    btn.classList.toggle('active', hasFilter);
-    const count = filterLabels.length + (filterAfter ? 1 : 0) + (filterBefore ? 1 : 0);
-    btn.textContent = hasFilter ? 'Filter (' + count + ')' : 'Filter';
-  }
-
-  let searchTimer = null;
-  document.getElementById('filter-text').addEventListener('input', e => {
-    clearTimeout(searchTimer);
-    filterText = e.target.value.trim();
-    searchTimer = setTimeout(load, 300);
-  });
-
-  // ── Labels management modal ────────────────────────────────────────────────
-
-  async function openLabelsModal() {
-    await loadLabels(); renderLabelsList();
-    document.getElementById('labels-overlay').classList.add('open');
-  }
-
-  function renderLabelsList() {
-    const list = document.getElementById('labels-list');
-    const ul   = allLabels.filter(l => l.id !== 1 && l.id !== 2);
-    if (!ul.length) {
-      list.innerHTML = '<div style="color:var(--text-faint);font-size:14px;padding:8px 0">No labels yet.</div>';
-      return;
-    }
-    list.innerHTML = ul.map(l =>
-      '<div class="labels-list-item">' +
-        '<span class="labels-list-name">' + esc(l.name) + '</span>' +
-        '<button class="btn-del-label" data-label-id="' + l.id + '" title="Delete label">✕</button>' +
-      '</div>'
-    ).join('');
-
-    list.querySelectorAll('.btn-del-label').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const id = parseInt(btn.dataset.labelId, 10);
-        const res = await fetch('/api/labels/' + id, { method: 'DELETE' });
-        if (!res.ok) {
-          const { error } = await res.json();
-          btn.style.color = 'var(--red)';
-          setTimeout(() => { btn.style.color = ''; }, 1500);
-          btn.title = error || 'cannot delete';
-        } else {
-          await loadLabels(); renderLabelsList(); load();
-        }
-      });
-    });
-  }
-
-  document.getElementById('btn-labels').addEventListener('click', openLabelsModal);
-  document.getElementById('btn-labels-close').addEventListener('click', () => {
-    document.getElementById('labels-overlay').classList.remove('open');
-  });
-  document.getElementById('labels-overlay').addEventListener('click', e => {
-    if (e.target === document.getElementById('labels-overlay'))
-      document.getElementById('labels-overlay').classList.remove('open');
-  });
-
-  document.getElementById('new-label-input').addEventListener('input', e => {
-    document.getElementById('btn-create-label').disabled = !e.target.value.trim();
-  });
-
-  document.getElementById('btn-create-label').addEventListener('click', async () => {
-    const input = document.getElementById('new-label-input');
-    const name  = input.value.trim();
-    if (!name) return;
-    const res = await fetch('/api/labels', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name }),
-    });
-    if (res.ok) {
-      input.value = '';
-      document.getElementById('btn-create-label').disabled = true;
-      await loadLabels(); renderLabelsList();
-    } else {
-      input.style.borderColor = 'var(--red)';
-      setTimeout(() => { input.style.borderColor = ''; }, 1500);
-    }
-  });
-
-  // ── Add video modal ────────────────────────────────────────────────────────
-
-  function updateAddBtn() {
-    const url   = document.getElementById('add-url').value.trim();
-    const title = document.getElementById('add-title').value.trim();
-    document.getElementById('btn-add-submit').disabled = !(url && title);
-  }
-
-  function autoDetectCategory(url) {
-    if (/youtube\.com|youtu\.be/.test(url)) return 'youtube';
-    if (/arstechnica\.com/.test(url))       return 'ars_technica';
-    return null;
-  }
-
-  async function loadCategorySelectOptions(selectId) {
-    const sel = document.getElementById(selectId);
-    try {
-      const cats = await fetch('/api/categories').then(r => r.json());
-      const existing = new Set(Array.from(sel.options).map(o => o.value).filter(Boolean));
-      for (const cat of cats) {
-        if (!existing.has(cat.source)) {
-          const opt = document.createElement('option');
-          opt.value = cat.source;
-          opt.textContent = categoryDisplayName(cat.source) + ' (' + cat.count + ')';
-          sel.appendChild(opt);
-        }
-      }
-    } catch {}
-  }
-
-  document.getElementById('btn-show-add').addEventListener('click', async () => {
-    ['add-url','add-title','add-channel'].forEach(id => document.getElementById(id).value = '');
-    document.getElementById('add-emoji').value = '📺';
-    document.getElementById('add-category').value = 'youtube';
-    document.getElementById('fetch-status').textContent = '';
-    document.getElementById('fetch-status').className   = 'fetch-status';
-    document.getElementById('btn-add-submit').disabled  = true;
-    document.getElementById('btn-add-submit').textContent = 'Add to watchlist';
-    document.getElementById('add-overlay').classList.add('open');
-    await loadCategorySelectOptions('add-category');
-    setTimeout(() => document.getElementById('add-url').focus(), 100);
-  });
-
-  document.getElementById('add-url').addEventListener('input', () => {
-    clearTimeout(fetchTimer); updateAddBtn();
-    const url = document.getElementById('add-url').value.trim();
-    if (!url) { setFetchStatus('', ''); return; }
-    const detected = autoDetectCategory(url);
-    if (detected) document.getElementById('add-category').value = detected;
-    if (/youtube\.com|youtu\.be/.test(url)) {
-      setFetchStatus('Fetching title…', '');
-      fetchTimer = setTimeout(() => fetchPreview(url), 600);
-    }
-  });
-
-  document.getElementById('add-title').addEventListener('input', updateAddBtn);
-
-  async function fetchPreview(url) {
-    try {
-      const res = await fetch('/api/preview?url=' + encodeURIComponent(url));
-      if (!res.ok) { setFetchStatus('Could not fetch title — enter it manually', 'err'); return; }
-      const { title, channel_name } = await res.json();
-      document.getElementById('add-title').value   = title        || '';
-      document.getElementById('add-channel').value = channel_name || '';
-      setFetchStatus(title ? 'Title fetched ✓' : 'No title returned — enter it manually',
-                     title ? 'ok' : 'err');
-      updateAddBtn();
-    } catch {
-      setFetchStatus('Could not fetch title — enter it manually', 'err');
-    }
-  }
-
-  function setFetchStatus(msg, cls) {
-    const el = document.getElementById('fetch-status');
-    el.textContent = msg;
-    el.className   = 'fetch-status' + (cls ? ' ' + cls : '');
-  }
-
-  document.getElementById('btn-add-submit').addEventListener('click', async () => {
-    const url     = document.getElementById('add-url').value.trim();
-    const title   = document.getElementById('add-title').value.trim();
-    const channel = document.getElementById('add-channel').value.trim();
-    const emoji   = document.getElementById('add-emoji').value.trim() || '📺';
-    const source  = document.getElementById('add-category').value || 'youtube';
-    const content_type = source === 'youtube' ? 'video' : 'article';
-    if (!url || !title) return;
-    const btn = document.getElementById('btn-add-submit');
-    btn.disabled = true; btn.textContent = 'Adding…';
-    const res = await fetch('/api/videos', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url, title, channel_name: channel, emoji, source, content_type }),
-    });
-    if (res.ok) {
-      closeAddModal(); load();
-    } else {
-      btn.disabled = false; btn.textContent = 'Add to watchlist';
-      setFetchStatus('Error adding — try again', 'err');
-    }
-  });
-
-  document.getElementById('btn-add-cancel').addEventListener('click', closeAddModal);
-  document.getElementById('add-overlay').addEventListener('click', e => {
-    if (e.target === document.getElementById('add-overlay')) closeAddModal();
-  });
-
-  function closeAddModal() {
-    document.getElementById('add-overlay').classList.remove('open');
-  }
-
-  // ── Summary overlay ────────────────────────────────────────────────────────
-
-  function setCopyBtnsDisabled(disabled) {
-    document.querySelectorAll('.btn-copy-opt').forEach(b => b.disabled = disabled);
-  }
-
-  async function openSummaryOverlay(video) {
-    document.getElementById('summary-overlay-title').textContent = video.title;
-    const contentEl = document.getElementById('summary-html-content');
-    document.getElementById('summary-overlay').classList.add('open');
-
-    if (video.summary) {
-      contentEl.innerHTML = video.summary;
-      setCopyBtnsDisabled(false);
-      return;
-    }
-
-    contentEl.innerHTML = '<p style="color:var(--text-muted);padding:8px 0">Fetching transcript and generating summary…</p>';
-    setCopyBtnsDisabled(true);
-
-    try {
-      const res  = await fetch('/api/videos/' + video.id + '/summary', { method: 'POST' });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'failed');
-      const card = document.querySelector('.video-card[data-id="' + video.id + '"]');
-      if (card) card.dataset.summary = data.summary;
-      contentEl.innerHTML = data.summary;
-      setCopyBtnsDisabled(false);
-    } catch (err) {
-      contentEl.innerHTML = '<p style="color:var(--red)">Could not generate summary: ' + err.message + '</p>';
-      setCopyBtnsDisabled(false);
-    }
-  }
-
-  function closeSummaryOverlay() {
-    document.getElementById('summary-overlay').classList.remove('open');
-  }
-
-  document.getElementById('summary-overlay').addEventListener('click', e => {
-    if (e.target === document.getElementById('summary-overlay')) closeSummaryOverlay();
-  });
-  document.getElementById('btn-summary-overlay-close').addEventListener('click', closeSummaryOverlay);
-
-  function htmlToMarkdown(html) {
-    const div = document.createElement('div');
-    div.innerHTML = html;
-    function toMd(node) {
-      if (node.nodeType === Node.TEXT_NODE) return node.textContent;
-      if (node.nodeType !== Node.ELEMENT_NODE) return '';
-      const tag   = node.tagName.toLowerCase();
-      const inner = Array.from(node.childNodes).map(toMd).join('');
-      switch (tag) {
-        case 'h3': case 'h4': return '### ' + inner + '\n\n';
-        case 'p':  return inner + '\n\n';
-        case 'ul': return Array.from(node.children).map(li => '- ' + toMd(li).trim()).join('\n') + '\n\n';
-        case 'ol': return Array.from(node.children).map((li, i) => (i+1) + '. ' + toMd(li).trim()).join('\n') + '\n\n';
-        case 'li': return inner;
-        case 'strong': case 'b': return '**' + inner + '**';
-        case 'em':     case 'i': return '*' + inner + '*';
-        default: return inner;
-      }
-    }
-    return Array.from(div.childNodes).map(toMd).join('').trim();
-  }
-
-  function flashCopyBtn(btn, original) {
-    btn.textContent = 'Copied!'; btn.classList.add('copied');
-    setTimeout(() => { btn.textContent = original; btn.classList.remove('copied'); }, 1500);
-  }
-
-  document.getElementById('btn-copy-plain').addEventListener('click', () => {
-    const text = document.getElementById('summary-html-content').innerText;
-    copyText(text).then(() => flashCopyBtn(document.getElementById('btn-copy-plain'), 'Plain text'));
-  });
-  document.getElementById('btn-copy-html').addEventListener('click', () => {
-    const html = document.getElementById('summary-html-content').innerHTML;
-    copyText(html).then(() => flashCopyBtn(document.getElementById('btn-copy-html'), 'HTML'));
-  });
-  document.getElementById('btn-copy-md').addEventListener('click', () => {
-    const md = htmlToMarkdown(document.getElementById('summary-html-content').innerHTML);
-    copyText(md).then(() => flashCopyBtn(document.getElementById('btn-copy-md'), 'Markdown'));
-  });
-
-  // ── Category filter ────────────────────────────────────────────────────────
-
-  async function loadCategories() {
-    try {
-      const cats = await fetch('/api/categories').then(r => r.json());
-      const sel = document.getElementById('category-filter');
-      while (sel.options.length > 1) sel.remove(1);
-      for (const cat of cats) {
-        const opt = document.createElement('option');
-        opt.value = cat.source;
-        opt.textContent = categoryDisplayName(cat.source) + ' (' + cat.count + ')';
-        sel.appendChild(opt);
-      }
-      if (activeCategory) sel.value = activeCategory;
-      sel.classList.toggle('active', !!activeCategory);
-    } catch {}
-  }
-
-  document.getElementById('category-filter').addEventListener('change', e => {
-    activeCategory = e.target.value;
-    e.target.classList.toggle('active', !!activeCategory);
-    const url = new URL(window.location.href);
-    if (activeCategory) url.searchParams.set('category', activeCategory);
-    else url.searchParams.delete('category');
-    history.pushState({}, '', url.toString());
-    load();
-  });
-
-  // ── Init ───────────────────────────────────────────────────────────────────
-
-  async function init() {
-    const savedScrollY = restoreState();
-
-    const urlParams = new URLSearchParams(window.location.search);
-    const catFromUrl = urlParams.get('category') || '';
-    if (catFromUrl) {
-      activeCategory = catFromUrl;
-      document.getElementById('category-filter').value = catFromUrl;
-      document.getElementById('category-filter').classList.add('active');
-    }
-
-    await loadLabels();
-    await loadCategories();
-    await load();
-
-    if (savedScrollY) window.scrollTo(0, savedScrollY);
-  }
-
-  window.addEventListener('pagehide', saveState);
-
-  let scrollSaveTimer = null;
-  window.addEventListener('scroll', () => {
-    clearTimeout(scrollSaveTimer);
-    scrollSaveTimer = setTimeout(saveState, 250);
-  }, { passive: true });
-
-  init();
-  setInterval(load, 30000);
-</script>
+<script src="/player.js"></script>
+<script src="/app.js"></script>
 </body>
 </html>

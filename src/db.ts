@@ -88,7 +88,56 @@ if (userVersion < 2) {
   } catch (e) { db.exec('ROLLBACK'); throw e; }
 }
 
+if (userVersion < 3) {
+  db.exec('BEGIN');
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS settings (
+      key   TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    )`);
+    db.exec(`INSERT OR IGNORE INTO settings (key, value) VALUES
+      ('audio_on_add','false'),
+      ('autoplay','true'),
+      ('tts_voice','Ava (Premium)'),
+      ('pre_cache_count','3')`);
+
+    db.exec(`CREATE TABLE IF NOT EXISTS playlists (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      name        TEXT NOT NULL UNIQUE,
+      filter_json TEXT NOT NULL DEFAULT '{}',
+      created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+    )`);
+
+    db.exec(`CREATE TABLE IF NOT EXISTS sources (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      source_key    TEXT NOT NULL UNIQUE,
+      display_name  TEXT NOT NULL,
+      default_speed REAL NOT NULL DEFAULT 1.0
+    )`);
+    db.exec(`INSERT OR IGNORE INTO sources (source_key, display_name, default_speed) VALUES
+      ('youtube','YouTube',1.0),
+      ('ars_technica','Ars Technica',1.2),
+      ('web','Web',1.0)`);
+
+    try { db.exec(`ALTER TABLE videos ADD COLUMN audio_status TEXT NOT NULL DEFAULT 'none'`); } catch {}
+    try { db.exec(`ALTER TABLE videos ADD COLUMN audio_error TEXT`); } catch {}
+    try { db.exec(`ALTER TABLE videos ADD COLUMN audio_added_at TEXT`); } catch {}
+    try { db.exec(`ALTER TABLE videos ADD COLUMN audio_expires_at TEXT`); } catch {}
+    try { db.exec(`ALTER TABLE videos ADD COLUMN audio_retry_count INTEGER NOT NULL DEFAULT 0`); } catch {}
+
+    db.exec('PRAGMA user_version = 3');
+    db.exec('COMMIT');
+  } catch (e) { db.exec('ROLLBACK'); throw e; }
+}
+
 // ── Types ──────────────────────────────────────────────────────────────────
+
+export interface Source {
+  id: number;
+  source_key: string;
+  display_name: string;
+  default_speed: number;
+}
 
 export interface Label {
   id: number;
@@ -116,6 +165,11 @@ export interface Video {
   external_id: string | null;
   source_metadata: string | null;
   published_at: string | null;
+  audio_status: string;
+  audio_error: string | null;
+  audio_added_at: string | null;
+  audio_expires_at: string | null;
+  audio_retry_count: number;
   labels: VideoLabel[];
 }
 
@@ -359,4 +413,22 @@ export function purgeTrash(): number {
 export function savePublishedAt(id: number, publishedAt: string): void {
   db.prepare(`UPDATE videos SET published_at = ? WHERE id = ? AND published_at IS NULL`)
     .run(publishedAt, id);
+}
+
+// ── Sources ─────────────────────────────────────────────────────────────────
+
+export function getSources(): Source[] {
+  return db.prepare('SELECT * FROM sources ORDER BY id').all() as Source[];
+}
+
+export function updateSourceSpeed(id: number, speed: number): boolean {
+  return (db.prepare('UPDATE sources SET default_speed = ? WHERE id = ?').run(speed, id).changes as number) > 0;
+}
+
+// ── Audio status ─────────────────────────────────────────────────────────────
+
+export function markAudioReady(id: number): void {
+  db.prepare(
+    `UPDATE videos SET audio_status = 'ready' WHERE id = ? AND audio_status IN ('none','generating','pending','failed')`
+  ).run(id);
 }

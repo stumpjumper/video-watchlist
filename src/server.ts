@@ -13,12 +13,13 @@ import {
   getLabels, createLabel, deleteLabel,
   addLabelToVideo, removeLabelFromVideo, setVideoLabels, trashVideo, restoreFromTrash,
   getTrashCount, purgeTrash, getCategories,
+  getSources, updateSourceSpeed, markAudioReady,
   VideoFilter,
 } from './db';
 import { buildReaderHtml } from './reader';
 import {
   generateAudio, audioExists, audioUrl, audioDirSizeBytes, AUDIO_DIR,
-  fetchAndCacheText, readCachedText,
+  readCachedText,
 } from './audio';
 
 const execFileAsync = promisify(execFile);
@@ -147,6 +148,32 @@ app.get('/api/categories', (_req: Request, res: Response) => {
   res.json(getCategories());
 });
 
+app.get('/api/videos/:id', (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
+  const video = getVideoById(id);
+  if (!video) { res.status(404).json({ error: 'Not found' }); return; }
+  res.json(video);
+});
+
+// ── Sources ──────────────────────────────────────────────────────────────────
+
+app.get('/api/sources', (_req: Request, res: Response) => {
+  res.json(getSources());
+});
+
+app.put('/api/sources/:id', (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10);
+  const { default_speed } = req.body ?? {};
+  if (isNaN(id) || typeof default_speed !== 'number') {
+    res.status(400).json({ error: 'invalid' }); return;
+  }
+  if (!updateSourceSpeed(id, default_speed)) {
+    res.status(404).json({ error: 'not found' }); return;
+  }
+  res.json({ success: true });
+});
+
 app.get('/reader/:id', async (req: Request, res: Response) => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).send('Invalid id'); return; }
@@ -171,15 +198,20 @@ app.get('/api/videos/:id/text', async (req: Request, res: Response) => {
   if (!video) { res.status(404).json({ error: 'Not found' }); return; }
 
   const cached = await readCachedText(id);
-  if (cached) { res.json({ text: cached }); return; }
-
-  try {
-    const text = await fetchAndCacheText(id, video.url);
-    res.json({ text });
-  } catch (e: any) {
-    res.status(502).json({ error: e.message ?? 'fetch failed' });
-  }
+  res.json({ text: cached ?? null });
 });
+
+// ── Startup: sync audio_status with disk ─────────────────────────────────────
+
+(async () => {
+  try {
+    const files = await readdir(AUDIO_DIR);
+    for (const f of files) {
+      const m = f.match(/^(\d+)\.m4a$/);
+      if (m) markAudioReady(parseInt(m[1], 10));
+    }
+  } catch {}
+})();
 
 // ── Audio ────────────────────────────────────────────────────────────────────
 
@@ -217,7 +249,7 @@ app.post('/api/videos/:id/audio', async (req: Request, res: Response) => {
   res.json({ status: 'generating' });
 
   generateAudio(id, video.url)
-    .then(() => audioGenerating.delete(id))
+    .then(() => { audioGenerating.delete(id); markAudioReady(id); })
     .catch(e => {
       audioGenerating.delete(id);
       const msg = e instanceof Error ? e.message : String(e);
