@@ -19,6 +19,10 @@
       const id = parseInt(hash.slice(8), 10);
       if (!isNaN(id)) showReaderView(id);
       else showListView();
+    } else if (hash === '#settings') {
+      showSettingsView();
+    } else if (hash === '#playlists') {
+      showPlaylistsView();
     } else {
       showListView();
     }
@@ -135,6 +139,8 @@
     <button class="btn-ghost sm" id="btn-labels">Labels</button>
     <button class="btn-ghost sm trash-btn" id="btn-show-trash">Trash</button>
     <button class="btn-ghost sm add-btn" id="btn-show-add">+ Add</button>
+    <button class="btn-ghost sm" id="btn-nav-playlists">Playlists</button>
+    <button class="btn-ghost sm icon-btn" id="btn-nav-settings" title="Settings">⚙</button>
   </div>
 
   <div class="filter-row">
@@ -180,6 +186,8 @@
       trashActive = !trashActive; selectedIds.clear(); load();
     });
     document.getElementById('btn-show-add').addEventListener('click', openAddModal);
+    document.getElementById('btn-nav-playlists').addEventListener('click', () => navigate('#playlists'));
+    document.getElementById('btn-nav-settings').addEventListener('click', () => navigate('#settings'));
     document.getElementById('sort-field').addEventListener('change', e => { sortBy = e.target.value; load(); });
     document.getElementById('sort-dir').addEventListener('click', () => {
       sortDir = sortDir === 'desc' ? 'asc' : 'desc';
@@ -413,6 +421,26 @@
     if (btnD) btnD.disabled = n === 0;
   }
 
+  function confirmTap(btn, onConfirm) {
+    if (btn.dataset.confirm === 'pending') {
+      clearTimeout(btn._confirmTimer);
+      btn.classList.remove('confirming');
+      delete btn.dataset.confirm;
+      btn.textContent = btn.dataset.orig;
+      onConfirm();
+      return;
+    }
+    btn.dataset.orig = btn.textContent;
+    btn.dataset.confirm = 'pending';
+    btn.textContent = 'Sure?';
+    btn.classList.add('confirming');
+    btn._confirmTimer = setTimeout(function() {
+      delete btn.dataset.confirm;
+      btn.textContent = btn.dataset.orig;
+      btn.classList.remove('confirming');
+    }, 2500);
+  }
+
   function confirmBulkAction(btn, onConfirm) {
     if (btn.dataset.confirm === 'pending') { onConfirm(); return; }
     btn.dataset.confirm = 'pending';
@@ -509,8 +537,9 @@
     document.getElementById('ab-cancel').addEventListener('click', closeActionModal);
   }
 
-  function showLabelEditor() {
+  async function showLabelEditor() {
     if (!current) return;
+    if (!allLabels.length) await loadLabels();
     document.getElementById('action-modal-label').textContent = 'Edit labels';
     document.getElementById('action-url-row').style.display = 'none';
     const currentLabelIds = (current.labels || []).map(l => l.label_id);
@@ -538,14 +567,40 @@
     });
     document.getElementById('ab-labels-apply').addEventListener('click', async () => {
       if (!current) return;
+      const id = current.id; // capture before closeActionModal nulls current
       const selected = Array.from(
         document.querySelectorAll('#label-editor-picker .label-picker-item.selected')
       ).map(el => parseInt(el.dataset.labelId, 10));
-      await fetch('/api/videos/' + current.id + '/labels', {
+      await fetch('/api/videos/' + id + '/labels', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ labelIds: selected }),
       });
-      closeActionModal(); load();
+      closeActionModal();
+      if (window.location.hash.startsWith('#reader/')) {
+        // Update the reader label chips in-place — load() won't reach DOM in reader view
+        fetch('/api/videos/' + id).then(r => r.json()).then(v => {
+          const displayLabels = (v.labels || []).filter(l => l.label_id !== 1 && l.label_id !== 2);
+          const chipsHtml = displayLabels.map(l =>
+            '<span class="label-chip">' + esc(l.label_name) + '</span>'
+          ).join('');
+          const header = document.querySelector('.reader-header');
+          if (!header) return;
+          let chipsDiv = header.querySelector('.reader-label-chips');
+          if (chipsHtml) {
+            if (chipsDiv) { chipsDiv.innerHTML = chipsHtml; }
+            else {
+              const div = document.createElement('div');
+              div.className = 'reader-label-chips';
+              div.innerHTML = chipsHtml;
+              header.querySelector('.reader-channel').insertAdjacentElement('afterend', div);
+            }
+          } else {
+            if (chipsDiv) chipsDiv.remove();
+          }
+        }).catch(() => {});
+      } else {
+        load();
+      }
     });
     document.getElementById('ab-labels-back').addEventListener('click', () => {
       document.getElementById('action-url-row').style.display = '';
@@ -659,21 +714,68 @@
       return;
     }
     list.innerHTML = ul.map(l =>
-      '<div class="labels-list-item">' +
+      '<div class="labels-list-item" data-label-id="' + l.id + '">' +
         '<span class="labels-list-name">' + esc(l.name) + '</span>' +
-        '<button class="btn-del-label" data-label-id="' + l.id + '" title="Delete label">✕</button>' +
+        '<div class="label-item-actions">' +
+          '<button class="pl-btn lbl-rename" data-label-id="' + l.id + '" title="Rename">✎</button>' +
+          '<button class="pl-btn lbl-delete" data-label-id="' + l.id + '" title="Delete">✕</button>' +
+        '</div>' +
       '</div>'
     ).join('');
-    list.querySelectorAll('.btn-del-label').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const id = parseInt(btn.dataset.labelId, 10);
-        const res = await fetch('/api/labels/' + id, { method: 'DELETE' });
-        if (!res.ok) {
-          const { error } = await res.json();
-          btn.style.color = 'var(--red)';
-          setTimeout(() => { btn.style.color = ''; }, 1500);
-          btn.title = error || 'cannot delete';
-        } else { await loadLabels(); renderLabelsList(); load(); }
+
+    list.querySelectorAll('.lbl-rename').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const item = btn.closest('.labels-list-item');
+        const id   = parseInt(btn.dataset.labelId, 10);
+        const nameSpan = item.querySelector('.labels-list-name');
+        const acts     = item.querySelector('.label-item-actions');
+        const current  = nameSpan.textContent;
+
+        nameSpan.replaceWith(Object.assign(document.createElement('input'), {
+          type: 'text', value: current, className: 'settings-input label-rename-input',
+        }));
+        acts.innerHTML =
+          '<button class="pl-btn lbl-save-rename" title="Save">✓</button>' +
+          '<button class="pl-btn lbl-cancel-rename" title="Cancel">✕</button>';
+
+        const input = item.querySelector('.label-rename-input');
+        input.focus(); input.select();
+
+        async function doSave() {
+          const newName = input.value.trim();
+          if (!newName) { input.focus(); return; }
+          const res = await fetch('/api/labels/' + id, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: newName }),
+          });
+          if (res.ok) { await loadLabels(); renderLabelsList(); load(); }
+          else {
+            input.style.borderColor = 'var(--red)';
+            setTimeout(() => { input.style.borderColor = ''; }, 1500);
+          }
+        }
+
+        acts.querySelector('.lbl-save-rename').addEventListener('click', doSave);
+        acts.querySelector('.lbl-cancel-rename').addEventListener('click', () => renderLabelsList());
+        input.addEventListener('keydown', e => {
+          if (e.key === 'Enter')  { e.preventDefault(); doSave(); }
+          if (e.key === 'Escape') renderLabelsList();
+        });
+      });
+    });
+
+    list.querySelectorAll('.lbl-delete').forEach(btn => {
+      btn.addEventListener('click', () => {
+        confirmTap(btn, async () => {
+          const id  = parseInt(btn.dataset.labelId, 10);
+          const res = await fetch('/api/labels/' + id, { method: 'DELETE' });
+          if (!res.ok) {
+            const { error } = await res.json().catch(() => ({}));
+            btn.style.color = 'var(--red)';
+            btn.title = error || 'cannot delete';
+            setTimeout(() => { btn.style.color = ''; }, 1500);
+          } else { await loadLabels(); renderLabelsList(); load(); }
+        });
       });
     });
   }
@@ -880,6 +982,282 @@
     copyText(md).then(() => flashCopyBtn(document.getElementById('btn-copy-md'), 'Markdown'));
   });
 
+  // ── Settings view ────────────────────────────────────────────────────────────
+
+  async function showSettingsView() {
+    const view = document.getElementById('view');
+    view.innerHTML = '<div class="settings-container"><div class="empty">Loading…</div></div>';
+
+    let settings = {}, sources = [];
+    try {
+      [settings, sources] = await Promise.all([
+        fetch('/api/settings').then(r => r.json()),
+        fetch('/api/sources').then(r => r.json()),
+      ]);
+    } catch {}
+
+    view.innerHTML =
+      '<div class="settings-container">' +
+        '<div class="settings-nav">' +
+          '<button class="btn-back" id="btn-settings-back">← Back</button>' +
+          '<h2 class="settings-heading">Settings</h2>' +
+        '</div>' +
+        '<div class="settings-section">' +
+          '<div class="settings-row">' +
+            '<span class="settings-label">Autoplay next</span>' +
+            '<label class="toggle-label"><input type="checkbox" id="s-autoplay"' + (settings.autoplay !== 'false' ? ' checked' : '') + '><span class="toggle-track"></span></label>' +
+          '</div>' +
+          '<div class="settings-row">' +
+            '<span class="settings-label">Audio on add</span>' +
+            '<label class="toggle-label"><input type="checkbox" id="s-audio-on-add"' + (settings.audio_on_add === 'true' ? ' checked' : '') + '><span class="toggle-track"></span></label>' +
+          '</div>' +
+          '<div class="settings-row">' +
+            '<span class="settings-label">TTS voice</span>' +
+            '<input type="text" class="settings-input" id="s-tts-voice" value="' + esc(settings.tts_voice || 'Ava (Premium)') + '">' +
+          '</div>' +
+        '</div>' +
+        '<div class="settings-section">' +
+          '<div class="settings-section-title">Playback speed per source</div>' +
+          sources.map(function(s) {
+            return '<div class="settings-row">' +
+              '<span class="settings-label">' + esc(s.display_name) + '</span>' +
+              '<input type="number" class="settings-speed" data-source-id="' + s.id + '" value="' + s.default_speed + '" min="0.5" max="3" step="0.05">' +
+            '</div>';
+          }).join('') +
+        '</div>' +
+        '<div class="settings-section">' +
+          '<div class="settings-row">' +
+            '<span class="settings-label">Labels</span>' +
+            '<button class="btn btn-muted sm" id="btn-settings-labels">Manage…</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="settings-section">' +
+          '<div class="settings-section-title">Audio storage</div>' +
+          '<div class="settings-row" id="audio-stats-row"><span class="settings-label">Used</span><span id="audio-stats-val">…</span></div>' +
+        '</div>' +
+        '<button class="btn btn-indigo settings-save-btn" id="btn-settings-save">Save</button>' +
+      '</div>';
+
+    document.getElementById('btn-settings-back').addEventListener('click', () => navigate('#list'));
+    document.getElementById('btn-settings-save').addEventListener('click', saveSettings);
+    document.getElementById('btn-settings-labels').addEventListener('click', openLabelsModal);
+
+    fetch('/api/audio/stats').then(r => r.json()).then(function(stats) {
+      const el = document.getElementById('audio-stats-val');
+      if (el) el.textContent = stats.mb + ' MB';
+    }).catch(function() {});
+  }
+
+  async function saveSettings() {
+    const autoplay    = document.getElementById('s-autoplay').checked;
+    const audioOnAdd  = document.getElementById('s-audio-on-add').checked;
+    const ttsVoice    = document.getElementById('s-tts-voice').value.trim() || 'Ava (Premium)';
+
+    await fetch('/api/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ autoplay: String(autoplay), audio_on_add: String(audioOnAdd), tts_voice: ttsVoice }),
+    }).catch(function() {});
+
+    // Sync autoplay to localStorage so player.js picks it up
+    localStorage.setItem('v6-autoplay', String(autoplay));
+
+    const speedInputs = document.querySelectorAll('.settings-speed');
+    await Promise.all(Array.from(speedInputs).map(function(inp) {
+      const id    = inp.dataset.sourceId;
+      const speed = parseFloat(inp.value);
+      if (isNaN(speed) || speed < 0.5 || speed > 3) return Promise.resolve();
+      return fetch('/api/sources/' + id, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ default_speed: speed }),
+      });
+    }));
+
+    const btn = document.getElementById('btn-settings-save');
+    if (btn) { btn.textContent = 'Saved ✓'; setTimeout(function() { if (btn) btn.textContent = 'Save'; }, 1500); }
+  }
+
+  // ── Playlists view ────────────────────────────────────────────────────────────
+
+  function buildCurrentFilter() {
+    const f = {};
+    if (filterText)       f.q          = filterText;
+    if (filterLabels.length) f.labels   = filterLabels;
+    if (filterMode !== 'or') f.label_mode = filterMode;
+    if (activeCategory)   f.source      = activeCategory;
+    if (sortBy !== 'added_at') f.sort   = sortBy;
+    if (sortDir !== 'desc')    f.sort_dir = sortDir;
+    if (filterAfter)      f.after       = filterAfter;
+    if (filterBefore)     f.before      = filterBefore;
+    return f;
+  }
+
+  function buildFilterDescription() {
+    const parts = [];
+    if (filterText)        parts.push('search: "' + filterText + '"');
+    if (filterLabels.length) parts.push(filterLabels.length + ' label filter' + (filterLabels.length > 1 ? 's' : ''));
+    if (activeCategory)    parts.push(categoryDisplayName(activeCategory));
+    if (sortBy !== 'added_at') parts.push('sort: ' + sortBy);
+    return parts.join(', ') || 'inbox, newest first (default)';
+  }
+
+  function applyPlaylistFilter(filterJsonStr) {
+    try {
+      const f       = JSON.parse(filterJsonStr || '{}');
+      filterText     = f.q          || '';
+      filterLabels   = f.labels     || [];
+      filterMode     = f.label_mode || 'or';
+      activeCategory = f.source     || '';
+      sortBy         = f.sort       || 'added_at';
+      sortDir        = f.sort_dir   || 'desc';
+      filterAfter    = f.after      || '';
+      filterBefore   = f.before     || '';
+    } catch {}
+  }
+
+  function playlistFilterDesc(filterJson) {
+    try {
+      const f = JSON.parse(filterJson || '{}');
+      const parts = [];
+      if (f.q)      parts.push('"' + f.q + '"');
+      if (f.source) parts.push(categoryDisplayName(f.source));
+      if (f.labels && f.labels.length) parts.push(f.labels.length + ' label(s)');
+      if (f.sort && f.sort !== 'added_at') parts.push('sort: ' + f.sort);
+      return parts.join(', ') || 'inbox, newest first';
+    } catch { return ''; }
+  }
+
+  function renderPlaylistItems(playlists) {
+    if (!playlists.length) return '<div class="empty">No saved playlists yet.</div>';
+    return playlists.map(function(p) {
+      return '<div class="playlist-item" data-id="' + p.id + '" data-filter=\'' + esc(p.filter_json) + '\'>' +
+        '<div class="playlist-info">' +
+          '<span class="playlist-name">' + esc(p.name) + '</span>' +
+          '<span class="playlist-desc">' + esc(playlistFilterDesc(p.filter_json)) + '</span>' +
+        '</div>' +
+        '<div class="playlist-actions">' +
+          '<button class="pl-btn pl-rename" data-id="' + p.id + '" title="Rename">✎</button>' +
+          '<button class="pl-btn pl-overwrite" data-id="' + p.id + '" data-name="' + esc(p.name) + '" title="Update with current filter">↻</button>' +
+          '<button class="pl-btn pl-delete" data-id="' + p.id + '" title="Delete">✕</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function startRename(item) {
+    const id   = item.dataset.id;
+    const info = item.querySelector('.playlist-info');
+    const acts = item.querySelector('.playlist-actions');
+    const name = item.querySelector('.playlist-name').textContent;
+
+    info.innerHTML = '<input type="text" class="settings-input playlist-rename-input" value="' + esc(name) + '">';
+    acts.innerHTML =
+      '<button class="pl-btn pl-save-rename" title="Save">✓</button>' +
+      '<button class="pl-btn pl-cancel-rename" title="Cancel">✕</button>';
+
+    const input = info.querySelector('.playlist-rename-input');
+    input.focus(); input.select();
+
+    async function doSave() {
+      const newName = input.value.trim();
+      if (!newName) { input.focus(); return; }
+      await fetch('/api/playlists/' + id, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newName, filter_json: item.dataset.filter }),
+      }).catch(function() {});
+      showPlaylistsView();
+    }
+
+    acts.querySelector('.pl-save-rename').addEventListener('click', doSave);
+    acts.querySelector('.pl-cancel-rename').addEventListener('click', function() { showPlaylistsView(); });
+    input.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter')  { e.preventDefault(); doSave(); }
+      if (e.key === 'Escape') showPlaylistsView();
+    });
+  }
+
+  async function showPlaylistsView() {
+    const view = document.getElementById('view');
+    view.innerHTML = '<div class="playlists-container"><div class="empty">Loading…</div></div>';
+
+    let playlists = [];
+    try { playlists = await fetch('/api/playlists').then(r => r.json()); } catch {}
+
+    const filterDesc    = buildFilterDescription();
+    const currentFilter = JSON.stringify(buildCurrentFilter());
+
+    view.innerHTML =
+      '<div class="playlists-container">' +
+        '<div class="settings-nav">' +
+          '<button class="btn-back" id="btn-playlists-back">← Back</button>' +
+          '<h2 class="settings-heading">Playlists</h2>' +
+        '</div>' +
+        '<div class="save-playlist-form">' +
+          '<div class="save-playlist-desc">Current filter: ' + esc(filterDesc) + '</div>' +
+          '<div class="save-playlist-row">' +
+            '<input type="text" class="settings-input" id="new-playlist-name" placeholder="New playlist name…">' +
+            '<button class="btn btn-indigo" id="btn-save-playlist">Save</button>' +
+          '</div>' +
+        '</div>' +
+        '<div id="playlists-list">' + renderPlaylistItems(playlists) + '</div>' +
+      '</div>';
+
+    document.getElementById('btn-playlists-back').addEventListener('click', function() { navigate('#list'); });
+
+    document.getElementById('btn-save-playlist').addEventListener('click', async function() {
+      const nameInput = document.getElementById('new-playlist-name');
+      const name = nameInput.value.trim();
+      if (!name) { nameInput.focus(); return; }
+      const res = await fetch('/api/playlists', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, filter_json: currentFilter }),
+      }).catch(function() { return { ok: false }; });
+      if (res.ok) { showPlaylistsView(); }
+      else {
+        nameInput.style.borderColor = 'var(--red)';
+        setTimeout(function() { nameInput.style.borderColor = ''; }, 1500);
+      }
+    });
+
+    document.getElementById('playlists-list').addEventListener('click', async function(e) {
+      const renBtn = e.target.closest('.pl-rename');
+      if (renBtn) { startRename(renBtn.closest('.playlist-item')); return; }
+
+      const delBtn = e.target.closest('.pl-delete');
+      if (delBtn) {
+        confirmTap(delBtn, async function() {
+          await fetch('/api/playlists/' + delBtn.dataset.id, { method: 'DELETE' }).catch(function() {});
+          showPlaylistsView();
+        });
+        return;
+      }
+
+      const ovwBtn = e.target.closest('.pl-overwrite');
+      if (ovwBtn) {
+        confirmTap(ovwBtn, async function() {
+          await fetch('/api/playlists/' + ovwBtn.dataset.id, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: ovwBtn.dataset.name, filter_json: currentFilter }),
+          }).catch(function() {});
+          showPlaylistsView();
+        });
+        return;
+      }
+
+      const item = e.target.closest('.playlist-item');
+      if (item && !e.target.closest('button') && !e.target.closest('input')) {
+        applyPlaylistFilter(item.dataset.filter);
+        saveState();
+        listEverMounted = false;
+        navigate('#list');
+      }
+    });
+  }
+
   // ── Reader view ──────────────────────────────────────────────────────────────
 
   async function showReaderView(id) {
@@ -957,18 +1335,20 @@
       navigate('#list');
     });
 
-    document.getElementById('btn-reader-menu').addEventListener('click', () => {
+    document.getElementById('btn-reader-menu').addEventListener('click', async () => {
+      // Fetch fresh so labels/status reflect any changes made since the reader loaded
+      const fresh = await fetch('/api/videos/' + video.id).then(r => r.json()).catch(() => video);
       current = {
-        id:           video.id,
-        title:        video.title,
-        url:          video.url,
-        status:       video.status,
-        contentType:  video.content_type || 'article',
-        source:       video.source || '',
-        emoji:        video.emoji || '',
-        channel_name: video.channel_name || '',
-        summary:      video.summary || '',
-        labels:       video.labels || [],
+        id:           fresh.id,
+        title:        fresh.title,
+        url:          fresh.url,
+        status:       fresh.status,
+        contentType:  fresh.content_type || 'article',
+        source:       fresh.source || '',
+        emoji:        fresh.emoji || '',
+        channel_name: fresh.channel_name || '',
+        summary:      fresh.summary || '',
+        labels:       fresh.labels || [],
       };
       openMenuModal(current);
     });
@@ -1035,6 +1415,11 @@
   }, { passive: true });
 
   // ── Init ─────────────────────────────────────────────────────────────────────
+
+  // Sync DB settings → localStorage on startup so player.js picks them up
+  fetch('/api/settings').then(function(r) { return r.json(); }).then(function(s) {
+    if (s.autoplay !== undefined) localStorage.setItem('v6-autoplay', s.autoplay);
+  }).catch(function() {});
 
   restoreListState();
   route();

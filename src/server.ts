@@ -6,20 +6,22 @@ import { readFileSync } from 'fs';
 import path from 'path';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import { mkdtemp, readdir, readFile, rm } from 'fs/promises';
+import { mkdtemp, readdir, readFile, rm, unlink } from 'fs/promises';
 import { tmpdir } from 'os';
 import {
   getVideos, getVideoById, addVideo, hardDelete, markStarted, markFinished, saveSummary,
-  getLabels, createLabel, deleteLabel,
+  getLabels, createLabel, deleteLabel, renameLabel,
   addLabelToVideo, removeLabelFromVideo, setVideoLabels, trashVideo, restoreFromTrash,
   getTrashCount, purgeTrash, getCategories,
   getSources, updateSourceSpeed, markAudioReady,
+  getSettings, setSetting, getPlaylists, createPlaylist, updatePlaylist, deletePlaylist,
+  getExpiredAudioIds, markAudioDeleted,
   VideoFilter,
 } from './db';
 import { buildReaderHtml } from './reader';
 import {
   generateAudio, audioExists, audioUrl, audioDirSizeBytes, AUDIO_DIR,
-  readCachedText,
+  readCachedText, audioPath,
 } from './audio';
 
 const execFileAsync = promisify(execFile);
@@ -203,7 +205,18 @@ app.get('/api/videos/:id/text', async (req: Request, res: Response) => {
 
 // ── Startup: sync audio_status with disk ─────────────────────────────────────
 
+async function runAudioLifecycle(): Promise<void> {
+  const expired = getExpiredAudioIds();
+  for (const id of expired) {
+    try { await unlink(audioPath(id)); } catch {}
+    markAudioDeleted(id);
+  }
+  if (expired.length > 0) console.log(`[audio] lifecycle: deleted ${expired.length} expired file(s)`);
+}
+
 (async () => {
+  // Delete expired audio files first, then mark remaining disk files as ready
+  await runAudioLifecycle().catch(e => console.error('[audio] lifecycle error:', e));
   try {
     const files = await readdir(AUDIO_DIR);
     for (const f of files) {
@@ -212,6 +225,10 @@ app.get('/api/videos/:id/text', async (req: Request, res: Response) => {
     }
   } catch {}
 })();
+
+setInterval(() => {
+  runAudioLifecycle().catch(e => console.error('[audio] lifecycle error:', e));
+}, 24 * 60 * 60 * 1000);
 
 // ── Audio ────────────────────────────────────────────────────────────────────
 
@@ -412,11 +429,67 @@ app.delete('/api/labels/:id', (req: Request, res: Response) => {
   res.json({ success: true });
 });
 
+app.put('/api/labels/:id', (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10);
+  const { name } = req.body ?? {};
+  if (isNaN(id) || typeof name !== 'string' || !name.trim()) {
+    res.status(400).json({ error: 'name required' }); return;
+  }
+  const result = renameLabel(id, name);
+  if (!result.ok) { res.status(409).json({ error: result.reason }); return; }
+  res.json({ success: true });
+});
+
 // ── Trash ────────────────────────────────────────────────────────────────────
 
 app.get('/api/trash', (_req: Request, res: Response) => {
   const videos = getVideos({ labels: [2] });
   res.json({ videos });
+});
+
+// ── Settings ─────────────────────────────────────────────────────────────────
+
+app.get('/api/settings', (_req: Request, res: Response) => {
+  res.json(getSettings());
+});
+
+app.put('/api/settings', (req: Request, res: Response) => {
+  const updates = req.body ?? {};
+  if (typeof updates !== 'object' || Array.isArray(updates)) {
+    res.status(400).json({ error: 'body must be an object' }); return;
+  }
+  for (const [key, value] of Object.entries(updates)) setSetting(key, String(value));
+  res.json(getSettings());
+});
+
+// ── Playlists ─────────────────────────────────────────────────────────────────
+
+app.get('/api/playlists', (_req: Request, res: Response) => {
+  res.json(getPlaylists());
+});
+
+app.post('/api/playlists', (req: Request, res: Response) => {
+  const { name, filter_json } = req.body ?? {};
+  if (!name || typeof name !== 'string') { res.status(400).json({ error: 'name required' }); return; }
+  const playlist = createPlaylist(name, typeof filter_json === 'string' ? filter_json : '{}');
+  if (!playlist) { res.status(409).json({ error: 'name already exists' }); return; }
+  res.status(201).json(playlist);
+});
+
+app.put('/api/playlists/:id', (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10);
+  const { name, filter_json } = req.body ?? {};
+  if (isNaN(id) || !name || typeof name !== 'string') { res.status(400).json({ error: 'invalid' }); return; }
+  if (!updatePlaylist(id, name, typeof filter_json === 'string' ? filter_json : '{}')) {
+    res.status(404).json({ error: 'not found' }); return;
+  }
+  res.json({ success: true });
+});
+
+app.delete('/api/playlists/:id', (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id) || !deletePlaylist(id)) { res.status(404).json({ error: 'not found' }); return; }
+  res.json({ success: true });
 });
 
 // ── Servers ──────────────────────────────────────────────────────────────────

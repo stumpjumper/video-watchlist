@@ -243,6 +243,8 @@
       border-radius: 8px; border: 1px solid var(--border);
     }
     .labels-list-name  { flex: 1; font-size: 15px; color: var(--text); }
+    .label-item-actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+    .label-rename-input { flex: 1; font-size: 15px; padding: 4px 8px; }
     .btn-del-label {
       background: none; border: none; color: var(--text-faint); cursor: pointer;
       font-size: 16px; padding: 2px 6px; border-radius: 4px;
@@ -392,7 +394,7 @@
       width: 0%; will-change: width;
     }
     .mp-time {
-      font-size: 11px; color: var(--text-faint); white-space: nowrap;
+      font-size: 12px; color: var(--text-muted); white-space: nowrap;
       flex-shrink: 0; font-variant-numeric: tabular-nums; min-width: 76px; text-align: right;
     }
 
@@ -422,8 +424,8 @@
     .mp-btn:active { opacity: 0.55; }
     .mp-btn:disabled { opacity: 0.25; }
     .mp-btn-play { font-size: 22px; color: var(--text-head); }
-    .mp-btn-seek { font-size: 16px; color: var(--text-muted); flex-direction: column; gap: 0; line-height: 1; }
-    .mp-seek-num { font-size: 9px; font-weight: 700; }
+    .mp-btn-seek { font-size: 19px; color: var(--text); flex-direction: column; gap: 0; line-height: 1; }
+    .mp-seek-num { font-size: 11px; font-weight: 700; }
     .mp-speed-badge {
       font-size: 10px; font-weight: 700; color: var(--text-muted);
       background: var(--bg-raised); border: 1px solid var(--border);

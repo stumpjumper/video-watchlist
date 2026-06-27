@@ -139,6 +139,13 @@ export interface Source {
   default_speed: number;
 }
 
+export interface Playlist {
+  id: number;
+  name: string;
+  filter_json: string;
+  created_at: string;
+}
+
 export interface Label {
   id: number;
   name: string;
@@ -324,6 +331,14 @@ export function deleteLabel(id: number): { ok: boolean; reason?: string } {
   return { ok: true };
 }
 
+export function renameLabel(id: number, name: string): { ok: boolean; reason?: string } {
+  if (id === 1 || id === 2) return { ok: false, reason: 'system label' };
+  try {
+    const changed = (db.prepare('UPDATE labels SET name = ? WHERE id = ?').run(name.trim(), id).changes as number) > 0;
+    return changed ? { ok: true } : { ok: false, reason: 'not found' };
+  } catch { return { ok: false, reason: 'name already exists' }; }
+}
+
 // ── Label assignment ────────────────────────────────────────────────────────
 
 export function addLabelToVideo(videoId: number, labelId: number): boolean {
@@ -429,6 +444,55 @@ export function updateSourceSpeed(id: number, speed: number): boolean {
 
 export function markAudioReady(id: number): void {
   db.prepare(
-    `UPDATE videos SET audio_status = 'ready' WHERE id = ? AND audio_status IN ('none','generating','pending','failed')`
+    `UPDATE videos SET
+      audio_status    = 'ready',
+      audio_added_at  = COALESCE(audio_added_at, strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+      audio_expires_at = strftime('%Y-%m-%dT%H:%M:%SZ', datetime('now', '+30 days'))
+     WHERE id = ? AND audio_status IN ('none','generating','pending','failed','deleted')`
   ).run(id);
+}
+
+export function getExpiredAudioIds(): number[] {
+  return (db.prepare(
+    `SELECT id FROM videos
+     WHERE audio_status = 'ready'
+       AND audio_expires_at IS NOT NULL
+       AND audio_expires_at < strftime('%Y-%m-%dT%H:%M:%SZ','now')`
+  ).all() as { id: number }[]).map(r => r.id);
+}
+
+export function markAudioDeleted(id: number): void {
+  db.prepare(`UPDATE videos SET audio_status = 'deleted' WHERE id = ?`).run(id);
+}
+
+// ── Settings ─────────────────────────────────────────────────────────────────
+
+export function getSettings(): Record<string, string> {
+  const rows = db.prepare('SELECT key, value FROM settings').all() as { key: string; value: string }[];
+  return Object.fromEntries(rows.map(r => [r.key, r.value]));
+}
+
+export function setSetting(key: string, value: string): void {
+  db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, value);
+}
+
+// ── Playlists ─────────────────────────────────────────────────────────────────
+
+export function getPlaylists(): Playlist[] {
+  return db.prepare('SELECT * FROM playlists ORDER BY created_at ASC').all() as Playlist[];
+}
+
+export function createPlaylist(name: string, filterJson: string): Playlist | null {
+  try {
+    const info = db.prepare('INSERT INTO playlists (name, filter_json) VALUES (?, ?)').run(name.trim(), filterJson);
+    return db.prepare('SELECT * FROM playlists WHERE id = ?').get(info.lastInsertRowid) as Playlist;
+  } catch { return null; }
+}
+
+export function updatePlaylist(id: number, name: string, filterJson: string): boolean {
+  return (db.prepare('UPDATE playlists SET name = ?, filter_json = ? WHERE id = ?').run(name.trim(), filterJson, id).changes as number) > 0;
+}
+
+export function deletePlaylist(id: number): boolean {
+  return (db.prepare('DELETE FROM playlists WHERE id = ?').run(id).changes as number) > 0;
 }

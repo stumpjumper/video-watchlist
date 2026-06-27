@@ -147,3 +147,60 @@ body {
 .label-picker-item.selected .label-picker-check { border-color: var(--accent); background: #3730a3; }
 .label-picker-name  { font-size: 15px; color: var(--text); flex: 1; }
 .label-picker-since { font-size: 11px; color: var(--text-faint); white-space: nowrap; }
+
+/* ── Settings page ── */
+.settings-container { max-width: 600px; margin: 0 auto; padding: 16px 16px 120px; }
+.settings-nav { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
+.settings-heading { margin: 0; font-size: 18px; color: var(--text-head); font-weight: 600; }
+.settings-section { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 16px; }
+.settings-section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-faint); padding: 10px 14px 4px; }
+.settings-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+.settings-row:last-child { border-bottom: none; }
+.settings-label { font-size: 15px; color: var(--text); }
+.settings-input { background: var(--bg-raised); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 14px; padding: 6px 10px; width: 180px; }
+.settings-speed { background: var(--bg-raised); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 14px; padding: 6px 10px; width: 80px; text-align: right; }
+.settings-save-btn { width: 100%; margin-top: 4px; }
+
+/* iOS-style toggle */
+.toggle-label { position: relative; display: inline-flex; cursor: pointer; }
+.toggle-label input[type=checkbox] { position: absolute; opacity: 0; width: 0; height: 0; }
+.toggle-track {
+  width: 44px; height: 26px; border-radius: 13px;
+  background: var(--bg-raised); border: 1px solid var(--border);
+  transition: background 0.18s, border-color 0.18s; position: relative;
+}
+.toggle-track::after {
+  content: ''; position: absolute; top: 3px; left: 3px;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--text-muted); transition: transform 0.18s, background 0.18s;
+}
+.toggle-label input:checked + .toggle-track { background: var(--accent); border-color: var(--accent); }
+.toggle-label input:checked + .toggle-track::after { transform: translateX(18px); background: #fff; }
+
+/* ── Playlists page ── */
+.playlists-container { max-width: 600px; margin: 0 auto; padding: 16px 16px 120px; }
+.save-playlist-form { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 16px; }
+.save-playlist-desc { font-size: 12px; color: var(--text-muted); margin-bottom: 10px; }
+.save-playlist-row { display: flex; gap: 8px; }
+.save-playlist-row .settings-input { flex: 1; width: auto; }
+.playlist-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px; background: var(--bg-surface); border-radius: 10px;
+  border: 1px solid var(--border); margin-bottom: 8px; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.playlist-item:active { background: var(--bg-raised); }
+.playlist-info { flex: 1; min-width: 0; }
+.playlist-name { display: block; font-size: 15px; color: var(--text); font-weight: 500; }
+.playlist-desc { display: block; font-size: 12px; color: #a1a1aa; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.btn-del-playlist { background: none; border: none; color: var(--text-faint); font-size: 16px; padding: 4px 8px; cursor: pointer; flex-shrink: 0; }
+.btn-del-playlist:active { color: var(--red); }
+.playlist-actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+.pl-btn { background: none; border: none; color: var(--text-muted); font-size: 22px; padding: 4px 7px; cursor: pointer; border-radius: 5px; transition: color 0.12s; white-space: nowrap; }
+.pl-btn:active { color: var(--text); background: var(--bg-raised); }
+.pl-btn.confirming { color: var(--red); }
+.playlist-rename-input { flex: 1; width: 100%; font-size: 15px; padding: 4px 8px; }
+.playlist-item input.playlist-rename-input { margin-bottom: 2px; }
+
+/* ── Small icon button ── */
+.icon-btn { min-width: 32px; padding-left: 8px; padding-right: 8px; }

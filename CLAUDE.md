@@ -44,7 +44,7 @@ npm run dev
 - Labels are many-to-many. Every video has ≥1 label always. Inbox=1, Trash=2 are reserved.
 - `content_type`: `'video'` (YouTube) or `'article'`. Source examples: `'youtube'`, `'ars_technica'`.
 - `status`: `'new'` | `'started'` | `'finished'`
-- `published_at`: article publication date (ISO 8601), lazy-populated on first text fetch.
+- `published_at`: article publication date (ISO 8601), populated during audio generation (`fetchAndCacheText`). Null until first audio is generated.
 - `audio_status`: `'none'` | `'pending'` | `'generating'` | `'ready'` | `'failed'` | `'deleted'`
 - Audio files: `audio/` dir (gitignored), ~1MB per article M4A.
 - Text cache: `text/` dir (gitignored), plain text per article.
@@ -62,7 +62,7 @@ The frontend is a Single Page Application — `index.html` loads once, `app.js` 
 
 1. User taps "Generate Audio" in reader view (SPA) or it triggers via Player
 2. `POST /api/videos/:id/audio` → server runs `scripts/extract_article.py <url>` — outputs JSON. Text cached to `text/<id>.txt`; `published_at` saved to DB.
-3. `say -v "Ava (Premium)"` writes AIFF to /tmp → `afconvert` → M4A → `audio/<id>.m4a`
+3. `buildAudioHeader()` prepends `"Title. Month Day, Year"` to the text. `say -v "Ava (Premium)"` writes AIFF to /tmp → `afconvert` → M4A → `audio/<id>.m4a`
 4. `audio_status` in DB updated to `'ready'`; client polling detects this
 5. Startup scan: on server boot, existing `.m4a` files are marked `audio_status='ready'`
 
