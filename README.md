@@ -282,6 +282,24 @@ Uses `speechSynthesis` (cancels any pending utterance before speaking):
 
 ---
 
+## Caching overview
+
+There are three caching layers, each at a different level:
+
+| Layer | Location | What's cached | Lifetime |
+|-------|----------|---------------|----------|
+| **Text** | `text/<id>.txt` (server) | Extracted article text | Permanent — never deleted |
+| **Audio** | `audio/<id>.m4a` (server) | Generated M4A audio | 30 days from generation; reset on re-generation |
+| **Browser** | Service Worker cache | Audio files + static assets | Until SW cache is bumped or audio is evicted |
+
+**Text cache** — when audio is generated for an article, `extract_article.py` runs once and the result is written to `text/<id>.txt`. Subsequent re-generations (e.g. after the audio expires) read from this file rather than re-fetching the site. The reader view also reads from this cache to display article text.
+
+**Audio cache** — generated M4A files live in `audio/` and are served directly by Express. The 30-day lifecycle is managed server-side (see [Audio lifecycle](#audio-lifecycle)). The browser also receives a 7-day `max-age` cache header, so repeated plays don't re-request the file.
+
+**Browser / Service Worker cache** — the SW caches audio files cache-first so they survive going offline mid-ride. Static assets (app.js, player.js, shared.css, beep.wav) are pre-cached on SW install. The player proactively pre-fetches the next few items in the queue so they're available before you reach them (see [Service Worker](#service-worker-publicswjs)).
+
+---
+
 ## Article audio pipeline
 
 1. User taps "Generate Audio" in the reader, **or** the background queue picks up the item (if `audio_on_add = true`).
