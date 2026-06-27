@@ -362,7 +362,10 @@
         '<div class="card-footer">' +
           '<span class="card-badge">' + badge + '</span>' +
           '<span class="card-date">' + fmtDate(v.published_at || v.added_at) + '</span>' +
-          '<button class="card-trash-btn" data-id="' + v.id + '" title="Move to Trash">🗑</button>' +
+          '<div class="card-actions">' +
+            (trash ? '' : '<button class="card-menu-btn" data-id="' + v.id + '" title="More options">···</button>') +
+            '<button class="card-trash-btn" data-id="' + v.id + '" title="Move to Trash">🗑</button>' +
+          '</div>' +
         '</div>' +
         chipsHtml +
         '</li>';
@@ -412,6 +415,23 @@
       await fetch('/api/videos/' + trashBtn.dataset.id + '/trash', { method: 'POST' });
       load(); return;
     }
+
+    const menuBtn = e.target.closest('.card-menu-btn');
+    if (menuBtn) {
+      const card = menuBtn.closest('.video-card');
+      if (!card) return;
+      let labels = [];
+      try { labels = JSON.parse(card.dataset.labels || '[]'); } catch {}
+      current = {
+        id: card.dataset.id, title: card.dataset.title, url: card.dataset.url,
+        status: card.dataset.status, contentType: card.dataset.contentType || 'video',
+        source: card.dataset.source || 'youtube', emoji: card.dataset.emoji || '',
+        channel_name: card.dataset.channel || '', summary: card.dataset.summary || '', labels,
+      };
+      openMenuModal(current);
+      return;
+    }
+
     const card = e.target.closest('.video-card');
     if (!card) return;
 
@@ -422,29 +442,28 @@
       updateBulkBar(); return;
     }
 
-    let labels = [];
-    try { labels = JSON.parse(card.dataset.labels || '[]'); } catch {}
-    current = {
-      id:          card.dataset.id,
-      title:       card.dataset.title,
-      url:         card.dataset.url,
-      status:      card.dataset.status,
-      contentType: card.dataset.contentType || 'video',
-      source:      card.dataset.source || 'youtube',
-      emoji:       card.dataset.emoji || '',
-      channel_name: card.dataset.channel || '',
-      summary:     card.dataset.summary || '',
-      labels,
-    };
-    openActionModal(current);
+    // Direct primary action — no modal
+    const id          = card.dataset.id;
+    const contentType = card.dataset.contentType || 'video';
+    const url         = card.dataset.url;
+    const status      = card.dataset.status;
+
+    if (contentType === 'article') {
+      if (status === 'new')
+        fetch('/api/videos/' + id + '/started', { method: 'POST' }).catch(() => {});
+      navigate('#reader/' + id);
+    } else {
+      openUrl(url);
+      if (status === 'new')
+        fetch('/api/videos/' + id + '/started', { method: 'POST' }).then(load);
+    }
   }
 
-  function openActionModal(v) {
-    const isArticle = v.contentType === 'article';
+  function openMenuModal(v) {
     document.getElementById('action-title').textContent       = v.title;
     document.getElementById('action-url').textContent         = v.url;
     document.getElementById('action-url-row').style.display   = '';
-    document.getElementById('action-modal-label').textContent = isArticle ? 'Open article' : 'Open video';
+    document.getElementById('action-modal-label').textContent = (v.emoji ? v.emoji + ' ' : '') + v.channel_name;
     buildActionBtns(v.status, v.contentType);
     document.getElementById('action-overlay').classList.add('open');
   }
@@ -452,67 +471,23 @@
   function buildActionBtns(status, contentType) {
     const el = document.getElementById('action-btns');
     const isArticle = contentType === 'article';
+    el.innerHTML =
+      '<button class="btn btn-muted"   id="ab-source">Open original ↗</button>' +
+      (!isArticle ? '<button class="btn btn-muted" id="ab-summary">Summary</button>' : '') +
+      '<div class="modal-divider"></div>' +
+      '<button class="btn btn-indigo"  id="ab-labels">Labels…</button>' +
+      '<button class="btn btn-cancel"  id="ab-cancel">Cancel</button>';
 
-    if (isArticle) {
-      el.innerHTML =
-        (status === 'new'
-          ? '<button class="btn btn-primary" id="ab-open">Open reader &amp; mark started</button>'
-          : '<button class="btn btn-secondary" id="ab-open">Open reader</button>') +
-        '<button class="btn btn-muted" id="ab-source">Open original ↗</button>' +
-        '<div class="modal-divider"></div>' +
-        '<button class="btn btn-indigo" id="ab-labels">Labels…</button>' +
-        '<button class="btn btn-cancel" id="ab-cancel">Cancel</button>';
-
-      document.getElementById('ab-open').addEventListener('click', () => {
-        if (!current) return;
-        const id = current.id;
-        const status = current.status;
-        if (status === 'new')
-          fetch('/api/videos/' + id + '/started', { method: 'POST' }).catch(() => {});
-        closeActionModal();
-        navigate('#reader/' + id);
-      });
-      document.getElementById('ab-source').addEventListener('click', () => {
-        if (!current) return;
-        const url = current.url;
-        openUrl(url); closeActionModal();
-      });
-    } else {
-      if (status === 'new') {
-        el.innerHTML =
-          '<button class="btn btn-primary"   id="ab-started">Mark as started &amp; open</button>' +
-          '<button class="btn btn-secondary" id="ab-just">Just open</button>' +
-          '<div class="modal-divider"></div>' +
-          '<button class="btn btn-muted"  id="ab-summary">Summary</button>' +
-          '<button class="btn btn-indigo" id="ab-labels">Labels…</button>' +
-          '<button class="btn btn-cancel" id="ab-cancel">Cancel</button>';
-      } else {
-        el.innerHTML =
-          '<button class="btn btn-secondary" id="ab-just">Just open</button>' +
-          '<div class="modal-divider"></div>' +
-          '<button class="btn btn-muted"  id="ab-summary">Summary</button>' +
-          '<button class="btn btn-indigo" id="ab-labels">Labels…</button>' +
-          '<button class="btn btn-cancel" id="ab-cancel">Cancel</button>';
-      }
-      const started = document.getElementById('ab-started');
-      if (started) started.addEventListener('click', () => {
-        if (!current) return;
-        const url = current.url; const id = current.id;
-        openUrl(url);
-        fetch('/api/videos/' + id + '/started', { method: 'POST' }).then(load);
-        closeActionModal();
-      });
-      document.getElementById('ab-just').addEventListener('click', () => {
-        if (!current) return;
-        const url = current.url;
-        openUrl(url); closeActionModal();
-      });
-      document.getElementById('ab-summary').addEventListener('click', () => {
-        if (!current) return;
-        const v = { ...current }; closeActionModal(); openSummaryOverlay(v);
-      });
-    }
-
+    document.getElementById('ab-source').addEventListener('click', () => {
+      if (!current) return;
+      const url = current.url;
+      openUrl(url); closeActionModal();
+    });
+    const summaryBtn = document.getElementById('ab-summary');
+    if (summaryBtn) summaryBtn.addEventListener('click', () => {
+      if (!current) return;
+      const v = { ...current }; closeActionModal(); openSummaryOverlay(v);
+    });
     document.getElementById('ab-labels').addEventListener('click', showLabelEditor);
     document.getElementById('ab-cancel').addEventListener('click', closeActionModal);
   }
@@ -558,7 +533,7 @@
     document.getElementById('ab-labels-back').addEventListener('click', () => {
       document.getElementById('action-url-row').style.display = '';
       document.getElementById('action-modal-label').textContent =
-        current && current.contentType === 'article' ? 'Open article' : 'Open video';
+        current ? (current.emoji ? current.emoji + ' ' : '') + current.channel_name : '';
       buildActionBtns(current.status, current.contentType);
     });
   }
@@ -944,7 +919,10 @@
 
     view.innerHTML =
       '<div class="reader-container">' +
-        '<button class="btn-back" id="btn-back">← Back</button>' +
+        '<div class="reader-nav">' +
+          '<button class="btn-back" id="btn-back">← Back</button>' +
+          '<button class="btn-reader-menu" id="btn-reader-menu" title="More options">···</button>' +
+        '</div>' +
         '<div class="reader-header">' +
           '<span class="reader-channel">' + esc(video.emoji) + ' ' + esc(video.channel_name) + '</span>' +
           (labelChips ? '<div class="reader-label-chips">' + labelChips + '</div>' : '') +
@@ -959,6 +937,22 @@
 
     document.getElementById('btn-back').addEventListener('click', () => {
       navigate('#list');
+    });
+
+    document.getElementById('btn-reader-menu').addEventListener('click', () => {
+      current = {
+        id:           video.id,
+        title:        video.title,
+        url:          video.url,
+        status:       video.status,
+        contentType:  video.content_type || 'article',
+        source:       video.source || '',
+        emoji:        video.emoji || '',
+        channel_name: video.channel_name || '',
+        summary:      video.summary || '',
+        labels:       video.labels || [],
+      };
+      openMenuModal(current);
     });
 
     const genBtn = document.getElementById('btn-reader-gen');

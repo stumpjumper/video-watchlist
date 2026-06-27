@@ -67,6 +67,14 @@
     .card-title   { color: var(--text-link); font-size: 16px; font-weight: 500; line-height: 1.35; }
     .card-footer  { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
     .card-date    { font-size: 12px; color: var(--text-faint); margin-left: auto; }
+    .card-actions { display: flex; align-items: center; flex-shrink: 0; }
+    .card-menu-btn {
+      background: none; border: none; padding: 4px 6px;
+      color: var(--text-muted); cursor: pointer; font-size: 18px; line-height: 1;
+      border-radius: 4px; flex-shrink: 0; letter-spacing: 1px;
+      -webkit-tap-highlight-color: transparent; transition: color 0.12s;
+    }
+    .card-menu-btn:hover, .card-menu-btn:active { color: var(--text); }
     .card-trash-btn {
       background: none; border: none; padding: 4px 6px;
       color: var(--border); cursor: pointer; font-size: 15px; line-height: 1;
@@ -113,8 +121,8 @@
     @media (min-width: 600px) {
       .video-card {
         display: grid;
-        grid-template-columns: 160px 1fr 80px 96px 28px;
-        grid-template-areas: "channel title badge date trash" ". chips chips chips chips";
+        grid-template-columns: 160px 1fr 80px 96px auto;
+        grid-template-areas: "channel title badge date actions" ". chips chips chips chips";
         grid-template-rows: auto auto;
         gap: 0; column-gap: 16px; align-items: center;
         padding: 10px 14px; border-radius: 8px; margin-bottom: 4px;
@@ -125,12 +133,13 @@
       .card-footer    { display: contents; }
       .card-badge     { grid-area: badge; }
       .card-date      { grid-area: date; text-align: right; margin-left: 0; font-size: 13px; color: var(--text-muted); }
-      .card-trash-btn { grid-area: trash; padding: 2px 4px; }
+      .card-actions   { grid-area: actions; }
+      .card-trash-btn { padding: 2px 4px; }
       .card-chips-row { grid-area: chips; }
 
       .list-col-header {
         display: grid;
-        grid-template-columns: 160px 1fr 80px 96px 28px;
+        grid-template-columns: 160px 1fr 80px 96px auto;
         column-gap: 16px; padding: 0 14px 10px; margin-bottom: 4px;
         border-bottom: 1px solid var(--border);
         font-size: 11px; font-weight: 600;
@@ -299,13 +308,23 @@
     /* ── Reader view ── */
     .reader-container { max-width: 700px; margin: 0 auto; padding: 20px 16px 32px; }
 
+    .reader-nav {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 20px;
+    }
     .btn-back {
       display: inline-flex; align-items: center; gap: 4px;
       background: none; border: none; color: var(--text-muted); cursor: pointer;
-      font-size: 14px; padding: 4px 0; margin-bottom: 20px;
+      font-size: 14px; padding: 4px 0;
       -webkit-tap-highlight-color: transparent;
     }
     .btn-back:active { color: var(--text); }
+    .btn-reader-menu {
+      background: none; border: none; color: var(--text-muted); cursor: pointer;
+      font-size: 20px; padding: 4px 2px; letter-spacing: 2px; line-height: 1;
+      -webkit-tap-highlight-color: transparent; transition: color 0.12s;
+    }
+    .btn-reader-menu:active { color: var(--text); }
 
     .reader-header { margin-bottom: 24px; }
     .reader-channel {
@@ -357,13 +376,21 @@
       padding-bottom: env(safe-area-inset-bottom);
     }
 
+    #mp-progress-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 6px 12px 2px;
+    }
     .mp-progress-track {
-      height: 2px; background: rgba(255,255,255,0.07);
+      flex: 1; height: 2px; background: rgba(255,255,255,0.07);
       position: relative; cursor: pointer;
     }
     .mp-progress-fill {
       height: 100%; background: var(--accent);
       width: 0%; will-change: width;
+    }
+    .mp-time {
+      font-size: 11px; color: var(--text-faint); white-space: nowrap;
+      flex-shrink: 0; font-variant-numeric: tabular-nums; min-width: 76px; text-align: right;
     }
 
     .mp-inner {
@@ -408,7 +435,7 @@
     /* ── Speed picker popup ── */
     #mp-speed-picker {
       position: fixed; z-index: 60;
-      bottom: calc(72px + env(safe-area-inset-bottom) + 6px);
+      bottom: calc(80px + env(safe-area-inset-bottom) + 6px);
       right: 10px;
       background: var(--bg-raised); border: 1px solid var(--border-mid);
       border-radius: 12px; padding: 6px;
@@ -432,8 +459,11 @@
 
 <!-- Mini-player (persistent — never removed from DOM) -->
 <div id="mini-player">
-  <div class="mp-progress-track" id="mp-progress-track">
-    <div class="mp-progress-fill" id="mp-progress"></div>
+  <div id="mp-progress-row">
+    <div class="mp-progress-track" id="mp-progress-track">
+      <div class="mp-progress-fill" id="mp-progress"></div>
+    </div>
+    <span class="mp-time" id="mp-time"></span>
   </div>
   <div class="mp-inner">
     <div class="mp-info" id="mp-info" title="Open reader">

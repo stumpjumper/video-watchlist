@@ -9,7 +9,7 @@
   document.body.appendChild(audio);
 
   // Mini-player DOM refs (set once after DOM ready)
-  let elTitle, elChannel, elProgress, elPlayPause, elSeekBack, elSeekFwd, elSpeedBadge, elInfo, elSpeedPicker;
+  let elTitle, elChannel, elProgress, elTime, elPlayPause, elSeekBack, elSeekFwd, elSpeedBadge, elInfo, elSpeedPicker;
 
   const SPEED_PRESETS = [0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
 
@@ -27,6 +27,7 @@
     elTitle       = document.getElementById('mp-title');
     elChannel     = document.getElementById('mp-channel');
     elProgress    = document.getElementById('mp-progress');
+    elTime        = document.getElementById('mp-time');
     elPlayPause   = document.getElementById('mp-play-pause');
     elSeekBack    = document.getElementById('mp-seek-back');
     elSpeedBadge  = document.getElementById('mp-speed-badge');
@@ -86,6 +87,7 @@
 
     updateMiniPlayerMeta(meta);
     setPlayBtnIcon('idle');
+    elTime.textContent   = '';
     elSeekBack.disabled  = true;
     elSeekFwd.disabled   = true;
     elPlayPause.disabled = true;
@@ -273,10 +275,17 @@
     setPlayBtnIcon(audio.paused ? 'paused' : 'playing');
   }
 
+  function fmtTime(secs) {
+    if (!isFinite(secs) || secs < 0) return '--:--';
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return m + ':' + String(s).padStart(2, '0');
+  }
+
   function onTimeUpdate() {
     if (!audio.duration) return;
     elProgress.style.width = (audio.currentTime / audio.duration * 100) + '%';
-    // Save position every ~5s (on timeupdate fires ~4/s, save every ~20)
+    elTime.textContent = fmtTime(audio.currentTime) + ' / ' + fmtTime(audio.duration);
     if (Math.round(audio.currentTime) % 5 === 0 && currentId) {
       savePosition(currentId, audio.currentTime);
     }
