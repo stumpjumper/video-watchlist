@@ -9,7 +9,9 @@
   document.body.appendChild(audio);
 
   // Mini-player DOM refs (set once after DOM ready)
-  let elTitle, elChannel, elProgress, elPlayPause, elSeekBack, elNextBtn, elSpeedBadge, elInfo;
+  let elTitle, elChannel, elProgress, elPlayPause, elSeekBack, elSeekFwd, elSpeedBadge, elInfo, elSpeedPicker;
+
+  const SPEED_PRESETS = [0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
 
   // State
   let currentId      = null;
@@ -22,20 +24,30 @@
   // ── Initialise ──────────────────────────────────────────────────────────────
 
   async function init() {
-    elTitle      = document.getElementById('mp-title');
-    elChannel    = document.getElementById('mp-channel');
-    elProgress   = document.getElementById('mp-progress');
-    elPlayPause  = document.getElementById('mp-play-pause');
-    elSeekBack   = document.getElementById('mp-seek-back');
-    elNextBtn    = document.getElementById('mp-next-btn');
-    elSpeedBadge = document.getElementById('mp-speed-badge');
-    elInfo       = document.getElementById('mp-info');
+    elTitle       = document.getElementById('mp-title');
+    elChannel     = document.getElementById('mp-channel');
+    elProgress    = document.getElementById('mp-progress');
+    elPlayPause   = document.getElementById('mp-play-pause');
+    elSeekBack    = document.getElementById('mp-seek-back');
+    elSpeedBadge  = document.getElementById('mp-speed-badge');
+    elInfo        = document.getElementById('mp-info');
+    elSpeedPicker = document.getElementById('mp-speed-picker');
 
     // Wire mini-player controls
     elPlayPause.addEventListener('click', handlePlayPause);
     elSeekBack.addEventListener('click', () => seekBack(10));
-    elNextBtn.addEventListener('click', nextInQueue);
+    elSeekFwd  = document.getElementById('mp-seek-fwd');
+    elSeekFwd.addEventListener('click', () => seekBack(-30));
     elInfo.addEventListener('click', openCurrentReader);
+    elSpeedBadge.addEventListener('click', toggleSpeedPicker);
+
+    // Close speed picker on outside tap
+    document.addEventListener('click', e => {
+      if (elSpeedPicker.classList.contains('open') &&
+          !elSpeedPicker.contains(e.target) && e.target !== elSpeedBadge) {
+        elSpeedPicker.classList.remove('open');
+      }
+    }, true);
 
     // Seek by tapping progress track
     document.getElementById('mp-progress-track').addEventListener('click', e => {
@@ -75,18 +87,20 @@
     updateMiniPlayerMeta(meta);
     setPlayBtnIcon('idle');
     elSeekBack.disabled  = true;
+    elSeekFwd.disabled   = true;
     elPlayPause.disabled = true;
 
     const speed = sourceSpeeds[meta.source] || 1.0;
-    elSpeedBadge.textContent = speed !== 1.0 ? speed.toFixed(2).replace(/\.?0+$/, '') + '×' : '';
-    elSpeedBadge.style.display = speed !== 1.0 ? '' : 'none';
+    updateSpeedBadge(speed);
 
     try {
       const status = await fetch('/api/videos/' + meta.id + '/audio/status').then(r => r.json());
       cachedStatus = status;
       if (status.status === 'ready') {
         elPlayPause.disabled = false;
-        setPlayBtnIcon('paused');
+        elSeekBack.disabled = audio.paused;
+        elSeekFwd.disabled  = audio.paused;
+        updatePlayBtn();
       } else if (status.status === 'generating') {
         setPlayBtnIcon('generating');
         startPolling();
@@ -125,7 +139,7 @@
           }).catch(err => console.error('[player] play failed', err));
         }
         elSeekBack.disabled = false;
-        updateNextBtn();
+        elSeekFwd.disabled  = false;
       } else {
         audio.pause();
         savePosition(currentId, audio.currentTime);
@@ -147,7 +161,7 @@
       if (data.status === 'ready') {
         cachedStatus = data;
         elPlayPause.disabled = false;
-        setPlayBtnIcon('paused');
+        updatePlayBtn();
       } else {
         startPolling();
       }
@@ -173,7 +187,7 @@
           clearInterval(pollTimer); pollTimer = null;
           cachedStatus = data;
           elPlayPause.disabled = false;
-          setPlayBtnIcon('paused');
+          updatePlayBtn();
         } else if (data.status === 'failed') {
           clearInterval(pollTimer); pollTimer = null;
           cachedStatus = data;
@@ -188,7 +202,6 @@
 
   function setQueue(videos) {
     queue = videos || [];
-    updateNextBtn();
   }
 
   function nextInQueue() {
@@ -196,16 +209,8 @@
     const idx = queue.findIndex(v => v.id === currentId);
     const next = idx >= 0 && idx < queue.length - 1 ? queue[idx + 1] : null;
     if (next) {
-      load(next);
-      // Navigate to reader view
       if (typeof navigate === 'function') navigate('#reader/' + next.id);
     }
-  }
-
-  function updateNextBtn() {
-    if (!currentId || !queue.length) { elNextBtn.disabled = true; return; }
-    const idx = queue.findIndex(v => v.id === currentId);
-    elNextBtn.disabled = idx < 0 || idx >= queue.length - 1;
   }
 
   // ── Auto-advance on ended ────────────────────────────────────────────────────
@@ -226,7 +231,6 @@
     const beep = new Audio('/beep.wav');
     beep.play().catch(() => {});
     beep.addEventListener('ended', () => {
-      load(next);
       if (typeof navigate === 'function') navigate('#reader/' + next.id);
     });
   }
@@ -290,6 +294,35 @@
 
   function clearSavedPosition(id) {
     try { localStorage.removeItem('pos-' + id); } catch {}
+  }
+
+  // ── Speed picker ─────────────────────────────────────────────────────────────
+
+  function updateSpeedBadge(speed) {
+    const label = Number.isInteger(speed) ? speed + '×' : speed.toFixed(2).replace(/\.?0+$/, '') + '×';
+    elSpeedBadge.textContent = label;
+    elSpeedBadge.style.display = '';
+  }
+
+  function toggleSpeedPicker() {
+    if (elSpeedPicker.classList.contains('open')) {
+      elSpeedPicker.classList.remove('open'); return;
+    }
+    const cur = audio.playbackRate || 1.0;
+    elSpeedPicker.innerHTML = SPEED_PRESETS.map(s => {
+      const label = Number.isInteger(s) ? s + '×' : s + '×';
+      return '<button class="mp-speed-opt' + (Math.abs(s - cur) < 0.01 ? ' current' : '') +
+        '" data-speed="' + s + '">' + label + '</button>';
+    }).join('');
+    elSpeedPicker.querySelectorAll('.mp-speed-opt').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const speed = parseFloat(btn.dataset.speed);
+        audio.playbackRate = speed;
+        updateSpeedBadge(speed);
+        elSpeedPicker.classList.remove('open');
+      });
+    });
+    elSpeedPicker.classList.add('open');
   }
 
   // ── MediaSession ─────────────────────────────────────────────────────────────

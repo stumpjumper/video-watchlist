@@ -7,9 +7,10 @@
   <link rel="stylesheet" href="/shared.css">
   <style>
     /* ── SPA shell ── */
-    html, body { height: 100%; }
+    html { height: 100%; }
     body {
-      padding-bottom: calc(72px + env(safe-area-inset-bottom));
+      min-height: 100%;
+      padding-bottom: calc(80px + env(safe-area-inset-bottom));
     }
     #view { min-height: 100%; }
 
@@ -344,6 +345,7 @@
       text-align: center; padding: 40px 0;
     }
     .article-text-empty p { margin-bottom: 16px; }
+    .reader-gen-status { color: var(--text-muted) !important; font-style: italic; }
 
     /* ── Mini-player — frosted glass ── */
     #mini-player {
@@ -390,7 +392,8 @@
     .mp-btn:active { opacity: 0.55; }
     .mp-btn:disabled { opacity: 0.25; }
     .mp-btn-play { font-size: 22px; color: var(--text-head); }
-    .mp-btn-seek { font-size: 15px; color: var(--text-muted); }
+    .mp-btn-seek { font-size: 16px; color: var(--text-muted); flex-direction: column; gap: 0; line-height: 1; }
+    .mp-seek-num { font-size: 9px; font-weight: 700; }
     .mp-speed-badge {
       font-size: 10px; font-weight: 700; color: var(--text-muted);
       background: var(--bg-raised); border: 1px solid var(--border);
@@ -401,6 +404,26 @@
     @media (min-width: 600px) {
       .mp-inner { padding: 0 16px 0 20px; }
     }
+
+    /* ── Speed picker popup ── */
+    #mp-speed-picker {
+      position: fixed; z-index: 60;
+      bottom: calc(72px + env(safe-area-inset-bottom) + 6px);
+      right: 10px;
+      background: var(--bg-raised); border: 1px solid var(--border-mid);
+      border-radius: 12px; padding: 6px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      display: none; flex-direction: column; gap: 2px;
+    }
+    #mp-speed-picker.open { display: flex; }
+    .mp-speed-opt {
+      background: none; border: none; color: var(--text);
+      font-size: 15px; padding: 10px 28px; border-radius: 8px;
+      cursor: pointer; text-align: center; white-space: nowrap;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .mp-speed-opt:active { background: var(--bg-surface); }
+    .mp-speed-opt.current { color: var(--accent-muted); font-weight: 600; }
   </style>
 </head>
 <body>
@@ -417,10 +440,10 @@
       <span class="mp-title" id="mp-title">Nothing playing</span>
       <span class="mp-channel" id="mp-channel"></span>
     </div>
-    <span class="mp-speed-badge" id="mp-speed-badge" style="display:none"></span>
-    <button class="mp-btn mp-btn-seek" id="mp-seek-back" title="Back 10s" disabled>↩︎</button>
+    <button class="mp-speed-badge" id="mp-speed-badge" style="display:none" title="Change speed"></button>
+    <button class="mp-btn mp-btn-seek" id="mp-seek-back" title="Back 10s" disabled>↺<span class="mp-seek-num">10</span></button>
     <button class="mp-btn mp-btn-play" id="mp-play-pause" title="Play / Pause" disabled>▶</button>
-    <button class="mp-btn mp-btn-seek" id="mp-next-btn" title="Next" disabled>⏭</button>
+    <button class="mp-btn mp-btn-seek" id="mp-seek-fwd" title="Forward 30s" disabled>↻<span class="mp-seek-num">30</span></button>
   </div>
 </div>
 
@@ -544,6 +567,7 @@
   </div>
 </div>
 
+<div id="mp-speed-picker"></div>
 <script src="/player.js"></script>
 <script src="/app.js"></script>
 </body>

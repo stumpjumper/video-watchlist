@@ -214,7 +214,7 @@
     });
   }
 
-  let listMounted = false;
+  let listEverMounted = false;
 
   function readSavedScrollY() {
     try { return JSON.parse(localStorage.getItem(STATE_KEY) || 'null')?.scrollY || 0; } catch { return 0; }
@@ -222,12 +222,13 @@
 
   async function showListView() {
     const view = document.getElementById('view');
+    const alreadyInDom = !!view.querySelector('.list-container');
     let scrollToY = 0;
-    if (!listMounted) {
-      scrollToY = restoreListState();
+    if (!alreadyInDom) {
+      scrollToY = listEverMounted ? readSavedScrollY() : restoreListState();
       view.innerHTML = buildListHTML();
       wireListHandlers();
-      listMounted = true;
+      listEverMounted = true;
     } else {
       scrollToY = readSavedScrollY();
     }
@@ -464,13 +465,17 @@
 
       document.getElementById('ab-open').addEventListener('click', () => {
         if (!current) return;
-        if (current.status === 'new')
-          fetch('/api/videos/' + current.id + '/started', { method: 'POST' }).catch(() => {});
+        const id = current.id;
+        const status = current.status;
+        if (status === 'new')
+          fetch('/api/videos/' + id + '/started', { method: 'POST' }).catch(() => {});
         closeActionModal();
-        navigate('#reader/' + current.id);
+        navigate('#reader/' + id);
       });
       document.getElementById('ab-source').addEventListener('click', () => {
-        if (!current) return; openUrl(current.url); closeActionModal();
+        if (!current) return;
+        const url = current.url;
+        openUrl(url); closeActionModal();
       });
     } else {
       if (status === 'new') {
@@ -492,12 +497,15 @@
       const started = document.getElementById('ab-started');
       if (started) started.addEventListener('click', () => {
         if (!current) return;
-        openUrl(current.url);
-        fetch('/api/videos/' + current.id + '/started', { method: 'POST' }).then(load);
+        const url = current.url; const id = current.id;
+        openUrl(url);
+        fetch('/api/videos/' + id + '/started', { method: 'POST' }).then(load);
         closeActionModal();
       });
       document.getElementById('ab-just').addEventListener('click', () => {
-        if (!current) return; openUrl(current.url); closeActionModal();
+        if (!current) return;
+        const url = current.url;
+        openUrl(url); closeActionModal();
       });
       document.getElementById('ab-summary').addEventListener('click', () => {
         if (!current) return;
@@ -928,7 +936,7 @@
       textSection = '<pre class="article-text">' + esc(textData.text) + '</pre>';
     } else {
       textSection =
-        '<div class="article-text-empty">' +
+        '<div class="article-text-empty" id="reader-text-zone">' +
           '<p>Generate audio to load article text.</p>' +
           '<button class="btn btn-green" id="btn-reader-gen">Generate Audio</button>' +
         '</div>';
@@ -956,9 +964,42 @@
     const genBtn = document.getElementById('btn-reader-gen');
     if (genBtn) {
       genBtn.addEventListener('click', () => {
-        genBtn.disabled = true;
-        genBtn.textContent = 'Generating…';
+        const zone = document.getElementById('reader-text-zone');
+        if (zone) zone.innerHTML = '<p class="reader-gen-status">Generating audio…</p>';
         Player.triggerGenerate(id);
+
+        let textShown = false;
+        const readerPoll = setInterval(async () => {
+          if (!document.querySelector('.reader-container')) { clearInterval(readerPoll); return; }
+          try {
+            if (!textShown) {
+              const td = await fetch('/api/videos/' + id + '/text').then(r => r.json());
+              if (td && td.text) {
+                textShown = true;
+                const z = document.getElementById('reader-text-zone');
+                if (z) z.insertAdjacentHTML('afterend', '<pre class="article-text">' + esc(td.text) + '</pre>');
+              }
+            }
+            const sd = await fetch('/api/videos/' + id + '/audio/status').then(r => r.json());
+            if (sd.status === 'ready' || sd.status === 'failed') {
+              clearInterval(readerPoll);
+              if (sd.status === 'ready') {
+                const z = document.getElementById('reader-text-zone');
+                if (z) z.remove();
+                if (!textShown) {
+                  const td = await fetch('/api/videos/' + id + '/text').then(r => r.json());
+                  if (td && td.text) {
+                    const c = document.querySelector('.reader-container');
+                    if (c) c.insertAdjacentHTML('beforeend', '<pre class="article-text">' + esc(td.text) + '</pre>');
+                  }
+                }
+              } else {
+                const el = document.querySelector('.reader-gen-status');
+                if (el) { el.textContent = 'Audio generation failed.'; el.style.color = 'var(--red)'; }
+              }
+            }
+          } catch {}
+        }, 2000);
       });
     }
 
