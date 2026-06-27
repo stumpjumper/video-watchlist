@@ -16,6 +16,7 @@ import {
   getSources, updateSourceSpeed, markAudioReady,
   getSettings, setSetting, getPlaylists, createPlaylist, updatePlaylist, deletePlaylist,
   getExpiredAudioIds, markAudioDeleted,
+  setAudioPending, setAudioGenerating, setAudioFailed, getAudioStatus, getPendingAudioIds,
   VideoFilter,
 } from './db';
 import { buildReaderHtml } from './reader';
@@ -144,6 +145,11 @@ app.post('/api/videos', async (req: Request, res: Response) => {
     typeof source_metadata === 'string' ? source_metadata : undefined,
   );
   res.status(201).json(video);
+
+  const settings = getSettings();
+  if (settings.audio_on_add === 'true' && video.content_type === 'article') {
+    queueAudioGen(video.id);
+  }
 });
 
 app.get('/api/categories', (_req: Request, res: Response) => {
@@ -203,6 +209,64 @@ app.get('/api/videos/:id/text', async (req: Request, res: Response) => {
   res.json({ text: cached ?? null });
 });
 
+// ── Audio ────────────────────────────────────────────────────────────────────
+
+const audioGenerating = new Set<number>();
+const audioFailed     = new Map<number, string>(); // id → error message
+
+// ── Background audio generation queue ────────────────────────────────────────
+
+const audioQueue: number[] = [];
+let queueRunning = false;
+const QUEUE_MAX_RETRIES = 5;
+const QUEUE_RETRY_DELAY = 5 * 60 * 1000; // 5 minutes
+
+const drainQueue = async (): Promise<void> => {
+  if (queueRunning) return;
+  queueRunning = true;
+  while (audioQueue.length > 0) {
+    const id = audioQueue.shift()!;
+    const video = getVideoById(id);
+    if (!video) continue;
+    if (video.audio_status === 'ready') continue;
+    if (video.audio_retry_count >= QUEUE_MAX_RETRIES) {
+      setAudioFailed(id, 'max retries exceeded');
+      console.error('[audio] queue: max retries reached for video', id);
+      continue;
+    }
+    setAudioGenerating(id);
+    try {
+      await generateAudio(id, video.url, video.title, video.published_at);
+      markAudioReady(id);
+      console.log('[audio] queue: generated audio for video', id);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setAudioFailed(id, msg);
+      console.error('[audio] queue: failed for video', id, msg);
+      // Retry after delay if under limit
+      setTimeout(() => {
+        const v = getVideoById(id);
+        if (v && v.audio_retry_count < QUEUE_MAX_RETRIES) {
+          setAudioPending(id);
+          audioQueue.push(id);
+          drainQueue().catch(() => {});
+        }
+      }, QUEUE_RETRY_DELAY);
+    }
+  }
+  queueRunning = false;
+};
+
+const queueAudioGen = (id: number): void => {
+  const video = getVideoById(id);
+  if (!video || video.content_type !== 'article') return;
+  if (video.audio_status === 'ready' || video.audio_status === 'generating' ||
+      video.audio_status === 'pending') return;
+  setAudioPending(id);
+  if (!audioQueue.includes(id)) audioQueue.push(id);
+  drainQueue().catch(e => console.error('[audio] queue error', e));
+};
+
 // ── Startup: sync audio_status with disk ─────────────────────────────────────
 
 async function runAudioLifecycle(): Promise<void> {
@@ -224,16 +288,18 @@ async function runAudioLifecycle(): Promise<void> {
       if (m) markAudioReady(parseInt(m[1], 10));
     }
   } catch {}
+  // Re-queue any items that were pending when the server last stopped
+  const pending = getPendingAudioIds();
+  if (pending.length > 0) {
+    console.log(`[audio] queue: re-queuing ${pending.length} pending item(s) from previous run`);
+    for (const id of pending) audioQueue.push(id);
+    drainQueue().catch(e => console.error('[audio] queue error', e));
+  }
 })();
 
 setInterval(() => {
   runAudioLifecycle().catch(e => console.error('[audio] lifecycle error:', e));
 }, 24 * 60 * 60 * 1000);
-
-// ── Audio ────────────────────────────────────────────────────────────────────
-
-const audioGenerating = new Set<number>();
-const audioFailed     = new Map<number, string>(); // id → error message
 
 // Serve generated audio files
 app.use('/audio', express.static(AUDIO_DIR, { maxAge: '7d' }));
@@ -263,6 +329,7 @@ app.post('/api/videos/:id/audio', async (req: Request, res: Response) => {
   // Clear any previous failure so user can retry
   audioFailed.delete(id);
   audioGenerating.add(id);
+  setAudioGenerating(id);
   res.json({ status: 'generating' });
 
   generateAudio(id, video.url, video.title, video.published_at)
@@ -271,6 +338,7 @@ app.post('/api/videos/:id/audio', async (req: Request, res: Response) => {
       audioGenerating.delete(id);
       const msg = e instanceof Error ? e.message : String(e);
       audioFailed.set(id, msg);
+      setAudioFailed(id, msg);
       console.error('[audio] generation failed for video', id, e);
     });
 });
@@ -297,12 +365,24 @@ app.get('/api/videos/:id/audio/status', async (req: Request, res: Response) => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
   if (await audioExists(id)) {
-    res.json({ status: 'ready', url: audioUrl(id) });
-  } else if (audioFailed.has(id)) {
-    res.json({ status: 'failed', error: audioFailed.get(id) });
-  } else {
-    res.json({ status: 'generating' });
+    res.json({ status: 'ready', url: audioUrl(id) }); return;
   }
+  // Check in-memory state first (user-triggered generation)
+  if (audioGenerating.has(id)) {
+    res.json({ status: 'generating' }); return;
+  }
+  if (audioFailed.has(id)) {
+    res.json({ status: 'failed', error: audioFailed.get(id) }); return;
+  }
+  // Fall back to DB status (background queue)
+  const dbSt = getAudioStatus(id);
+  if (dbSt?.audio_status === 'generating' || dbSt?.audio_status === 'pending') {
+    res.json({ status: 'generating' }); return;
+  }
+  if (dbSt?.audio_status === 'failed') {
+    res.json({ status: 'failed', error: dbSt.audio_error }); return;
+  }
+  res.json({ status: 'none' });
 });
 
 app.get('/api/audio/stats', async (_req: Request, res: Response) => {

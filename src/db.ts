@@ -465,6 +465,31 @@ export function markAudioDeleted(id: number): void {
   db.prepare(`UPDATE videos SET audio_status = 'deleted' WHERE id = ?`).run(id);
 }
 
+export function setAudioPending(id: number): void {
+  db.prepare(`UPDATE videos SET audio_status = 'pending', audio_error = NULL WHERE id = ?`).run(id);
+}
+
+export function setAudioGenerating(id: number): void {
+  db.prepare(`UPDATE videos SET audio_status = 'generating' WHERE id = ?`).run(id);
+}
+
+export function setAudioFailed(id: number, error: string): void {
+  db.prepare(
+    `UPDATE videos SET audio_status = 'failed', audio_error = ?, audio_retry_count = audio_retry_count + 1 WHERE id = ?`
+  ).run(error, id);
+}
+
+export function getAudioStatus(id: number): { audio_status: string; audio_error: string | null } | null {
+  return db.prepare('SELECT audio_status, audio_error FROM videos WHERE id = ?').get(id) as
+    { audio_status: string; audio_error: string | null } | null;
+}
+
+export function getPendingAudioIds(): number[] {
+  return (db.prepare(
+    `SELECT id FROM videos WHERE audio_status = 'pending' ORDER BY added_at ASC`
+  ).all() as { id: number }[]).map(r => r.id);
+}
+
 // ── Settings ─────────────────────────────────────────────────────────────────
 
 export function getSettings(): Record<string, string> {

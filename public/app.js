@@ -370,6 +370,14 @@
         : '';
       const labelsJson = esc(JSON.stringify(v.labels || []));
       const sel = selectedIds.has(String(v.id));
+      const audioSt = v.audio_status || 'none';
+      const audioIcon = v.content_type === 'article' && !trash
+        ? (audioSt === 'pending' || audioSt === 'generating'
+            ? '<span class="card-audio-icon spinning" title="Generating audio…">⚙</span>'
+            : audioSt === 'failed'
+              ? '<button class="card-audio-icon audio-failed-btn" data-id="' + v.id + '" title="Audio failed — tap for error">⚠</button>'
+              : '')
+        : '';
       return '<li class="video-card' + (trash ? ' selectable' : '') + (sel ? ' selected' : '') + '"' +
         ' data-id="' + v.id + '" data-title="' + esc(v.title) + '"' +
         ' data-url="' + esc(v.url) + '" data-status="' + v.status + '"' +
@@ -378,7 +386,9 @@
         ' data-emoji="' + esc(v.emoji || '') + '"' +
         ' data-channel="' + esc(v.channel_name || '') + '"' +
         ' data-summary="' + esc(v.summary || '') + '"' +
-        ' data-labels="' + labelsJson + '">' +
+        ' data-labels="' + labelsJson + '"' +
+        ' data-audio-status="' + audioSt + '"' +
+        ' data-audio-error="' + esc(v.audio_error || '') + '">' +
         '<span class="card-channel">' + esc(v.emoji) + ' ' + esc(v.channel_name) + '</span>' +
         '<span class="card-title">' + esc(v.title) + '</span>' +
         '<div class="card-footer">' +
@@ -388,6 +398,7 @@
             '<span class="card-date-item">↓ ' + fmtSmartDate(v.added_at) + '</span>' +
           '</div>' +
           '<div class="card-actions">' +
+            audioIcon +
             (trash ? '' : '<button class="card-menu-btn" data-id="' + v.id + '" title="More options">···</button>') +
             '<button class="card-trash-btn" data-id="' + v.id + '" title="Move to Trash">🗑</button>' +
           '</div>' +
@@ -459,6 +470,14 @@
     if (trashBtn) {
       await fetch('/api/videos/' + trashBtn.dataset.id + '/trash', { method: 'POST' });
       load(); return;
+    }
+
+    const failedBtn = e.target.closest('.audio-failed-btn');
+    if (failedBtn) {
+      const card = failedBtn.closest('.video-card');
+      const err = card?.dataset.audioError || 'Unknown error';
+      alert('Audio generation failed:\n' + err);
+      return;
     }
 
     const menuBtn = e.target.closest('.card-menu-btn');

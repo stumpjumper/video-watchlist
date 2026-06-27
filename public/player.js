@@ -75,6 +75,31 @@
       const sources = await fetch('/api/sources').then(r => r.json());
       for (const s of sources) sourceSpeeds[s.source_key] = s.default_speed;
     } catch {}
+
+    // Register service worker for offline audio caching
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+  }
+
+  function speak(msg) {
+    if (!('speechSynthesis' in window)) return;
+    speechSynthesis.cancel();
+    speechSynthesis.speak(new SpeechSynthesisUtterance(msg));
+  }
+
+  function preCacheAudio(ids) {
+    if (!navigator.serviceWorker?.controller || !ids.length) return;
+    navigator.serviceWorker.controller.postMessage({ type: 'PRECACHE_AUDIO', ids });
+  }
+
+  function preCacheNext() {
+    if (!queue.length || !currentId) return;
+    const idx = queue.findIndex(v => v.id === currentId);
+    const upcoming = queue.slice(idx + 1, idx + 4)
+      .filter(v => v.content_type === 'article' && v.audio_status === 'ready')
+      .map(v => v.id);
+    preCacheAudio(upcoming);
   }
 
   // ── Load a video into the player ────────────────────────────────────────────
@@ -171,6 +196,7 @@
       cachedStatus = { status: 'failed', error: 'Network error' };
       elPlayPause.disabled = false;
       setPlayBtnIcon('generate');
+      speak('Audio generation failed: network error.');
     }
   }
 
@@ -195,6 +221,7 @@
           cachedStatus = data;
           elPlayPause.disabled = false;
           setPlayBtnIcon('generate');
+          speak('Audio generation failed' + (data.error ? ': ' + data.error : '') + '.');
         }
       } catch {}
     }, 2000);
@@ -223,11 +250,17 @@
     clearSavedPosition(currentId);
 
     const autoplay = localStorage.getItem('v6-autoplay') !== 'false';
-    if (!autoplay || !queue.length) return;
+    if (!autoplay) return;
 
     const idx = queue.findIndex(v => v.id === currentId);
     const next = idx >= 0 && idx < queue.length - 1 ? queue[idx + 1] : null;
-    if (!next) return;
+    if (!next) {
+      if (queue.length > 0) speak('End of playlist.');
+      return;
+    }
+
+    // Pre-cache items after next before navigating
+    preCacheNext();
 
     // Play beep to signal transition, then navigate
     const beep = new Audio('/beep.wav');
