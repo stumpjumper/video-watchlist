@@ -71,18 +71,33 @@ async function fetchArticleText(url: string): Promise<{text: string, publishedAt
   }
 }
 
-export async function generateAudio(id: number, url: string): Promise<void> {
+function buildAudioHeader(title?: string, publishedAt?: string | null): string {
+  const parts: string[] = [];
+  if (title) parts.push(title);
+  if (publishedAt) {
+    const date = new Date(publishedAt);
+    if (!isNaN(date.getTime())) {
+      parts.push(date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }));
+    }
+  }
+  return parts.join('. ');
+}
+
+export async function generateAudio(id: number, url: string, title?: string, publishedAt?: string | null): Promise<void> {
   if (!existsSync(AUDIO_DIR)) await mkdir(AUDIO_DIR, { recursive: true });
   if (!existsSync(TEXT_DIR))  await mkdir(TEXT_DIR,  { recursive: true });
 
   const text = await fetchAndCacheText(id, url);
+
+  const header = buildAudioHeader(title, publishedAt);
+  const audioText = header ? `${header}\n\n${text}` : text;
 
   const txtFile  = path.join(tmpdir(), `watchlist-${id}-${Date.now()}.txt`);
   const aiffFile = path.join(tmpdir(), `watchlist-${id}-${Date.now()}.aiff`);
   const outFile  = audioPath(id);
 
   try {
-    await writeFile(txtFile, text, 'utf8');
+    await writeFile(txtFile, audioText, 'utf8');
 
     await execFileAsync('/usr/bin/say', ['-v', SAY_VOICE, '-f', txtFile, '-o', aiffFile]);
 

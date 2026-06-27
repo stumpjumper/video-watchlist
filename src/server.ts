@@ -248,7 +248,7 @@ app.post('/api/videos/:id/audio', async (req: Request, res: Response) => {
   audioGenerating.add(id);
   res.json({ status: 'generating' });
 
-  generateAudio(id, video.url)
+  generateAudio(id, video.url, video.title, video.published_at)
     .then(() => { audioGenerating.delete(id); markAudioReady(id); })
     .catch(e => {
       audioGenerating.delete(id);

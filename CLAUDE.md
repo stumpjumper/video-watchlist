@@ -56,7 +56,7 @@ The frontend is a Single Page Application — `index.html` loads once, `app.js` 
 
 - **`public/app.js`**: Router + list view (ported from old index.html) + reader view. `window.navigate(hash)` exposed for player.js.
 - **`public/player.js`**: AudioEngine singleton (`window.Player`). Single `<audio>` element never destroyed. `Player.load(meta)`, `Player.setQueue(videos)`, `Player.triggerGenerate(id)`. Per-source speed from `/api/sources`. Speed picker popup (0.75×–2×). MediaSession wired. Autoplay-next on `ended` (uses beep.wav signal then navigates).
-- **Mini-player**: frosted-glass bar fixed at bottom. Progress strip at top. ↩10s / ▶⏸ / ⏭ controls. Speed badge (always shown when loaded, tappable to open picker). Info area taps to open reader.
+- **Mini-player**: frosted-glass bar fixed at bottom. Progress row (seek track + `1:23 / 5:45` time) at top. ↺10s / ▶⏸ / ↻30s controls. Speed badge (always shown when loaded, tappable to open picker). Info area taps to open reader.
 
 ## Article audio pipeline
 
@@ -68,8 +68,8 @@ The frontend is a Single Page Application — `index.html` loads once, `app.js` 
 
 ## Viewer model
 
-- **YouTube**: action modal → opens YouTube URL in new tab
-- **Article**: action modal → "Open reader" → navigates to `#reader/:id` (SPA view, NOT the legacy `/reader/:id` server route)
+- **YouTube**: tap card → opens YouTube URL in new tab (marks started). `···` on card → slim sheet: Open original / Summary / Labels.
+- **Article**: tap card → navigates to `#reader/:id` (SPA view, NOT the legacy `/reader/:id` server route), marks started. `···` on card or reader page → slim sheet: Open original / Labels.
 
 ## iOS quirks
 
@@ -79,7 +79,7 @@ The frontend is a Single Page Application — `index.html` loads once, `app.js` 
 - `location.reload()` in async callbacks can behave oddly with audio on iOS — use `location.replace(url)` instead
 - `new AudioContext()` created inside async callbacks (after `await`) is suspended on iOS — use an existing `<audio>` element that already has permission instead
 - **Never embed TypeScript syntax inside HTML template string JS blocks** — causes SyntaxError that silently kills the entire script block. All client JS lives in `.js` static files.
-- After calling `closeActionModal()` which sets `current = null`, capture any needed values (`id`, `url`) into local variables BEFORE the call.
+- `closeActionModal()` sets `current = null` — capture any needed values (`id`, `url`) into local variables BEFORE calling it.
 
 ## Environment variables (in launchd plist)
 
