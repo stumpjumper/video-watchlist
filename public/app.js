@@ -42,6 +42,16 @@
     return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   }
 
+  function fmtSmartDate(iso) {
+    if (!iso) return '–';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '–';
+    const yearAgo = new Date();
+    yearAgo.setFullYear(yearAgo.getFullYear() - 1);
+    const base = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    return d >= yearAgo ? base : base + " '" + String(d.getFullYear()).slice(2);
+  }
+
   function openUrl(url) {
     const a = document.createElement('a');
     a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
@@ -140,6 +150,7 @@
     <span class="sort-label">Sort</span>
     <select id="sort-field" class="sort-select">
       <option value="added_at"${sortBy === 'added_at' ? ' selected' : ''}>Date added</option>
+      <option value="published_at"${sortBy === 'published_at' ? ' selected' : ''}>Date posted</option>
       <option value="status"${sortBy === 'status' ? ' selected' : ''}>Status</option>
       <option value="channel_name"${sortBy === 'channel_name' ? ' selected' : ''}>Channel</option>
       <option value="title"${sortBy === 'title' ? ' selected' : ''}>Title</option>
@@ -299,6 +310,9 @@
       let va, vb;
       if (sortBy === 'added_at') {
         va = new Date(a.added_at).getTime(); vb = new Date(b.added_at).getTime();
+      } else if (sortBy === 'published_at') {
+        va = a.published_at ? new Date(a.published_at).getTime() : -Infinity;
+        vb = b.published_at ? new Date(b.published_at).getTime() : -Infinity;
       } else if (sortBy === 'status') {
         va = statusOrder[a.status] ?? 9; vb = statusOrder[b.status] ?? 9;
       } else {
@@ -361,7 +375,10 @@
         '<span class="card-title">' + esc(v.title) + '</span>' +
         '<div class="card-footer">' +
           '<span class="card-badge">' + badge + '</span>' +
-          '<span class="card-date">' + fmtDate(v.published_at || v.added_at) + '</span>' +
+          '<div class="card-dates">' +
+            '<span class="card-date-item">✎ ' + fmtSmartDate(v.published_at) + '</span>' +
+            '<span class="card-date-item">↓ ' + fmtSmartDate(v.added_at) + '</span>' +
+          '</div>' +
           '<div class="card-actions">' +
             (trash ? '' : '<button class="card-menu-btn" data-id="' + v.id + '" title="More options">···</button>') +
             '<button class="card-trash-btn" data-id="' + v.id + '" title="Move to Trash">🗑</button>' +
@@ -928,7 +945,8 @@
           (labelChips ? '<div class="reader-label-chips">' + labelChips + '</div>' : '') +
           '<h1 class="reader-title">' + esc(video.title) + '</h1>' +
           '<div class="reader-meta">' +
-            '<span>' + fmtDate(video.published_at || video.added_at) + '</span>' +
+            '<span class="meta-date">✎ ' + fmtSmartDate(video.published_at) + '</span>' +
+            '<span class="meta-date">↓ ' + fmtSmartDate(video.added_at) + '</span>' +
             badge +
           '</div>' +
         '</div>' +
@@ -987,6 +1005,13 @@
                     if (c) c.insertAdjacentHTML('beforeend', '<pre class="article-text">' + esc(td.text) + '</pre>');
                   }
                 }
+                // Update published date in reader meta — extraction runs during audio gen
+                fetch('/api/videos/' + id).then(r => r.json()).then(v => {
+                  if (v.published_at) {
+                    const el = document.querySelector('.reader-meta .meta-date');
+                    if (el) el.textContent = '✎ ' + fmtSmartDate(v.published_at);
+                  }
+                }).catch(() => {});
               } else {
                 const el = document.querySelector('.reader-gen-status');
                 if (el) { el.textContent = 'Audio generation failed.'; el.style.color = 'var(--red)'; }
