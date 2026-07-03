@@ -425,6 +425,16 @@ export function purgeTrash(): number {
   return (db.prepare(`DELETE FROM videos WHERE id IN (${ph})`).run(...ids).changes as number);
 }
 
+export function getReadyAudioVideos(contentType: string): Video[] {
+  const rows = db.prepare(`
+    SELECT * FROM videos v
+    WHERE v.content_type = ? AND v.audio_status = 'ready'
+      AND NOT EXISTS (SELECT 1 FROM video_labels WHERE video_id = v.id AND label_id = 2)
+    ORDER BY v.audio_added_at DESC
+  `).all(contentType) as Omit<Video, 'labels'>[];
+  return attachLabels(rows);
+}
+
 export function savePublishedAt(id: number, publishedAt: string): void {
   db.prepare(`UPDATE videos SET published_at = ? WHERE id = ? AND published_at IS NULL`)
     .run(publishedAt, id);

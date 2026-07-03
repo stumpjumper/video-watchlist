@@ -38,6 +38,7 @@ npm run dev
 | `public/shared.css` | Design tokens + shared components (both pages link this) |
 | `public/beep.wav` | Short tone played before autoplay navigation |
 | `skill.md` | API reference for NanoClaw agents |
+| `src/feed.ts` | Podcast RSS feed builder (Overcast integration) |
 
 ## Architecture notes
 
@@ -82,6 +83,45 @@ All content types (YouTube, article, web) tap → `#reader/:id`. The reader load
 
 `···` on card or reader → slim sheet: Open original / Play audio (if ready) or Download/Generate audio (navigates to reader) / Summary (YouTube) / Labels.
 
+## Podcast feed (Overcast)
+
+Branch `overcast-feed` (off `v6-podcast-player`) adds a parallel consumption
+path: a personal RSS feed that Overcast (iOS podcast app) subscribes to
+directly, instead of using the in-app mini-player. Purely additive — the
+mini-player still works and remains the fallback during the trial period;
+nothing has been removed.
+
+- `GET /feed/:token/videos.xml` and `GET /feed/:token/articles.xml`
+  (`server.ts`, near the `/audio` static route) — token-gated (`FEED_TOKEN`
+  env var, compared against `:token`; wrong/missing token → `404`, not
+  `403`, so the route's existence isn't confirmed to scanners).
+- `src/feed.ts` — `buildFeedXml(contentType, channelTitle)` hand-rolls RSS
+  2.0 + iTunes-namespace XML from `getReadyAudioVideos()` (`db.ts`, filters
+  `audio_status='ready'` + excludes Trash-labeled videos). Two feeds split
+  by `content_type` (`video`/`article`) rather than one unified feed, so
+  Overcast's per-podcast speed setting can mirror the existing per-source
+  `default_speed` distinction in the `sources` table.
+- **Exposure model:** only the feed XML needs to be reachable from the
+  public internet — Overcast's feed *polling* goes through Overcast's own
+  centralized crawler servers, but audio *file* downloads are initiated
+  directly by the device and were confirmed working over the existing
+  Tailscale HTTPS endpoint (`https://turbo.taild6cb04.ts.net:4443`) even
+  off home Wi-Fi. So `<enclosure>` URLs stay pointed at that Tailscale host
+  (`PUBLIC_AUDIO_BASE_URL` env var) — only the small feed XML endpoint is
+  public.
+- **Public exposure via Tailscale Funnel, not launchd/a separate process:**
+  `tailscale funnel --bg --set-path=/feed http://127.0.0.1:4000/feed` scopes
+  *only* `/feed` to the internet-facing hostname
+  (`https://turbo.taild6cb04.ts.net/feed/...`, no port suffix); everything
+  else stays tailnet-only. This config lives in `tailscaled` itself (check
+  with `tailscale funnel status`), not in a plist — it does **not** get
+  reset by `launchctl kickstart`, but would need to be re-applied if the
+  Mac reboots and `tailscaled` loses its serve config.
+  **Do not run `tailscale funnel --bg 443`** (bare port, no `--set-path`) —
+  it silently adds a second mapping of `/` to local port 443, which is
+  currently inert (nothing listens on 443 locally) but would become a full
+  reverse proxy for the entire app the moment anything ever does.
+
 ## iOS quirks
 
 - `navigator.clipboard.writeText` fails over HTTP — use `execCommand('copy')` with a readonly textarea
@@ -94,11 +134,13 @@ All content types (YouTube, article, web) tap → `#reader/:id`. The reader load
 - Service Worker must NOT intercept audio range requests — iOS uses range requests for streaming and caching partial (206) responses corrupts playback. In `sw.js`: `if (e.request.headers.get('range')) return;` before any audio cache logic.
 - `<input type="range">` thumb (`-webkit-slider-thumb`) does not render on iOS when the input's `background` is set via inline style — do not rely on a visible thumb for interaction.
 
-## Environment variables (in launchd plist)
+## Environment variables (in `.env`, loaded via `dotenv/config` — not the launchd plist, which only sets `PATH`)
 
 - `OPENROUTER_API_KEY` — for YouTube video summaries
 - `SAY_VOICE` — override TTS voice (default: `Ava (Premium)`)
 - `CERT_DIR`, `HTTPS_PORT` — TLS config
+- `FEED_TOKEN` — required for the Overcast podcast feed routes; generate with `node -e "console.log(require('crypto').randomBytes(24).toString('hex'))"`
+- `PUBLIC_AUDIO_BASE_URL` — base URL prepended to audio enclosure links in the podcast feed (default: the Tailscale HTTPS endpoint above)
 
 ## NanoClaw
 

@@ -24,6 +24,7 @@ import {
   generateAudio, downloadYouTubeAudio, audioExists, audioUrl, audioDirSizeBytes, AUDIO_DIR,
   readCachedText, audioPath,
 } from './audio';
+import { buildFeedXml } from './feed';
 
 const execFileAsync = promisify(execFile);
 
@@ -315,6 +316,21 @@ setInterval(() => {
 
 // Serve generated audio files
 app.use('/audio', express.static(AUDIO_DIR, { maxAge: '7d' }));
+
+// ── Podcast feed (Overcast) ─────────────────────────────────────────────────
+// Token-gated, publicly exposed only via Tailscale Funnel on /feed/*.
+// 404 (not 403) on a bad token so the route's existence isn't confirmed to scanners.
+app.get('/feed/:token/videos.xml', (req: Request, res: Response) => {
+  if (req.params.token !== process.env.FEED_TOKEN) { res.sendStatus(404); return; }
+  res.set('Content-Type', 'application/rss+xml; charset=utf-8');
+  res.send(buildFeedXml('video', 'Watchlist: Videos'));
+});
+
+app.get('/feed/:token/articles.xml', (req: Request, res: Response) => {
+  if (req.params.token !== process.env.FEED_TOKEN) { res.sendStatus(404); return; }
+  res.set('Content-Type', 'application/rss+xml; charset=utf-8');
+  res.send(buildFeedXml('article', 'Watchlist: Articles'));
+});
 
 // Check / trigger audio generation
 app.post('/api/videos/:id/audio', async (req: Request, res: Response) => {
