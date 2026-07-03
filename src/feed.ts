@@ -53,6 +53,7 @@ function buildDescription(v: Video, size: number, duration: number | null): stri
   const durationStr = formatDuration(duration);
   const audioBits = [audioSourceLabel(v), formatBytes(size), durationStr].filter(Boolean);
   lines.push(`<p><strong>Audio:</strong> ${audioBits.join(' · ')}</p>`);
+  lines.push(`<p><strong>Source:</strong> <a href="${escapeXml(v.url)}">${escapeXml(v.url)}</a></p>`);
   if (v.summary) lines.push(v.summary);
   return lines.join('\n    ');
 }
