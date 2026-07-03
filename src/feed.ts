@@ -1,5 +1,5 @@
 import { statSync } from 'fs';
-import { getReadyAudioVideos } from './db';
+import { getReadyAudioVideos, Video } from './db';
 import { audioUrl, audioPath } from './audio';
 
 const PUBLIC_AUDIO_BASE_URL = process.env.PUBLIC_AUDIO_BASE_URL ?? 'https://turbo.taild6cb04.ts.net:4443';
@@ -18,8 +18,47 @@ function escapeXml(s: string): string {
     .replace(/'/g, '&apos;');
 }
 
-export function buildFeedXml(contentType: string, channelTitle: string, iconFile: string): string {
-  const videos = getReadyAudioVideos(contentType);
+function formatDate(iso: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+function formatDuration(seconds: number | null): string | null {
+  if (seconds === null) return null;
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+}
+
+function formatBytes(bytes: number): string {
+  return `${Math.round(bytes / 1024 / 1024 * 10) / 10} MB`;
+}
+
+function audioSourceLabel(v: Video): string {
+  if (v.content_type === 'video') return 'Direct audio grab (yt-dlp)';
+  return v.audio_voice ? `Text-to-speech (${v.audio_voice})` : 'Text-to-speech';
+}
+
+function buildDescription(v: Video, size: number, duration: number | null): string {
+  const lines: string[] = [];
+  lines.push(`<p><strong>Channel/Source:</strong> ${escapeXml(v.channel_name || v.source)}</p>`);
+  const published = formatDate(v.published_at);
+  if (published) lines.push(`<p><strong>Published:</strong> ${published}</p>`);
+  const added = formatDate(v.added_at);
+  if (added) lines.push(`<p><strong>Added to watchlist:</strong> ${added}</p>`);
+  const durationStr = formatDuration(duration);
+  const audioBits = [audioSourceLabel(v), formatBytes(size), durationStr].filter(Boolean);
+  lines.push(`<p><strong>Audio:</strong> ${audioBits.join(' · ')}</p>`);
+  if (v.summary) lines.push(v.summary);
+  return lines.join('\n    ');
+}
+
+export function buildFeedXml(sourceKey: string, channelTitle: string, iconFile: string): string {
+  const videos = getReadyAudioVideos(sourceKey);
   const imageUrl = `${PUBLIC_FEED_BASE_URL}/feed/icons/${iconFile}`;
 
   const items = videos.map(v => {
@@ -28,14 +67,18 @@ export function buildFeedXml(contentType: string, channelTitle: string, iconFile
 
     const pubDate = v.audio_added_at ? new Date(v.audio_added_at).toUTCString() : new Date().toUTCString();
     const enclosureUrl = `${PUBLIC_AUDIO_BASE_URL}${audioUrl(v.id)}`;
-    const description = v.summary ? escapeXml(v.summary) : '';
+    const duration = formatDuration(v.audio_duration_seconds);
+    const description = buildDescription(v, length, v.audio_duration_seconds);
 
     return `
     <item>
       <title>${escapeXml(v.title)}</title>
       <guid isPermaLink="false">wl-${v.id}</guid>
       <pubDate>${pubDate}</pubDate>
-      <description>${description}</description>
+      <itunes:author>${escapeXml(v.channel_name || v.source)}</itunes:author>
+      <itunes:subtitle>${escapeXml(v.channel_name || v.source)}</itunes:subtitle>
+      ${duration ? `<itunes:duration>${duration}</itunes:duration>` : ''}
+      <description><![CDATA[${description}]]></description>
       <enclosure url="${escapeXml(enclosureUrl)}" length="${length}" type="audio/mp4"/>
     </item>`;
   }).join('');

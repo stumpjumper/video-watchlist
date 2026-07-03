@@ -42,7 +42,7 @@ npm run dev
 
 ## Architecture notes
 
-- SQLite DB: `watchlist.db` (gitignored). Schema version tracked via `PRAGMA user_version` (currently **3**).
+- SQLite DB: `watchlist.db` (gitignored). Schema version tracked via `PRAGMA user_version` (currently **4**).
 - Labels are many-to-many. Every video has ≥1 label always. Inbox=1, Trash=2 are reserved.
 - `content_type`: `'video'` (YouTube) or `'article'`. Source examples: `'youtube'`, `'ars_technica'`, `'web'`.
 - `status`: `'new'` | `'started'` | `'finished'`
@@ -52,6 +52,8 @@ npm run dev
 - Text cache: `text/` dir (gitignored), plain text per article.
 - New tables (V3): `settings` (key/value globals), `playlists` (saved filter configs), `sources` (per-source default_speed)
 - `audio_added_at` / `audio_expires_at`: stamped by `markAudioReady()`; lifecycle cron deletes files older than 30 days on startup + every 24h
+- `audio_voice` / `audio_duration_seconds` (V4): see Podcast feed section below.
+- **Add flow (`public/app.js`)**: `autoDetectCategory(url)` regex-matches the pasted URL to a `source` (`youtube`/`ars_technica`/`web`) and defaults the per-item `emoji` accordingly (📺/🚀/📰) unless the user has already hand-edited the emoji field. Title/channel auto-fill (`fetchPreview()` → `GET /api/preview`) now works for any URL, not just YouTube — non-YouTube URLs are scraped server-side for `og:title`/`<title>` and `og:site_name` (`scrapeArticleMeta()` in `server.ts`), falling back to the matched source's `sources.display_name` or the URL's hostname.
 
 ## SPA architecture (V6 — current branch: v6-podcast-player)
 
@@ -91,21 +93,47 @@ directly, instead of using the in-app mini-player. Purely additive — the
 mini-player still works and remains the fallback during the trial period;
 nothing has been removed.
 
-- `GET /feed/:token/videos.xml` and `GET /feed/:token/articles.xml`
-  (`server.ts`, near the `/audio` static route) — token-gated (`FEED_TOKEN`
-  env var, compared against `:token`; wrong/missing token → `404`, not
-  `403`, so the route's existence isn't confirmed to scanners).
-- `src/feed.ts` — `buildFeedXml(contentType, channelTitle, iconFile)` hand-rolls
-  RSS 2.0 + iTunes-namespace XML from `getReadyAudioVideos()` (`db.ts`,
-  filters `audio_status='ready'` + excludes Trash-labeled videos). Two feeds
-  split by `content_type` (`video`/`article`) rather than one unified feed,
-  so Overcast's per-podcast speed setting can mirror the existing per-source
-  `default_speed` distinction in the `sources` table.
-- **Artwork:** `public/feed-icons/{videos,articles}.{svg,png}` (1400×1400,
-  SVG source + rasterized PNG — rasterized via `qlmanage -t -s 1400`, no
-  ImageMagick/Pillow installed). Served unguarded at `/feed/icons/*` (not
-  sensitive, but kept under `/feed` so it's covered by the same Funnel path
-  scope). Referenced via `<itunes:image>` + the plain RSS `<image>` block.
+- `GET /feed/:token/:sourceKey.xml` (`server.ts`, near the `/audio` static
+  route) — token-gated (`FEED_TOKEN` env var, compared against `:token`;
+  wrong/missing token → `404`, not `403`, so the route's existence isn't
+  confirmed to scanners). `sourceKey` is validated against `getSources()`
+  (`db.ts`) — one feed per row in the `sources` table (`youtube`/
+  `ars_technica`/`web` today), **not** per `content_type`: Ars Technica and
+  generic web articles used to share one "Articles" feed, but that lumped
+  together two sources that already have independent `default_speed`
+  settings. Adding a future source needs only a new `sources` row + a
+  matching `public/feed-icons/<source_key>.png` — no route changes.
+- `src/feed.ts` — `buildFeedXml(sourceKey, channelTitle, iconFile)` hand-rolls
+  RSS 2.0 + iTunes-namespace XML from `getReadyAudioVideos(source)` (`db.ts`,
+  filters `audio_status='ready'` + excludes Trash-labeled videos).
+  `channelTitle` comes from `sources.display_name`, not hardcoded, so
+  renaming a source's display name renames its podcast title too. Per item:
+  `<itunes:author>`/`<itunes:subtitle>` = `channel_name` (Overcast's episode
+  list otherwise only shows the title), `<itunes:duration>` from
+  `audio_duration_seconds` when known, and a CDATA-wrapped `<description>`
+  with channel/published-date/added-date/audio-method/file-size/duration
+  plus the existing AI summary HTML. **The summary HTML must stay
+  CDATA-wrapped, not `escapeXml()`'d** — it's real HTML (OpenRouter's prompt
+  asks for `<h3>/<p>/<ul>/<li>/<strong>`, and `app.js` already renders it via
+  `innerHTML`); escaping it shows literal tags in the feed.
+- `audio_voice` / `audio_duration_seconds` columns (V4, `db.ts`) — voice is
+  recorded at generation time for articles only (`SAY_VOICE` at the moment
+  `generateAudio()` succeeds, in `drainQueue()`); duration is probed via
+  `/usr/bin/afinfo` (`probeAudioDuration()` in `audio.ts`, built into macOS,
+  no ffprobe/ImageMagick-style dependency needed) for both content types.
+  Both are backfilled for pre-existing ready rows in the startup IIFE —
+  voice backfill assumes the *current* `SAY_VOICE` was always used, since
+  there's no historical record if it was ever changed.
+- **Artwork:** `public/feed-icons/{youtube,ars_technica,web}.{svg,png}`
+  (1400×1400, SVG source + rasterized PNG — rasterized via `qlmanage -t -s
+  1400`, no ImageMagick/Pillow installed). Shared "claw-mark" visual theme
+  (nods to both NanoClaw and Turbo, the cat this Mac's hostname is named
+  after): flat bold vector glyph, a distinct saturated background color per
+  source, three diagonal cream claw-scratch marks in the same corner on
+  every icon, thin warm-orange inner rim. Served unguarded at `/feed/icons/*`
+  (not sensitive, but kept under `/feed` so it's covered by the same Funnel
+  path scope). Referenced via `<itunes:image>` + the plain RSS `<image>`
+  block.
 - **Two separate public-base env vars — do not conflate them:**
   `PUBLIC_AUDIO_BASE_URL` (Tailscale host, port 4443) for `<enclosure>` URLs
   only — audio is fetched directly by the device, proven to work over

@@ -17,12 +17,13 @@ import {
   getSettings, setSetting, getPlaylists, createPlaylist, updatePlaylist, deletePlaylist,
   getExpiredAudioIds, markAudioDeleted,
   setAudioPending, setAudioGenerating, setAudioFailed, getAudioStatus, getPendingAudioIds,
+  setAudioVoice, setAudioDuration, getReadyIdsMissingDuration, getReadyArticleIdsMissingVoice,
   VideoFilter,
 } from './db';
 import { buildReaderHtml } from './reader';
 import {
   generateAudio, downloadYouTubeAudio, audioExists, audioUrl, audioDirSizeBytes, AUDIO_DIR,
-  readCachedText, audioPath,
+  readCachedText, audioPath, probeAudioDuration, SAY_VOICE,
 } from './audio';
 import { buildFeedXml } from './feed';
 
@@ -38,6 +39,48 @@ function parseVtt(vtt: string): string {
     if (clean && !seen.has(clean)) { seen.add(clean); text.push(clean); }
   }
   return text.join(' ');
+}
+
+function isYouTubeUrl(url: string): boolean {
+  return /youtube\.com|youtu\.be/.test(url);
+}
+
+// Mirrors autoDetectCategory() in public/app.js — keep in sync.
+function detectSourceKey(url: string): string {
+  if (isYouTubeUrl(url)) return 'youtube';
+  if (/arstechnica\.com/.test(url)) return 'ars_technica';
+  return 'web';
+}
+
+async function scrapeArticleMeta(url: string): Promise<{ title: string; channel_name: string } | null> {
+  try {
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15' },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return null;
+    const html = await res.text();
+
+    const ogTitle = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)?.[1];
+    const titleTag = html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1];
+    const title = decodeHtmlEntities((ogTitle || titleTag || '').trim());
+
+    const siteName = html.match(/<meta[^>]+property=["']og:site_name["'][^>]+content=["']([^"']+)["']/i)?.[1];
+    const domain = new URL(url).hostname.replace(/^www\./, '');
+    const sourceKey = detectSourceKey(url);
+    const knownSource = getSources().find(s => s.source_key === sourceKey && sourceKey !== 'web');
+    const channel_name = decodeHtmlEntities((siteName || knownSource?.display_name || domain).trim());
+
+    return title ? { title, channel_name } : null;
+  } catch {
+    return null;
+  }
+}
+
+function decodeHtmlEntities(s: string): string {
+  return s
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&#0?39;/g, "'");
 }
 
 async function fetchTranscript(url: string): Promise<string> {
@@ -133,6 +176,12 @@ app.post('/api/videos', async (req: Request, res: Response) => {
         channel_name = channel_name || data.author_name || '';
       }
     } catch {}
+  } else if (!title.trim()) {
+    const meta = await scrapeArticleMeta(url);
+    if (meta) {
+      title        = meta.title;
+      channel_name = channel_name || meta.channel_name;
+    }
   }
 
   if (!title.trim()) {
@@ -247,6 +296,9 @@ const drainQueue = async (): Promise<void> => {
     setAudioGenerating(id);
     try {
       await produceAudio(video);
+      const duration = await probeAudioDuration(id);
+      if (duration !== null) setAudioDuration(id, duration);
+      if (video.content_type === 'article') setAudioVoice(id, SAY_VOICE);
       markAudioReady(id);
       console.log('[audio] queue: generated audio for video', id);
     } catch (e) {
@@ -308,6 +360,18 @@ async function runAudioLifecycle(): Promise<void> {
     for (const id of pending) audioQueue.push(id);
     drainQueue().catch(e => console.error('[audio] queue error', e));
   }
+  // Backfill duration/voice for existing ready audio that predates these columns.
+  // Voice is a best-effort assumption (current SAY_VOICE) — historical voice isn't
+  // recoverable if it was ever changed, but it never has been.
+  const missingDuration = getReadyIdsMissingDuration();
+  for (const id of missingDuration) {
+    const duration = await probeAudioDuration(id);
+    if (duration !== null) setAudioDuration(id, duration);
+  }
+  if (missingDuration.length > 0) console.log(`[audio] backfill: probed duration for ${missingDuration.length} file(s)`);
+  const missingVoice = getReadyArticleIdsMissingVoice();
+  for (const id of missingVoice) setAudioVoice(id, SAY_VOICE);
+  if (missingVoice.length > 0) console.log(`[audio] backfill: assumed voice "${SAY_VOICE}" for ${missingVoice.length} article(s)`);
 })();
 
 setInterval(() => {
@@ -324,16 +388,16 @@ app.use('/audio', express.static(AUDIO_DIR, { maxAge: '7d' }));
 // by the same Funnel path scope, in case Overcast's crawlers fetch it directly.
 app.use('/feed/icons', express.static(path.join(__dirname, '..', 'public', 'feed-icons'), { maxAge: '7d' }));
 
-app.get('/feed/:token/videos.xml', (req: Request, res: Response) => {
+// One feed per source_key (youtube/ars_technica/web/...) rather than per
+// content_type — matches the sources table's independent per-source speed
+// settings. Adding a future source (new `sources` row + a matching icon
+// file at public/feed-icons/<source_key>.png) needs no route changes here.
+app.get('/feed/:token/:sourceKey.xml', (req: Request, res: Response) => {
   if (req.params.token !== process.env.FEED_TOKEN) { res.sendStatus(404); return; }
+  const source = getSources().find(s => s.source_key === req.params.sourceKey);
+  if (!source) { res.sendStatus(404); return; }
   res.set('Content-Type', 'application/rss+xml; charset=utf-8');
-  res.send(buildFeedXml('video', 'Watchlist: Videos', 'videos.png'));
-});
-
-app.get('/feed/:token/articles.xml', (req: Request, res: Response) => {
-  if (req.params.token !== process.env.FEED_TOKEN) { res.sendStatus(404); return; }
-  res.set('Content-Type', 'application/rss+xml; charset=utf-8');
-  res.send(buildFeedXml('article', 'Watchlist: Articles', 'articles.png'));
+  res.send(buildFeedXml(source.source_key, source.display_name, `${source.source_key}.png`));
 });
 
 // Check / trigger audio generation
@@ -427,16 +491,24 @@ app.get('/api/audio/stats', async (_req: Request, res: Response) => {
 app.get('/api/preview', async (req: Request, res: Response) => {
   const url = req.query.url as string;
   if (!url) { res.status(400).json({ error: 'url required' }); return; }
-  try {
-    const oEmbed = await fetch(
-      `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`
-    );
-    if (!oEmbed.ok) { res.status(422).json({ error: 'not a recognised YouTube URL' }); return; }
-    const data = await oEmbed.json() as { title: string; author_name: string };
-    res.json({ title: data.title, channel_name: data.author_name });
-  } catch {
-    res.status(502).json({ error: 'could not reach YouTube' });
+
+  if (isYouTubeUrl(url)) {
+    try {
+      const oEmbed = await fetch(
+        `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`
+      );
+      if (!oEmbed.ok) { res.status(422).json({ error: 'not a recognised YouTube URL' }); return; }
+      const data = await oEmbed.json() as { title: string; author_name: string };
+      res.json({ title: data.title, channel_name: data.author_name });
+    } catch {
+      res.status(502).json({ error: 'could not reach YouTube' });
+    }
+    return;
   }
+
+  const meta = await scrapeArticleMeta(url);
+  if (!meta) { res.status(422).json({ error: 'could not fetch page metadata' }); return; }
+  res.json(meta);
 });
 
 app.delete('/api/videos/purge', (_req: Request, res: Response) => {

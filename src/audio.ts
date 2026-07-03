@@ -45,6 +45,16 @@ export async function audioExists(id: number): Promise<boolean> {
   try { await stat(audioPath(id)); return true; } catch { return false; }
 }
 
+export async function probeAudioDuration(id: number): Promise<number | null> {
+  try {
+    const { stdout } = await execFileAsync('/usr/bin/afinfo', [audioPath(id)]);
+    const match = stdout.match(/estimated duration:\s*([\d.]+)\s*sec/);
+    return match ? Math.round(parseFloat(match[1])) : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function audioDirSizeBytes(): Promise<number> {
   try {
     const files = await readdir(AUDIO_DIR);

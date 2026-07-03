@@ -130,6 +130,18 @@ if (userVersion < 3) {
   } catch (e) { db.exec('ROLLBACK'); throw e; }
 }
 
+if (userVersion < 4) {
+  db.exec('BEGIN');
+  try {
+    try { db.exec(`ALTER TABLE videos ADD COLUMN audio_voice TEXT`); } catch {}
+    try { db.exec(`ALTER TABLE videos ADD COLUMN audio_duration_seconds INTEGER`); } catch {}
+    // Nicer podcast title than the terse original — display_name has never been user-editable.
+    db.exec(`UPDATE sources SET display_name = 'Web Article' WHERE source_key = 'web' AND display_name = 'Web'`);
+    db.exec('PRAGMA user_version = 4');
+    db.exec('COMMIT');
+  } catch (e) { db.exec('ROLLBACK'); throw e; }
+}
+
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export interface Source {
@@ -177,6 +189,8 @@ export interface Video {
   audio_added_at: string | null;
   audio_expires_at: string | null;
   audio_retry_count: number;
+  audio_voice: string | null;
+  audio_duration_seconds: number | null;
   labels: VideoLabel[];
 }
 
@@ -425,13 +439,13 @@ export function purgeTrash(): number {
   return (db.prepare(`DELETE FROM videos WHERE id IN (${ph})`).run(...ids).changes as number);
 }
 
-export function getReadyAudioVideos(contentType: string): Video[] {
+export function getReadyAudioVideos(source: string): Video[] {
   const rows = db.prepare(`
     SELECT * FROM videos v
-    WHERE v.content_type = ? AND v.audio_status = 'ready'
+    WHERE v.source = ? AND v.audio_status = 'ready'
       AND NOT EXISTS (SELECT 1 FROM video_labels WHERE video_id = v.id AND label_id = 2)
     ORDER BY v.audio_added_at DESC
-  `).all(contentType) as Omit<Video, 'labels'>[];
+  `).all(source) as Omit<Video, 'labels'>[];
   return attachLabels(rows);
 }
 
@@ -492,6 +506,26 @@ export function setAudioFailed(id: number, error: string): void {
 export function getAudioStatus(id: number): { audio_status: string; audio_error: string | null } | null {
   return db.prepare('SELECT audio_status, audio_error FROM videos WHERE id = ?').get(id) as
     { audio_status: string; audio_error: string | null } | null;
+}
+
+export function setAudioVoice(id: number, voice: string): void {
+  db.prepare(`UPDATE videos SET audio_voice = ? WHERE id = ?`).run(voice, id);
+}
+
+export function setAudioDuration(id: number, seconds: number): void {
+  db.prepare(`UPDATE videos SET audio_duration_seconds = ? WHERE id = ?`).run(seconds, id);
+}
+
+export function getReadyIdsMissingDuration(): number[] {
+  return (db.prepare(
+    `SELECT id FROM videos WHERE audio_status = 'ready' AND audio_duration_seconds IS NULL`
+  ).all() as { id: number }[]).map(r => r.id);
+}
+
+export function getReadyArticleIdsMissingVoice(): number[] {
+  return (db.prepare(
+    `SELECT id FROM videos WHERE audio_status = 'ready' AND content_type = 'article' AND audio_voice IS NULL`
+  ).all() as { id: number }[]).map(r => r.id);
 }
 
 export function getPendingAudioIds(): number[] {

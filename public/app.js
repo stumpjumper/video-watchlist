@@ -850,6 +850,7 @@
   function openAddModal() {
     ['add-url', 'add-title', 'add-channel'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('add-emoji').value = '📺';
+    delete document.getElementById('add-emoji').dataset.userEdited;
     document.getElementById('add-category').value = 'youtube';
     document.getElementById('fetch-status').textContent = '';
     document.getElementById('fetch-status').className   = 'fetch-status';
@@ -888,17 +889,22 @@
     return 'web';
   }
 
+  const EMOJI_BY_SOURCE = { youtube: '📺', ars_technica: '🚀', web: '📰' };
+
   document.getElementById('add-url').addEventListener('input', () => {
     clearTimeout(fetchTimer); updateAddBtn();
     const url = document.getElementById('add-url').value.trim();
     if (!url) { setFetchStatus('', ''); return; }
     const detected = autoDetectCategory(url);
-    if (detected) document.getElementById('add-category').value = detected;
-    if (/youtube\.com|youtu\.be/.test(url)) {
-      setFetchStatus('Fetching title…', '');
-      fetchTimer = setTimeout(() => fetchPreview(url), 600);
+    if (detected) {
+      document.getElementById('add-category').value = detected;
+      const emojiEl = document.getElementById('add-emoji');
+      if (!emojiEl.dataset.userEdited) emojiEl.value = EMOJI_BY_SOURCE[detected] || '📺';
     }
+    setFetchStatus('Fetching title…', '');
+    fetchTimer = setTimeout(() => fetchPreview(url), 600);
   });
+  document.getElementById('add-emoji').addEventListener('input', e => { e.target.dataset.userEdited = '1'; });
   document.getElementById('add-title').addEventListener('input', updateAddBtn);
 
   async function fetchPreview(url) {
