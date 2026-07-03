@@ -698,8 +698,11 @@ if (CERT_DIR) {
   try {
     const key  = readFileSync(`${CERT_DIR}/server.key`);
     const cert = readFileSync(`${CERT_DIR}/server.crt`);
-    https.createServer({ key, cert }, app).listen(HTTPS_PORT, '0.0.0.0', () => {
-      console.log(`HTTPS listening on port ${HTTPS_PORT}`);
+    // '::' with dual-stack (Node doesn't set IPV6_V6ONLY) covers both IPv4 and IPv6 —
+    // '0.0.0.0' alone left the Tailscale IPv6 address unreachable, causing hangs on
+    // clients that try IPv6 first (Happy Eyeballs) before ever falling back to IPv4.
+    https.createServer({ key, cert }, app).listen(HTTPS_PORT, '::', () => {
+      console.log(`HTTPS listening on port ${HTTPS_PORT} (IPv4 + IPv6)`);
     });
   } catch (err) {
     console.error('HTTPS cert load failed — running HTTP only:', err);
