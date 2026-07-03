@@ -8,9 +8,10 @@ import { savePublishedAt } from './db';
 
 const execFileAsync = promisify(execFile);
 
-export const AUDIO_DIR = path.join(__dirname, '..', 'audio');
-export const TEXT_DIR  = path.join(__dirname, '..', 'text');
-export const SAY_VOICE = process.env.SAY_VOICE ?? 'Ava (Premium)';
+export const AUDIO_DIR  = path.join(__dirname, '..', 'audio');
+export const TEXT_DIR   = path.join(__dirname, '..', 'text');
+export const SAY_VOICE  = process.env.SAY_VOICE ?? 'Ava (Premium)';
+const YTDLP_PATH        = '/opt/homebrew/bin/yt-dlp';
 
 export function textPath(id: number): string {
   return path.join(TEXT_DIR, `${id}.txt`);
@@ -81,6 +82,17 @@ function buildAudioHeader(title?: string, publishedAt?: string | null): string {
     }
   }
   return parts.join('. ');
+}
+
+// Download audio directly from YouTube via yt-dlp (no TTS — uses the actual audio track).
+export async function downloadYouTubeAudio(id: number, url: string): Promise<void> {
+  if (!existsSync(AUDIO_DIR)) await mkdir(AUDIO_DIR, { recursive: true });
+  await execFileAsync(YTDLP_PATH, [
+    '-x', '--audio-format', 'm4a',
+    '--no-warnings', '-q',
+    '-o', path.join(AUDIO_DIR, `${id}.%(ext)s`), url,
+  ], { timeout: 5 * 60 * 1000 });
+  if (!existsSync(audioPath(id))) throw new Error('yt-dlp produced no output file');
 }
 
 export async function generateAudio(id: number, url: string, title?: string, publishedAt?: string | null): Promise<void> {

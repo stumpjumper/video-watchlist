@@ -385,14 +385,19 @@
       display: flex; align-items: center; gap: 10px;
       padding: 6px 12px 2px;
     }
-    .mp-progress-track {
-      flex: 1; height: 2px; background: rgba(255,255,255,0.07);
-      position: relative; cursor: pointer;
+    .mp-scrub {
+      -webkit-appearance: none; appearance: none;
+      flex: 1; height: 28px;
+      background: rgba(255,255,255,0.07);
+      border-radius: 2px; outline: none; border: none; padding: 0; cursor: pointer;
     }
-    .mp-progress-fill {
-      height: 100%; background: var(--accent);
-      width: 0%; will-change: width;
+    .mp-scrub::-webkit-slider-runnable-track {
+      -webkit-appearance: none; background: transparent; height: 3px;
     }
+    .mp-scrub::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 0; height: 0;
+    }
+    .mp-scrub:disabled { opacity: 0.3; cursor: default; }
     .mp-time {
       font-size: 12px; color: var(--text-muted); white-space: nowrap;
       flex-shrink: 0; font-variant-numeric: tabular-nums; min-width: 76px; text-align: right;
@@ -465,9 +470,7 @@
 <!-- Mini-player (persistent — never removed from DOM) -->
 <div id="mini-player">
   <div id="mp-progress-row">
-    <div class="mp-progress-track" id="mp-progress-track">
-      <div class="mp-progress-fill" id="mp-progress"></div>
-    </div>
+    <input type="range" id="mp-scrub" class="mp-scrub" min="0" max="1000" value="0" step="1" disabled>
     <span class="mp-time" id="mp-time"></span>
   </div>
   <div class="mp-inner">
@@ -573,6 +576,7 @@
         <select id="add-category" class="category-select" style="max-width:100%;width:100%;padding:10px 10px">
           <option value="youtube">YouTube</option>
           <option value="ars_technica">Ars Technica</option>
+          <option value="web">Web article</option>
         </select>
       </div>
     </div>

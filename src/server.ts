@@ -21,7 +21,7 @@ import {
 } from './db';
 import { buildReaderHtml } from './reader';
 import {
-  generateAudio, audioExists, audioUrl, audioDirSizeBytes, AUDIO_DIR,
+  generateAudio, downloadYouTubeAudio, audioExists, audioUrl, audioDirSizeBytes, AUDIO_DIR,
   readCachedText, audioPath,
 } from './audio';
 
@@ -147,8 +147,8 @@ app.post('/api/videos', async (req: Request, res: Response) => {
   res.status(201).json(video);
 
   const settings = getSettings();
-  if (settings.audio_on_add === 'true' && video.content_type === 'article') {
-    queueAudioGen(video.id);
+  if (settings.audio_on_add === 'true') {
+    queueAudioGen(video.id); // queueAudioGen filters to supported types
   }
 });
 
@@ -214,6 +214,15 @@ app.get('/api/videos/:id/text', async (req: Request, res: Response) => {
 const audioGenerating = new Set<number>();
 const audioFailed     = new Map<number, string>(); // id → error message
 
+// ── Audio production ──────────────────────────────────────────────────────────
+// Articles: fetch text → TTS → m4a.  YouTube videos: yt-dlp download → m4a.
+
+function produceAudio(video: { id: number; url: string; title: string; published_at: string | null; content_type: string }): Promise<void> {
+  return video.content_type === 'video'
+    ? downloadYouTubeAudio(video.id, video.url)
+    : generateAudio(video.id, video.url, video.title, video.published_at);
+}
+
 // ── Background audio generation queue ────────────────────────────────────────
 
 const audioQueue: number[] = [];
@@ -236,7 +245,7 @@ const drainQueue = async (): Promise<void> => {
     }
     setAudioGenerating(id);
     try {
-      await generateAudio(id, video.url, video.title, video.published_at);
+      await produceAudio(video);
       markAudioReady(id);
       console.log('[audio] queue: generated audio for video', id);
     } catch (e) {
@@ -259,7 +268,10 @@ const drainQueue = async (): Promise<void> => {
 
 const queueAudioGen = (id: number): void => {
   const video = getVideoById(id);
-  if (!video || video.content_type !== 'article') return;
+  if (!video) return;
+  const supported = video.content_type === 'article' ||
+    (video.content_type === 'video' && video.source === 'youtube');
+  if (!supported) return;
   if (video.audio_status === 'ready' || video.audio_status === 'generating' ||
       video.audio_status === 'pending') return;
   setAudioPending(id);
@@ -316,8 +328,10 @@ app.post('/api/videos/:id/audio', async (req: Request, res: Response) => {
     return;
   }
 
-  if (video.content_type !== 'article') {
-    res.status(422).json({ error: 'Audio generation is only supported for articles' });
+  const supported = video.content_type === 'article' ||
+    (video.content_type === 'video' && video.source === 'youtube');
+  if (!supported) {
+    res.status(422).json({ error: 'Audio not supported for this content type' });
     return;
   }
 
@@ -332,14 +346,14 @@ app.post('/api/videos/:id/audio', async (req: Request, res: Response) => {
   setAudioGenerating(id);
   res.json({ status: 'generating' });
 
-  generateAudio(id, video.url, video.title, video.published_at)
+  produceAudio(video)
     .then(() => { audioGenerating.delete(id); markAudioReady(id); })
     .catch(e => {
       audioGenerating.delete(id);
       const msg = e instanceof Error ? e.message : String(e);
       audioFailed.set(id, msg);
       setAudioFailed(id, msg);
-      console.error('[audio] generation failed for video', id, e);
+      console.error('[audio] production failed for video', id, e);
     });
 });
 

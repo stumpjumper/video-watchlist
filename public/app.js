@@ -371,9 +371,9 @@
       const labelsJson = esc(JSON.stringify(v.labels || []));
       const sel = selectedIds.has(String(v.id));
       const audioSt = v.audio_status || 'none';
-      const audioIcon = v.content_type === 'article' && !trash
+      const audioIcon = !trash && (v.content_type === 'article' || v.source === 'youtube')
         ? (audioSt === 'pending' || audioSt === 'generating'
-            ? '<span class="card-audio-icon spinning" title="Generating audio…">⚙</span>'
+            ? '<span class="card-audio-icon spinning" title="Fetching audio…">⚙</span>'
             : audioSt === 'failed'
               ? '<button class="card-audio-icon audio-failed-btn" data-id="' + v.id + '" title="Audio failed — tap for error">⚠</button>'
               : '')
@@ -491,6 +491,7 @@
         status: card.dataset.status, contentType: card.dataset.contentType || 'video',
         source: card.dataset.source || 'youtube', emoji: card.dataset.emoji || '',
         channel_name: card.dataset.channel || '', summary: card.dataset.summary || '', labels,
+        audioStatus: card.dataset.audioStatus || 'none',
       };
       openMenuModal(current);
       return;
@@ -512,15 +513,9 @@
     const url         = card.dataset.url;
     const status      = card.dataset.status;
 
-    if (contentType === 'article') {
-      if (status === 'new')
-        fetch('/api/videos/' + id + '/started', { method: 'POST' }).catch(() => {});
-      navigate('#reader/' + id);
-    } else {
-      openUrl(url);
-      if (status === 'new')
-        fetch('/api/videos/' + id + '/started', { method: 'POST' }).then(load);
-    }
+    if (status === 'new')
+      fetch('/api/videos/' + id + '/started', { method: 'POST' }).catch(() => {});
+    navigate('#reader/' + id);
   }
 
   function openMenuModal(v) {
@@ -535,8 +530,17 @@
   function buildActionBtns(status, contentType) {
     const el = document.getElementById('action-btns');
     const isArticle = contentType === 'article';
+    const audioSt = current ? current.audioStatus : 'none';
+    const audioLabel = (audioSt === 'pending' || audioSt === 'generating')
+      ? 'Fetching audio…'
+      : audioSt === 'ready' ? 'Play audio' : 'Download audio';
     el.innerHTML =
       '<button class="btn btn-muted"   id="ab-source">Open original ↗</button>' +
+      (!isArticle
+        ? '<button class="btn btn-muted" id="ab-play-audio"' +
+          (audioSt === 'pending' || audioSt === 'generating' ? ' disabled' : '') + '>' +
+          audioLabel + '</button>'
+        : '') +
       (!isArticle ? '<button class="btn btn-muted" id="ab-summary">Summary</button>' : '') +
       '<div class="modal-divider"></div>' +
       '<button class="btn btn-indigo"  id="ab-labels">Labels…</button>' +
@@ -546,6 +550,21 @@
       if (!current) return;
       const url = current.url;
       openUrl(url); closeActionModal();
+    });
+    const playAudioBtn = document.getElementById('ab-play-audio');
+    if (playAudioBtn) playAudioBtn.addEventListener('click', () => {
+      if (!current) return;
+      const id = current.id;
+      const audioSt = current.audioStatus || 'none';
+      const meta = { ...current };
+      closeActionModal();
+      if (audioSt === 'ready') {
+        // Audio ready — load into player (stay in list, use mini-player)
+        Player.load(meta);
+      } else {
+        // Not ready — navigate to reader which shows the Download Audio button
+        navigate('#reader/' + id);
+      }
     });
     const summaryBtn = document.getElementById('ab-summary');
     if (summaryBtn) summaryBtn.addEventListener('click', () => {
@@ -866,7 +885,7 @@
   function autoDetectCategory(url) {
     if (/youtube\.com|youtu\.be/.test(url))  return 'youtube';
     if (/arstechnica\.com/.test(url))        return 'ars_technica';
-    return null;
+    return 'web';
   }
 
   document.getElementById('add-url').addEventListener('input', () => {
@@ -1320,14 +1339,22 @@
         ? '<span class="badge badge-started">Started</span>'
         : '<span class="badge badge-new">New</span>';
 
+    const isYouTube = video.content_type === 'video';
+    const audioSt = video.audio_status || 'none';
     let textSection;
     if (textData && textData.text) {
       textSection = '<pre class="article-text">' + esc(textData.text) + '</pre>';
+    } else if (isYouTube && audioSt === 'ready') {
+      textSection = '<div class="article-text-empty"><p>Audio ready.</p></div>';
+    } else if (isYouTube && (audioSt === 'pending' || audioSt === 'generating')) {
+      textSection = '<div class="article-text-empty" id="reader-text-zone"><p class="reader-gen-status">Downloading audio…</p></div>';
     } else {
+      const emptyMsg = isYouTube ? '' : '<p>Generate audio to load article text.</p>';
+      const btnLabel = isYouTube ? 'Download Audio' : 'Generate Audio';
       textSection =
         '<div class="article-text-empty" id="reader-text-zone">' +
-          '<p>Generate audio to load article text.</p>' +
-          '<button class="btn btn-green" id="btn-reader-gen">Generate Audio</button>' +
+          emptyMsg +
+          '<button class="btn btn-green" id="btn-reader-gen">' + btnLabel + '</button>' +
         '</div>';
     }
 
@@ -1368,57 +1395,65 @@
         channel_name: fresh.channel_name || '',
         summary:      fresh.summary || '',
         labels:       fresh.labels || [],
+        audioStatus:  fresh.audio_status || 'none',
       };
       openMenuModal(current);
     });
 
-    const genBtn = document.getElementById('btn-reader-gen');
-    if (genBtn) {
-      genBtn.addEventListener('click', () => {
-        const zone = document.getElementById('reader-text-zone');
-        if (zone) zone.innerHTML = '<p class="reader-gen-status">Generating audio…</p>';
-        Player.triggerGenerate(id);
-
-        let textShown = false;
-        const readerPoll = setInterval(async () => {
-          if (!document.querySelector('.reader-container')) { clearInterval(readerPoll); return; }
-          try {
-            if (!textShown) {
-              const td = await fetch('/api/videos/' + id + '/text').then(r => r.json());
-              if (td && td.text) {
-                textShown = true;
-                const z = document.getElementById('reader-text-zone');
-                if (z) z.insertAdjacentHTML('afterend', '<pre class="article-text">' + esc(td.text) + '</pre>');
-              }
+    function startReaderPoll() {
+      let textShown = false;
+      const readerPoll = setInterval(async () => {
+        if (!document.querySelector('.reader-container')) { clearInterval(readerPoll); return; }
+        try {
+          if (!textShown && !isYouTube) {
+            const td = await fetch('/api/videos/' + id + '/text').then(r => r.json());
+            if (td && td.text) {
+              textShown = true;
+              const z = document.getElementById('reader-text-zone');
+              if (z) z.insertAdjacentHTML('afterend', '<pre class="article-text">' + esc(td.text) + '</pre>');
             }
-            const sd = await fetch('/api/videos/' + id + '/audio/status').then(r => r.json());
-            if (sd.status === 'ready' || sd.status === 'failed') {
-              clearInterval(readerPoll);
-              if (sd.status === 'ready') {
-                const z = document.getElementById('reader-text-zone');
-                if (z) z.remove();
-                if (!textShown) {
-                  const td = await fetch('/api/videos/' + id + '/text').then(r => r.json());
-                  if (td && td.text) {
-                    const c = document.querySelector('.reader-container');
-                    if (c) c.insertAdjacentHTML('beforeend', '<pre class="article-text">' + esc(td.text) + '</pre>');
-                  }
+          }
+          const sd = await fetch('/api/videos/' + id + '/audio/status').then(r => r.json());
+          if (sd.status === 'ready' || sd.status === 'failed') {
+            clearInterval(readerPoll);
+            if (sd.status === 'ready') {
+              const z = document.getElementById('reader-text-zone');
+              if (z) z.remove();
+              if (!isYouTube && !textShown) {
+                const td = await fetch('/api/videos/' + id + '/text').then(r => r.json());
+                if (td && td.text) {
+                  const c = document.querySelector('.reader-container');
+                  if (c) c.insertAdjacentHTML('beforeend', '<pre class="article-text">' + esc(td.text) + '</pre>');
                 }
-                // Update published date in reader meta — extraction runs during audio gen
+              }
+              if (!isYouTube) {
                 fetch('/api/videos/' + id).then(r => r.json()).then(v => {
                   if (v.published_at) {
                     const el = document.querySelector('.reader-meta .meta-date');
                     if (el) el.textContent = '✎ ' + fmtSmartDate(v.published_at);
                   }
                 }).catch(() => {});
-              } else {
-                const el = document.querySelector('.reader-gen-status');
-                if (el) { el.textContent = 'Audio generation failed.'; el.style.color = 'var(--red)'; }
               }
+            } else {
+              const el = document.querySelector('.reader-gen-status');
+              if (el) { el.textContent = 'Audio failed.'; el.style.color = 'var(--red)'; }
             }
-          } catch {}
-        }, 2000);
+          }
+        } catch {}
+      }, 2000);
+    }
+
+    const genBtn = document.getElementById('btn-reader-gen');
+    if (genBtn) {
+      genBtn.addEventListener('click', () => {
+        const zone = document.getElementById('reader-text-zone');
+        const genStatusMsg = isYouTube ? 'Downloading audio…' : 'Generating audio…';
+        if (zone) zone.innerHTML = '<p class="reader-gen-status">' + genStatusMsg + '</p>';
+        Player.triggerGenerate(id);
+        startReaderPoll();
       });
+    } else if (isYouTube && (audioSt === 'pending' || audioSt === 'generating')) {
+      startReaderPoll();
     }
 
     window.scrollTo(0, 0);

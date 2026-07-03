@@ -9,11 +9,12 @@
   document.body.appendChild(audio);
 
   // Mini-player DOM refs (set once after DOM ready)
-  let elTitle, elChannel, elProgress, elTime, elPlayPause, elSeekBack, elSeekFwd, elSpeedBadge, elInfo, elSpeedPicker;
+  let elTitle, elChannel, elScrub, elTime, elPlayPause, elSeekBack, elSeekFwd, elSpeedBadge, elInfo, elSpeedPicker;
 
   const SPEED_PRESETS = [0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
 
   // State
+  let isDragging     = false;
   let currentId      = null;
   let currentMeta    = null;   // { id, title, channel_name, emoji, source, content_type }
   let cachedStatus   = null;   // last fetched { status, url, error }
@@ -26,7 +27,7 @@
   async function init() {
     elTitle       = document.getElementById('mp-title');
     elChannel     = document.getElementById('mp-channel');
-    elProgress    = document.getElementById('mp-progress');
+    elScrub       = document.getElementById('mp-scrub');
     elTime        = document.getElementById('mp-time');
     elPlayPause   = document.getElementById('mp-play-pause');
     elSeekBack    = document.getElementById('mp-seek-back');
@@ -50,11 +51,18 @@
       }
     }, true);
 
-    // Seek by tapping progress track
-    document.getElementById('mp-progress-track').addEventListener('click', e => {
-      if (!audio.duration) return;
-      const rect = e.currentTarget.getBoundingClientRect();
-      audio.currentTime = ((e.clientX - rect.left) / rect.width) * audio.duration;
+    // Scrub bar drag handling
+    elScrub.addEventListener('input', () => {
+      isDragging = true;
+      if (audio.duration) {
+        const t = (elScrub.value / 1000) * audio.duration;
+        elTime.textContent = fmtTime(t) + ' / ' + fmtTime(audio.duration);
+        updateScrubFill(elScrub.value / 10);
+      }
+    });
+    elScrub.addEventListener('change', () => {
+      isDragging = false;
+      if (audio.duration) audio.currentTime = (elScrub.value / 1000) * audio.duration;
     });
 
     // Audio events
@@ -64,8 +72,18 @@
     audio.addEventListener('timeupdate', onTimeUpdate);
     audio.addEventListener('durationchange', onTimeUpdate);
     audio.addEventListener('error', e => {
-      console.error('[player] audio error', e);
-      updatePlayBtn();
+      if (!currentId) return;
+      console.error('[player] audio error', e, audio.error);
+      const code = audio.error ? audio.error.code : '?';
+      speak('Audio error code ' + code + '.');
+      audio.removeAttribute('src'); // clear error state so next play attempt starts fresh
+      // If audio was already downloaded, keep ▶ so user can retry — not ⬇ which implies re-downloading
+      if (cachedStatus && cachedStatus.status === 'ready') {
+        setPlayBtnIcon('paused');
+        elPlayPause.disabled = false;
+      } else {
+        setPlayBtnIcon('generate');
+      }
     });
 
     setupMediaSession();
@@ -106,6 +124,24 @@
 
   async function load(meta) {
     if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+
+    // Autoplay path: audio already started for this id — just refresh UI/meta without disrupting playback
+    if (!audio.paused && String(currentId) === String(meta.id)) {
+      currentMeta = meta;
+      const speed = sourceSpeeds[meta.source] || 1.0;
+      audio.playbackRate = speed;
+      updateSpeedBadge(speed);
+      updateMiniPlayerMeta(meta);
+      elPlayPause.disabled = false;
+      elScrub.disabled     = false;
+      elSeekBack.disabled  = false;
+      elSeekFwd.disabled   = false;
+      updatePlayBtn();
+      fetch('/api/videos/' + meta.id + '/audio/status').then(r => r.json())
+        .then(s => { cachedStatus = s; }).catch(() => {});
+      return;
+    }
+
     currentId   = meta.id;
     currentMeta = meta;
     cachedStatus = null;
@@ -113,6 +149,9 @@
     updateMiniPlayerMeta(meta);
     setPlayBtnIcon('idle');
     elTime.textContent   = '';
+    elScrub.disabled     = true;
+    elScrub.value        = 0;
+    updateScrubFill(0);
     elSeekBack.disabled  = true;
     elSeekFwd.disabled   = true;
     elPlayPause.disabled = true;
@@ -125,21 +164,22 @@
       cachedStatus = status;
       if (status.status === 'ready') {
         elPlayPause.disabled = false;
-        elSeekBack.disabled = audio.paused;
-        elSeekFwd.disabled  = audio.paused;
+        elScrub.disabled     = false;
+        elSeekBack.disabled  = audio.paused;
+        elSeekFwd.disabled   = audio.paused;
         updatePlayBtn();
       } else if (status.status === 'generating') {
         setPlayBtnIcon('generating');
         startPolling();
       } else {
-        // none / failed / deleted — show play btn so user can tap to generate
-        elPlayPause.disabled = false;
-        setPlayBtnIcon('generate');
+        // none / failed / deleted — audio not yet generated; reader button is the entry point
+        elPlayPause.disabled = true;
+        setPlayBtnIcon('generating');
       }
     } catch {
       cachedStatus = { status: 'none' };
-      elPlayPause.disabled = false;
-      setPlayBtnIcon('generate');
+      elPlayPause.disabled = true;
+      setPlayBtnIcon('generating');
     }
   }
 
@@ -153,7 +193,7 @@
       if (audio.paused) {
         // If src is already set to this video, just resume
         if (audio.src && audio.src.endsWith('/audio/' + currentId + '.m4a')) {
-          audio.play().catch(err => console.error('[player] play failed', err));
+          audio.play().catch(err => { console.error('[player] play failed', err); speak('Play failed: ' + err.message); });
         } else {
           // Set src synchronously, then play — iOS allows this
           audio.src = cachedStatus.url;
@@ -163,17 +203,15 @@
           const saved = loadSavedPosition(currentId);
           audio.play().then(() => {
             if (saved && saved < audio.duration - 2) audio.currentTime = saved;
-          }).catch(err => console.error('[player] play failed', err));
+          }).catch(err => { console.error('[player] play failed', err); speak('Play failed: ' + err.message); });
         }
+        elScrub.disabled    = false;
         elSeekBack.disabled = false;
         elSeekFwd.disabled  = false;
       } else {
         audio.pause();
         savePosition(currentId, audio.currentTime);
       }
-    } else if (!cachedStatus || cachedStatus.status !== 'generating') {
-      // Trigger audio generation
-      triggerGenerate(currentId);
     }
   }
 
@@ -215,6 +253,7 @@
           clearInterval(pollTimer); pollTimer = null;
           cachedStatus = data;
           elPlayPause.disabled = false;
+          elScrub.disabled     = false;
           updatePlayBtn();
         } else if (data.status === 'failed') {
           clearInterval(pollTimer); pollTimer = null;
@@ -262,12 +301,24 @@
     // Pre-cache items after next before navigating
     preCacheNext();
 
-    // Play beep to signal transition, then navigate
-    const beep = new Audio('/beep.wav');
-    beep.play().catch(() => {});
-    beep.addEventListener('ended', () => {
+    if (next.audio_status === 'ready') {
+      // Start next audio synchronously while still in the audio ended event context (iOS allows this)
+      currentId    = next.id;
+      currentMeta  = next;
+      cachedStatus = { status: 'ready', url: '/audio/' + next.id + '.m4a' };
+      audio.src    = cachedStatus.url;
+      audio.playbackRate = sourceSpeeds[next.source] || 1.0;
+      audio.play().catch(() => {});
+      updateMiniPlayerMeta(next);
       if (typeof navigate === 'function') navigate('#reader/' + next.id);
-    });
+    } else {
+      // Audio not ready — play beep, navigate, let user trigger generation from reader
+      const beep = new Audio('/beep.wav');
+      beep.play().catch(() => {});
+      beep.addEventListener('ended', () => {
+        if (typeof navigate === 'function') navigate('#reader/' + next.id);
+      });
+    }
   }
 
   function markFinished(id) {
@@ -297,7 +348,7 @@
   }
 
   function setPlayBtnIcon(state) {
-    const icons = { idle: '▶', paused: '▶', playing: '⏸', generating: '…', generate: '⬇' };
+    const icons = { idle: '▶', paused: '▶', playing: '⏸', generating: '…' };
     elPlayPause.textContent = icons[state] || '▶';
     elPlayPause.title = state === 'generating' ? 'Generating audio…'
       : state === 'generate'    ? 'Generate audio'
@@ -317,11 +368,21 @@
 
   function onTimeUpdate() {
     if (!audio.duration) return;
-    elProgress.style.width = (audio.currentTime / audio.duration * 100) + '%';
+    if (!isDragging) {
+      const pct = audio.currentTime / audio.duration;
+      elScrub.value = Math.round(pct * 1000);
+      updateScrubFill(pct * 100);
+    }
     elTime.textContent = fmtTime(audio.currentTime) + ' / ' + fmtTime(audio.duration);
     if (Math.round(audio.currentTime) % 5 === 0 && currentId) {
       savePosition(currentId, audio.currentTime);
     }
+  }
+
+  function updateScrubFill(pct) {
+    const p = pct.toFixed(1);
+    elScrub.style.background =
+      'linear-gradient(to right, var(--accent) 0%, var(--accent) ' + p + '%, rgba(255,255,255,0.07) ' + p + '%, rgba(255,255,255,0.07) 100%)';
   }
 
   // ── Position persistence ─────────────────────────────────────────────────────
