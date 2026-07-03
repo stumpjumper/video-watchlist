@@ -320,16 +320,20 @@ app.use('/audio', express.static(AUDIO_DIR, { maxAge: '7d' }));
 // ── Podcast feed (Overcast) ─────────────────────────────────────────────────
 // Token-gated, publicly exposed only via Tailscale Funnel on /feed/*.
 // 404 (not 403) on a bad token so the route's existence isn't confirmed to scanners.
+// Artwork is unguarded (not sensitive) but stays under /feed so it's covered
+// by the same Funnel path scope, in case Overcast's crawlers fetch it directly.
+app.use('/feed/icons', express.static(path.join(__dirname, '..', 'public', 'feed-icons'), { maxAge: '7d' }));
+
 app.get('/feed/:token/videos.xml', (req: Request, res: Response) => {
   if (req.params.token !== process.env.FEED_TOKEN) { res.sendStatus(404); return; }
   res.set('Content-Type', 'application/rss+xml; charset=utf-8');
-  res.send(buildFeedXml('video', 'Watchlist: Videos'));
+  res.send(buildFeedXml('video', 'Watchlist: Videos', 'videos.png'));
 });
 
 app.get('/feed/:token/articles.xml', (req: Request, res: Response) => {
   if (req.params.token !== process.env.FEED_TOKEN) { res.sendStatus(404); return; }
   res.set('Content-Type', 'application/rss+xml; charset=utf-8');
-  res.send(buildFeedXml('article', 'Watchlist: Articles'));
+  res.send(buildFeedXml('article', 'Watchlist: Articles', 'articles.png'));
 });
 
 // Check / trigger audio generation

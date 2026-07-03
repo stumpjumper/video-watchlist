@@ -3,6 +3,11 @@ import { getReadyAudioVideos } from './db';
 import { audioUrl, audioPath } from './audio';
 
 const PUBLIC_AUDIO_BASE_URL = process.env.PUBLIC_AUDIO_BASE_URL ?? 'https://turbo.taild6cb04.ts.net:4443';
+// Distinct from PUBLIC_AUDIO_BASE_URL: audio enclosures are fetched directly by the
+// device (proven to work over Tailscale-only), but the feed XML and its referenced
+// artwork may be fetched by Overcast's own crawler infrastructure, which can only
+// reach the public Funnel hostname (no port — Funnel serves on 443).
+const PUBLIC_FEED_BASE_URL = process.env.PUBLIC_FEED_BASE_URL ?? 'https://turbo.taild6cb04.ts.net';
 
 function escapeXml(s: string): string {
   return s
@@ -13,8 +18,9 @@ function escapeXml(s: string): string {
     .replace(/'/g, '&apos;');
 }
 
-export function buildFeedXml(contentType: string, channelTitle: string): string {
+export function buildFeedXml(contentType: string, channelTitle: string, iconFile: string): string {
   const videos = getReadyAudioVideos(contentType);
+  const imageUrl = `${PUBLIC_FEED_BASE_URL}/feed/icons/${iconFile}`;
 
   const items = videos.map(v => {
     let length = 0;
@@ -38,10 +44,16 @@ export function buildFeedXml(contentType: string, channelTitle: string): string 
 <rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
 <channel>
   <title>${escapeXml(channelTitle)}</title>
-  <link>${PUBLIC_AUDIO_BASE_URL}</link>
+  <link>${PUBLIC_FEED_BASE_URL}</link>
   <description>${escapeXml(channelTitle)} — personal watchlist feed</description>
   <language>en-us</language>
-  <itunes:explicit>false</itunes:explicit>${items}
+  <itunes:explicit>false</itunes:explicit>
+  <itunes:image href="${escapeXml(imageUrl)}"/>
+  <image>
+    <url>${escapeXml(imageUrl)}</url>
+    <title>${escapeXml(channelTitle)}</title>
+    <link>${PUBLIC_FEED_BASE_URL}</link>
+  </image>${items}
 </channel>
 </rss>
 `;

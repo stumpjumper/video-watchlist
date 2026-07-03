@@ -95,20 +95,30 @@ nothing has been removed.
   (`server.ts`, near the `/audio` static route) — token-gated (`FEED_TOKEN`
   env var, compared against `:token`; wrong/missing token → `404`, not
   `403`, so the route's existence isn't confirmed to scanners).
-- `src/feed.ts` — `buildFeedXml(contentType, channelTitle)` hand-rolls RSS
-  2.0 + iTunes-namespace XML from `getReadyAudioVideos()` (`db.ts`, filters
-  `audio_status='ready'` + excludes Trash-labeled videos). Two feeds split
-  by `content_type` (`video`/`article`) rather than one unified feed, so
-  Overcast's per-podcast speed setting can mirror the existing per-source
+- `src/feed.ts` — `buildFeedXml(contentType, channelTitle, iconFile)` hand-rolls
+  RSS 2.0 + iTunes-namespace XML from `getReadyAudioVideos()` (`db.ts`,
+  filters `audio_status='ready'` + excludes Trash-labeled videos). Two feeds
+  split by `content_type` (`video`/`article`) rather than one unified feed,
+  so Overcast's per-podcast speed setting can mirror the existing per-source
   `default_speed` distinction in the `sources` table.
-- **Exposure model:** only the feed XML needs to be reachable from the
-  public internet — Overcast's feed *polling* goes through Overcast's own
-  centralized crawler servers, but audio *file* downloads are initiated
-  directly by the device and were confirmed working over the existing
-  Tailscale HTTPS endpoint (`https://turbo.taild6cb04.ts.net:4443`) even
-  off home Wi-Fi. So `<enclosure>` URLs stay pointed at that Tailscale host
-  (`PUBLIC_AUDIO_BASE_URL` env var) — only the small feed XML endpoint is
-  public.
+- **Artwork:** `public/feed-icons/{videos,articles}.{svg,png}` (1400×1400,
+  SVG source + rasterized PNG — rasterized via `qlmanage -t -s 1400`, no
+  ImageMagick/Pillow installed). Served unguarded at `/feed/icons/*` (not
+  sensitive, but kept under `/feed` so it's covered by the same Funnel path
+  scope). Referenced via `<itunes:image>` + the plain RSS `<image>` block.
+- **Two separate public-base env vars — do not conflate them:**
+  `PUBLIC_AUDIO_BASE_URL` (Tailscale host, port 4443) for `<enclosure>` URLs
+  only — audio is fetched directly by the device, proven to work over
+  Tailscale even off home Wi-Fi. `PUBLIC_FEED_BASE_URL` (Tailscale host, no
+  port — matches how Funnel actually serves it on 443) for `<link>` and
+  artwork URLs, since those may be fetched by Overcast's server-side
+  crawler infrastructure rather than the device, and that crawler can only
+  reach the public Funnel hostname.
+- **Exposure model:** only the feed XML (and artwork, to be safe) needs to
+  be reachable from the public internet — Overcast's feed *polling* goes
+  through Overcast's own centralized crawler servers, but audio *file*
+  downloads are initiated directly by the device. So `<enclosure>` URLs
+  stay pointed at the Tailscale-only host — only `/feed/*` is public.
 - **Public exposure via Tailscale Funnel, not launchd/a separate process:**
   `tailscale funnel --bg --set-path=/feed http://127.0.0.1:4000/feed` scopes
   *only* `/feed` to the internet-facing hostname
