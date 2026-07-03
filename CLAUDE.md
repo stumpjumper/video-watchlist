@@ -42,7 +42,7 @@ npm run dev
 
 ## Architecture notes
 
-- SQLite DB: `watchlist.db` (gitignored). Schema version tracked via `PRAGMA user_version` (currently **4**).
+- SQLite DB: `watchlist.db` (gitignored). Schema version tracked via `PRAGMA user_version` (currently **5**).
 - Labels are many-to-many. Every video has ≥1 label always. Inbox=1, Trash=2 are reserved.
 - `content_type`: `'video'` (YouTube) or `'article'`. Source examples: `'youtube'`, `'ars_technica'`, `'web'`.
 - `status`: `'new'` | `'started'` | `'finished'`
@@ -52,6 +52,7 @@ npm run dev
 - Text cache: `text/` dir (gitignored), plain text per article.
 - New tables (V3): `settings` (key/value globals), `playlists` (saved filter configs), `sources` (per-source default_speed)
 - `audio_added_at` / `audio_expires_at`: stamped by `markAudioReady()`; lifecycle cron deletes files older than 30 days on startup + every 24h
+- `audio_fetched_at` (V5): stamped once, the first time `/audio/<id>.m4a` is actually requested (almost always by Overcast) — via a small middleware ahead of the `express.static` audio route (`markAudioFetched()`, idempotent: `WHERE audio_fetched_at IS NULL`, so repeat range requests from streaming don't matter). Distinct from `audio_added_at` (generation finished) — this tracks whether a listening device has actually pulled the file, surfaced in the UI as a 🦴 badge next to the status badge on cards and in the reader view. It's a "was fetched" signal, not "was listened to" — Overcast auto-fetches the newest episode per feed regardless of whether you've chosen to listen.
 - `audio_voice` / `audio_duration_seconds` (V4): see Podcast feed section below.
 - **Add flow (`public/app.js`)**: `autoDetectCategory(url)` regex-matches the pasted URL to a `source` (`youtube`/`ars_technica`/`web`) and defaults the per-item `emoji` accordingly (📺/🚀/📰) unless the user has already hand-edited the emoji field. Title/channel auto-fill (`fetchPreview()` → `GET /api/preview`) now works for any URL, not just YouTube — non-YouTube URLs are scraped server-side for `og:title`/`<title>` and `og:site_name` (`scrapeArticleMeta()` in `server.ts`), falling back to the matched source's `sources.display_name` or the URL's hostname.
 

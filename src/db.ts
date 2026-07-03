@@ -142,6 +142,18 @@ if (userVersion < 4) {
   } catch (e) { db.exec('ROLLBACK'); throw e; }
 }
 
+if (userVersion < 5) {
+  db.exec('BEGIN');
+  try {
+    // First time the audio file was actually requested (Overcast fetching it) —
+    // distinct from audio_added_at (when generation finished). Set once, never
+    // overwritten, so repeat range requests for the same episode don't matter.
+    try { db.exec(`ALTER TABLE videos ADD COLUMN audio_fetched_at TEXT`); } catch {}
+    db.exec('PRAGMA user_version = 5');
+    db.exec('COMMIT');
+  } catch (e) { db.exec('ROLLBACK'); throw e; }
+}
+
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export interface Source {
@@ -191,6 +203,7 @@ export interface Video {
   audio_retry_count: number;
   audio_voice: string | null;
   audio_duration_seconds: number | null;
+  audio_fetched_at: string | null;
   labels: VideoLabel[];
 }
 
@@ -510,6 +523,12 @@ export function getAudioStatus(id: number): { audio_status: string; audio_error:
 
 export function setAudioVoice(id: number, voice: string): void {
   db.prepare(`UPDATE videos SET audio_voice = ? WHERE id = ?`).run(voice, id);
+}
+
+export function markAudioFetched(id: number): void {
+  db.prepare(
+    `UPDATE videos SET audio_fetched_at = strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE id = ? AND audio_fetched_at IS NULL`
+  ).run(id);
 }
 
 export function setAudioDuration(id: number, seconds: number): void {

@@ -18,6 +18,7 @@ import {
   getExpiredAudioIds, markAudioDeleted,
   setAudioPending, setAudioGenerating, setAudioFailed, getAudioStatus, getPendingAudioIds,
   setAudioVoice, setAudioDuration, getReadyIdsMissingDuration, getReadyArticleIdsMissingVoice,
+  markAudioFetched,
   VideoFilter,
 } from './db';
 import { buildReaderHtml } from './reader';
@@ -378,7 +379,16 @@ setInterval(() => {
   runAudioLifecycle().catch(e => console.error('[audio] lifecycle error:', e));
 }, 24 * 60 * 60 * 1000);
 
-// Serve generated audio files
+// Serve generated audio files. Record the first time each file is actually
+// requested (almost always Overcast) as "fetched" — a signal distinct from
+// audio_added_at (when generation finished). markAudioFetched() is a no-op
+// after the first call, so repeat range requests for the same episode
+// (common with streaming/partial downloads) don't matter.
+app.use('/audio', (req: Request, _res: Response, next) => {
+  const m = req.path.match(/^\/(\d+)\.m4a$/);
+  if (m) markAudioFetched(parseInt(m[1], 10));
+  next();
+});
 app.use('/audio', express.static(AUDIO_DIR, { maxAge: '7d' }));
 
 // ── Podcast feed (Overcast) ─────────────────────────────────────────────────

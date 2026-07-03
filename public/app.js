@@ -392,7 +392,9 @@
         '<span class="card-channel">' + esc(v.emoji) + ' ' + esc(v.channel_name) + '</span>' +
         '<span class="card-title">' + esc(v.title) + '</span>' +
         '<div class="card-footer">' +
-          '<span class="card-badge">' + badge + '</span>' +
+          '<span class="card-badge">' + badge +
+            (v.audio_fetched_at ? '<span class="fetched-icon" title="Fetched by Overcast">🦴</span>' : '') +
+          '</span>' +
           '<div class="card-dates">' +
             '<span class="card-date-item">✎ ' + fmtSmartDate(v.published_at) + '</span>' +
             '<span class="card-date-item">↓ ' + fmtSmartDate(v.added_at) + '</span>' +
@@ -1378,6 +1380,7 @@
             '<span class="meta-date">✎ ' + fmtSmartDate(video.published_at) + '</span>' +
             '<span class="meta-date">↓ ' + fmtSmartDate(video.added_at) + '</span>' +
             badge +
+            (video.audio_fetched_at ? '<span class="fetched-icon" title="Fetched by Overcast">🦴</span>' : '') +
           '</div>' +
         '</div>' +
         textSection +
