@@ -66,7 +66,8 @@ export function buildFeedXml(sourceKey: string, channelTitle: string, iconFile: 
     let length = 0;
     try { length = statSync(audioPath(v.id)).size; } catch {}
 
-    const pubDate = v.audio_added_at ? new Date(v.audio_added_at).toUTCString() : new Date().toUTCString();
+    // Creation date, not added date — Overcast sorts episodes by pubDate.
+    const pubDate = new Date(v.published_at ?? v.added_at).toUTCString();
     const enclosureUrl = `${PUBLIC_AUDIO_BASE_URL}${audioUrl(v.id)}`;
     const duration = formatDuration(v.audio_duration_seconds);
     const description = buildDescription(v, length, v.audio_duration_seconds);

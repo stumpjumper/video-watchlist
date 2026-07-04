@@ -46,7 +46,7 @@ npm run dev
 - Labels are many-to-many. Every video has ≥1 label always. Inbox=1, Trash=2 are reserved.
 - `content_type`: `'video'` (YouTube) or `'article'`. Source examples: `'youtube'`, `'ars_technica'`, `'web'`.
 - `status`: `'new'` | `'started'` | `'finished'`
-- `published_at`: article publication date (ISO 8601), populated during audio generation (`fetchAndCacheText`). Null until first audio is generated.
+- `published_at`: creation date (ISO 8601) — article publication date or YouTube upload date. Populated during audio generation for both types (`fetchAndCacheText` for articles; `yt-dlp --print` during `downloadYouTubeAudio` for videos). Null until first audio is generated, or when the source page exposes no date. The podcast feed's `<pubDate>` is `published_at ?? added_at` — Overcast sorts by it, so episodes sort by creation date, falling back to added date.
 - `audio_status`: `'none'` | `'pending'` | `'generating'` | `'ready'` | `'failed'` | `'deleted'`
 - Audio files: `audio/` dir (gitignored), ~1MB per article M4A.
 - Text cache: `text/` dir (gitignored), plain text per article.

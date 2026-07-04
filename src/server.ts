@@ -18,13 +18,14 @@ import {
   getExpiredAudioIds, markAudioDeleted,
   setAudioPending, setAudioGenerating, setAudioFailed, getAudioStatus, getPendingAudioIds,
   setAudioVoice, setAudioDuration, getReadyIdsMissingDuration, getReadyArticleIdsMissingVoice,
+  getReadyMissingPublishedAt, savePublishedAt,
   markAudioFetched,
   VideoFilter,
 } from './db';
 import { buildReaderHtml } from './reader';
 import {
   generateAudio, downloadYouTubeAudio, audioExists, audioUrl, audioDirSizeBytes, AUDIO_DIR,
-  readCachedText, audioPath, probeAudioDuration, SAY_VOICE,
+  readCachedText, audioPath, probeAudioDuration, probePublishedAt, SAY_VOICE,
 } from './audio';
 import { buildFeedXml } from './feed';
 
@@ -373,6 +374,16 @@ async function runAudioLifecycle(): Promise<void> {
   const missingVoice = getReadyArticleIdsMissingVoice();
   for (const id of missingVoice) setAudioVoice(id, SAY_VOICE);
   if (missingVoice.length > 0) console.log(`[audio] backfill: assumed voice "${SAY_VOICE}" for ${missingVoice.length} article(s)`);
+  // Backfill published_at for ready items that predate its capture — the
+  // podcast feed sorts by it now. Best-effort; items whose date can't be
+  // determined keep falling back to added_at in the feed.
+  const missingPublished = getReadyMissingPublishedAt();
+  let publishedFilled = 0;
+  for (const v of missingPublished) {
+    const publishedAt = await probePublishedAt(v.url, v.content_type);
+    if (publishedAt) { savePublishedAt(v.id, publishedAt); publishedFilled++; }
+  }
+  if (missingPublished.length > 0) console.log(`[audio] backfill: published_at for ${publishedFilled}/${missingPublished.length} item(s)`);
 })();
 
 setInterval(() => {

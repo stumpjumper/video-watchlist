@@ -547,6 +547,12 @@ export function getReadyArticleIdsMissingVoice(): number[] {
   ).all() as { id: number }[]).map(r => r.id);
 }
 
+export function getReadyMissingPublishedAt(): { id: number; url: string; content_type: string }[] {
+  return db.prepare(
+    `SELECT id, url, content_type FROM videos WHERE audio_status = 'ready' AND published_at IS NULL`
+  ).all() as { id: number; url: string; content_type: string }[];
+}
+
 export function getPendingAudioIds(): number[] {
   return (db.prepare(
     `SELECT id FROM videos WHERE audio_status = 'pending' ORDER BY added_at ASC`

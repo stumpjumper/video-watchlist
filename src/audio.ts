@@ -97,12 +97,36 @@ function buildAudioHeader(title?: string, publishedAt?: string | null): string {
 // Download audio directly from YouTube via yt-dlp (no TTS — uses the actual audio track).
 export async function downloadYouTubeAudio(id: number, url: string): Promise<void> {
   if (!existsSync(AUDIO_DIR)) await mkdir(AUDIO_DIR, { recursive: true });
-  await execFileAsync(YTDLP_PATH, [
+  // --print emits upload_date during the same download (--no-simulate keeps
+  // the download happening); it still prints under -q.
+  const { stdout } = await execFileAsync(YTDLP_PATH, [
     '-x', '--audio-format', 'm4a',
     '--no-warnings', '-q',
+    '--no-simulate', '--print', '%(upload_date>%Y-%m-%d)s',
     '-o', path.join(AUDIO_DIR, `${id}.%(ext)s`), url,
   ], { timeout: 5 * 60 * 1000 });
   if (!existsSync(audioPath(id))) throw new Error('yt-dlp produced no output file');
+  const uploadDate = stdout.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(uploadDate)) savePublishedAt(id, uploadDate);
+}
+
+// Best-effort creation-date probe for backfilling items whose audio was
+// generated before published_at capture existed. Videos: yt-dlp metadata
+// only (no download). Articles: re-run the extractor for its date field.
+export async function probePublishedAt(url: string, contentType: string): Promise<string | null> {
+  try {
+    if (contentType === 'video') {
+      const { stdout } = await execFileAsync(YTDLP_PATH, [
+        '--no-warnings', '--print', '%(upload_date>%Y-%m-%d)s', url,
+      ], { timeout: 60_000 });
+      const d = stdout.trim();
+      return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null;
+    }
+    const { publishedAt } = await fetchArticleText(url);
+    return publishedAt;
+  } catch {
+    return null;
+  }
 }
 
 export async function generateAudio(id: number, url: string, title?: string, publishedAt?: string | null): Promise<void> {
