@@ -96,7 +96,7 @@ if (userVersion < 3) {
       value TEXT NOT NULL
     )`);
     db.exec(`INSERT OR IGNORE INTO settings (key, value) VALUES
-      ('audio_on_add','false'),
+      ('audio_on_add','true'),
       ('autoplay','true'),
       ('tts_voice','Ava (Premium)'),
       ('pre_cache_count','3')`);
