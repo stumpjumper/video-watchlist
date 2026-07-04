@@ -56,7 +56,7 @@ npm run dev
 - `audio_voice` / `audio_duration_seconds` (V4): see Podcast feed section below.
 - **Add flow (`public/app.js`)**: `autoDetectCategory(url)` regex-matches the pasted URL to a `source` (`youtube`/`ars_technica`/`web`) and defaults the per-item `emoji` accordingly (📺/🚀/📰) unless the user has already hand-edited the emoji field. Title/channel auto-fill (`fetchPreview()` → `GET /api/preview`) now works for any URL, not just YouTube — non-YouTube URLs are scraped server-side for `og:title`/`<title>` and `og:site_name` (`scrapeArticleMeta()` in `server.ts`), falling back to the matched source's `sources.display_name` or the URL's hostname.
 
-## SPA architecture (V6 — current branch: v6-podcast-player)
+## SPA architecture (V6, built on branch `v6-podcast-player`; current branch is `overcast-feed`, layered on top — see Podcast feed section)
 
 The frontend is a Single Page Application — `index.html` loads once, `app.js` swaps `<div id=view>` content, mini-player bar is always visible. Hash-based routing: `#list`, `#reader/:id`, `#settings`, `#playlists`.
 
@@ -136,30 +136,31 @@ nothing has been removed.
   path scope). Referenced via `<itunes:image>` + the plain RSS `<image>`
   block.
 - **Two separate public-base env vars — do not conflate them:**
-  `PUBLIC_AUDIO_BASE_URL` (Tailscale host, port 4443) for `<enclosure>` URLs
-  only — audio is fetched directly by the device, proven to work over
-  Tailscale even off home Wi-Fi. `PUBLIC_FEED_BASE_URL` (Tailscale host, no
-  port — matches how Funnel actually serves it on 443) for `<link>` and
-  artwork URLs, since those may be fetched by Overcast's server-side
-  crawler infrastructure rather than the device, and that crawler can only
-  reach the public Funnel hostname.
-- **Exposure model:** only the feed XML (and artwork, to be safe) needs to
-  be reachable from the public internet — Overcast's feed *polling* goes
-  through Overcast's own centralized crawler servers, but audio *file*
-  downloads are initiated directly by the device. So `<enclosure>` URLs
-  stay pointed at the Tailscale-only host — only `/feed/*` is public.
-- **Public exposure via Tailscale Funnel, not launchd/a separate process:**
-  `tailscale funnel --bg --set-path=/feed http://127.0.0.1:4000/feed` scopes
-  *only* `/feed` to the internet-facing hostname
-  (`https://turbo.taild6cb04.ts.net/feed/...`, no port suffix); everything
-  else stays tailnet-only. This config lives in `tailscaled` itself (check
-  with `tailscale funnel status`), not in a plist — it does **not** get
-  reset by `launchctl kickstart`, but would need to be re-applied if the
-  Mac reboots and `tailscaled` loses its serve config.
-  **Do not run `tailscale funnel --bg 443`** (bare port, no `--set-path`) —
-  it silently adds a second mapping of `/` to local port 443, which is
-  currently inert (nothing listens on 443 locally) but would become a full
-  reverse proxy for the entire app the moment anything ever does.
+  `PUBLIC_AUDIO_BASE_URL` (`turbo`'s Tailscale host, port 4443) for
+  `<enclosure>` URLs only — audio is fetched directly by the device over the
+  tailnet, proven to work even off home Wi-Fi. `PUBLIC_FEED_BASE_URL`
+  (`condor`'s Tailscale host, no port) for `<link>` and artwork URLs, since
+  those are fetched by Overcast's server-side crawler infrastructure rather
+  than the device, and that crawler needs a genuinely public host.
+- **Exposure model — public ingress lives on `condor`, NOT `turbo`:**
+  `condor` (a separate Linux node on the tailnet) runs
+  `tailscale funnel --set-path=/feed` → local `systemd-socket-proxyd`
+  (`turbo-feed-proxy.socket`/`.service` on condor) → `100.104.14.6:4443`
+  (turbo's own HTTPS listener, over the tailnet). The local hop on condor is
+  required because `tailscaled` can't dial tailnet IPs directly
+  (loop-prevention fwmark) — serve backends must be localhost. **`turbo` has
+  no serve/funnel config at all and must not get one** — Funnel being
+  enabled directly on `turbo` previously made Tailscale publish public DNS
+  records for `turbo.taild6cb04.ts.net`, which broke the app for any iPhone
+  browser using iCloud Private Relay (Private Relay bypasses MagicDNS,
+  landing on the public Funnel ingress instead of the real Tailscale IP —
+  that ingress only answers on 443, so the app's `:4443` silently
+  blackholed). Audio enclosures are unaffected either way — only the feed
+  XML/artwork need public reach, and that's `condor`'s job now.
+  Gotcha if condor's Funnel config is ever touched: `tailscale funnel --bg
+  443` (bare port, no `--set-path`) silently adds a second mapping of `/` to
+  local port 443 alongside any path-scoped one — always use the same
+  `--set-path=/feed <target>` form.
 
 ## iOS quirks
 
@@ -179,7 +180,8 @@ nothing has been removed.
 - `SAY_VOICE` — override TTS voice (default: `Ava (Premium)`)
 - `CERT_DIR`, `HTTPS_PORT` — TLS config
 - `FEED_TOKEN` — required for the Overcast podcast feed routes; generate with `node -e "console.log(require('crypto').randomBytes(24).toString('hex'))"`
-- `PUBLIC_AUDIO_BASE_URL` — base URL prepended to audio enclosure links in the podcast feed (default: the Tailscale HTTPS endpoint above)
+- `PUBLIC_AUDIO_BASE_URL` — base URL prepended to audio enclosure links (default: the Tailscale HTTPS endpoint above, i.e. `turbo`)
+- `PUBLIC_FEED_BASE_URL` — base URL for `<link>`/artwork (currently `https://condor.taild6cb04.ts.net` — see Podcast feed section)
 
 ## NanoClaw
 
