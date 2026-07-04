@@ -9,3 +9,5 @@ logs/
 certs/
 README_local.md
 audio/
+text/
+__pycache__/
