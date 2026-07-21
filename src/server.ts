@@ -398,24 +398,30 @@ async function runAudioLifecycle(): Promise<void> {
     if (publishedAt) { savePublishedAt(v.id, publishedAt); publishedFilled++; }
   }
   if (missingPublished.length > 0) console.log(`[audio] backfill: published_at for ${publishedFilled}/${missingPublished.length} item(s)`);
-  // Backfill transcripts for ready videos that predate transcript capture.
-  // Paced, and aborts on a 429 — YouTube rate-limits caption-fetch bursts;
-  // whatever is left retries on the next restart (missing file = retry).
-  let transcriptsTried = 0, transcriptsGot = 0, transcriptsLimited = false;
+  await sweepMissingTranscripts();
+})();
+
+// Fetch transcripts for ready videos that don't have one (predate capture,
+// or hit a 429 when their audio was produced). Paced, and aborts on a 429 —
+// YouTube rate-limits caption-fetch bursts, sometimes for hours; runs at
+// startup and on the daily lifecycle timer, so gaps self-heal.
+async function sweepMissingTranscripts(): Promise<void> {
+  let tried = 0, got = 0, limited = false;
   for (const v of getReadyYouTubeVideos()) {
     if (await textExists(v.id)) continue;
-    transcriptsTried++;
+    tried++;
     const r = await saveYouTubeTranscript(v.id, v.url);
-    if (r === 'ok') transcriptsGot++;
-    if (r === 'ratelimited') { transcriptsLimited = true; break; }
+    if (r === 'ok') got++;
+    if (r === 'ratelimited') { limited = true; break; }
     await new Promise(res => setTimeout(res, 3000));
   }
-  if (transcriptsTried > 0) console.log(`[audio] backfill: transcripts for ${transcriptsGot}/${transcriptsTried} video(s)`
-    + (transcriptsLimited ? ' — YouTube rate-limited, remainder retries next restart' : ''));
-})();
+  if (tried > 0) console.log(`[audio] backfill: transcripts for ${got}/${tried} video(s)`
+    + (limited ? ' — YouTube rate-limited, will retry on the daily sweep' : ''));
+}
 
 setInterval(() => {
   runAudioLifecycle().catch(e => console.error('[audio] lifecycle error:', e));
+  sweepMissingTranscripts().catch(e => console.error('[audio] transcript sweep error:', e));
 }, 24 * 60 * 60 * 1000);
 
 // Serve generated audio files. Record the first time each file is actually
