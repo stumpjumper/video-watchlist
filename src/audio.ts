@@ -12,6 +12,7 @@ export const AUDIO_DIR  = path.join(__dirname, '..', 'audio');
 export const TEXT_DIR   = path.join(__dirname, '..', 'text');
 export const SAY_VOICE  = process.env.SAY_VOICE ?? 'Ava (Premium)';
 const YTDLP_PATH        = '/opt/homebrew/bin/yt-dlp';
+const BROWSER_UA        = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36';
 
 export function textPath(id: number): string {
   return path.join(TEXT_DIR, `${id}.txt`);
@@ -92,6 +93,95 @@ function buildAudioHeader(title?: string, publishedAt?: string | null): string {
     }
   }
   return parts.join('. ');
+}
+
+// ── YouTube transcripts ──────────────────────────────────────────────────────
+// Saved to text/<id>.txt — the same cache articles use, so the /api text
+// endpoint, reader display, and lifecycle deletion all apply unchanged.
+
+type CaptionFormat = { url?: string; ext?: string };
+type CaptionPool = Record<string, CaptionFormat[]>;
+
+// Prefer creator-uploaded subtitles over auto-generated captions ("transcript
+// vs CC" is one data source with two origins). Within auto captions, en-orig
+// is the untranslated ASR track.
+function pickJson3Url(info: { subtitles?: CaptionPool; automatic_captions?: CaptionPool }): string | null {
+  const fromPool = (pool: CaptionPool | undefined, prefs: string[]): string | null => {
+    if (!pool) return null;
+    const keys = Object.keys(pool);
+    const ordered = [...prefs.filter(p => keys.includes(p)),
+                     ...keys.filter(k => k.startsWith('en') && !prefs.includes(k))];
+    for (const lang of ordered) {
+      const fmt = (pool[lang] ?? []).find(f => f.ext === 'json3' && f.url);
+      if (fmt) return fmt.url!;
+    }
+    return null;
+  };
+  return fromPool(info.subtitles, ['en', 'en-US', 'en-GB'])
+      ?? fromPool(info.automatic_captions, ['en-orig', 'en']);
+}
+
+type CaptionEvent = { tStartMs?: number; aAppend?: number; segs?: { utf8?: string }[] };
+
+// Paragraphs break on speech gaps; a [m:ss] marker opens the first paragraph
+// after each 2.5-minute boundary (labeled with the actual speech time).
+function captionEventsToText(events: CaptionEvent[]): string {
+  const MARK_MS = 150_000;
+  const GAP_MS = 6_000;
+  const fmtTs = (ms: number): string => {
+    const s = Math.floor(ms / 1000);
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+    return (h > 0 ? `${h}:${String(m).padStart(2, '0')}` : String(m)) + ':' + String(sec).padStart(2, '0');
+  };
+  const paras: string[] = [];
+  let buf: string[] = [];
+  let nextMark = 0;
+  let lastStart = 0;
+  for (const e of events) {
+    if (e.aAppend || !e.segs) continue;
+    const text = e.segs.map(s => s.utf8 ?? '').join('').replace(/\s+/g, ' ').trim();
+    if (!text) continue;
+    const t = e.tStartMs ?? 0;
+    if (t >= nextMark) {
+      if (buf.length) paras.push(buf.join(' '));
+      buf = [`[${fmtTs(t)}]`];
+      nextMark = (Math.floor(t / MARK_MS) + 1) * MARK_MS;
+    } else if (t - lastStart > GAP_MS && buf.length) {
+      paras.push(buf.join(' '));
+      buf = [];
+    }
+    buf.push(text);
+    lastStart = t;
+  }
+  if (buf.length) paras.push(buf.join(' '));
+  return paras.join('\n\n');
+}
+
+// Fetch the transcript for a YouTube URL and cache it as text/<id>.txt.
+// Never throws — transcript absence/failure must not fail audio production.
+// 'ratelimited' is reported distinctly: YouTube 429s the caption endpoint
+// (IP-level, temporal) when hit in bursts; callers should back off, not
+// treat it as "video has no captions".
+export type TranscriptResult = 'ok' | 'none' | 'ratelimited';
+export async function saveYouTubeTranscript(id: number, url: string): Promise<TranscriptResult> {
+  try {
+    const { stdout } = await execFileAsync(YTDLP_PATH, ['-J', '--no-warnings', url],
+      { timeout: 120_000, maxBuffer: 100 * 1024 * 1024 });
+    const trackUrl = pickJson3Url(JSON.parse(stdout));
+    if (!trackUrl) return 'none';
+    const resp = await fetch(trackUrl, { headers: { 'User-Agent': BROWSER_UA } });
+    if (resp.status === 429) return 'ratelimited';
+    if (!resp.ok) return 'none';
+    const data = await resp.json() as { events?: CaptionEvent[] };
+    const text = captionEventsToText(data.events ?? []);
+    if (text.length < 100) return 'none';
+    await mkdir(TEXT_DIR, { recursive: true }).catch(() => {});
+    await writeFile(textPath(id), text, 'utf8');
+    return 'ok';
+  } catch (e) {
+    console.error(`[transcript] failed for ${id}: ${(e as Error).message}`);
+    return 'none';
+  }
 }
 
 // Download audio directly from YouTube via yt-dlp (no TTS — uses the actual audio track).

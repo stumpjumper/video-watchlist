@@ -18,14 +18,15 @@ import {
   getExpiredAudioIds, markAudioDeleted,
   setAudioPending, setAudioGenerating, setAudioFailed, getAudioStatus, getPendingAudioIds,
   setAudioVoice, setAudioDuration, getReadyIdsMissingDuration, getReadyArticleIdsMissingVoice,
-  getReadyMissingPublishedAt, savePublishedAt,
+  getReadyMissingPublishedAt, savePublishedAt, getReadyYouTubeVideos,
   markAudioFetched,
   VideoFilter,
 } from './db';
 import { buildReaderHtml } from './reader';
 import {
   generateAudio, downloadYouTubeAudio, audioExists, audioUrl, audioDirSizeBytes, AUDIO_DIR,
-  readCachedText, audioPath, probeAudioDuration, probePublishedAt, SAY_VOICE,
+  readCachedText, audioPath, textPath, textExists, saveYouTubeTranscript,
+  probeAudioDuration, probePublishedAt, SAY_VOICE,
 } from './audio';
 import { buildFeedXml } from './feed';
 
@@ -258,6 +259,13 @@ app.get('/api/videos/:id/text', async (req: Request, res: Response) => {
   if (!video) { res.status(404).json({ error: 'Not found' }); return; }
 
   const cached = await readCachedText(id);
+  if (req.query.download !== undefined) {
+    if (!cached) { res.status(404).json({ error: 'No text' }); return; }
+    const safe = (video.title || '').replace(/[^\w\- ]+/g, '').trim().slice(0, 60) || `watchlist-${id}`;
+    res.setHeader('Content-Disposition', `attachment; filename="${safe}.txt"`);
+    res.type('text/plain; charset=utf-8').send(cached);
+    return;
+  }
   res.json({ text: cached ?? null });
 });
 
@@ -271,7 +279,11 @@ const audioFailed     = new Map<number, string>(); // id → error message
 
 function produceAudio(video: { id: number; url: string; title: string; published_at: string | null; content_type: string }): Promise<void> {
   return video.content_type === 'video'
+    // Transcript after audio: saveYouTubeTranscript never throws, so a
+    // caption-less video still gets its audio marked ready.
     ? downloadYouTubeAudio(video.id, video.url)
+        .then(() => saveYouTubeTranscript(video.id, video.url))
+        .then(() => undefined)
     : generateAudio(video.id, video.url, video.title, video.published_at);
 }
 
@@ -340,6 +352,8 @@ async function runAudioLifecycle(): Promise<void> {
   const expired = getExpiredAudioIds();
   for (const id of expired) {
     try { await unlink(audioPath(id)); } catch {}
+    // Text (article extract / transcript) follows the same retention as audio.
+    try { await unlink(textPath(id)); } catch {}
     markAudioDeleted(id);
   }
   if (expired.length > 0) console.log(`[audio] lifecycle: deleted ${expired.length} expired file(s)`);
@@ -384,6 +398,20 @@ async function runAudioLifecycle(): Promise<void> {
     if (publishedAt) { savePublishedAt(v.id, publishedAt); publishedFilled++; }
   }
   if (missingPublished.length > 0) console.log(`[audio] backfill: published_at for ${publishedFilled}/${missingPublished.length} item(s)`);
+  // Backfill transcripts for ready videos that predate transcript capture.
+  // Paced, and aborts on a 429 — YouTube rate-limits caption-fetch bursts;
+  // whatever is left retries on the next restart (missing file = retry).
+  let transcriptsTried = 0, transcriptsGot = 0, transcriptsLimited = false;
+  for (const v of getReadyYouTubeVideos()) {
+    if (await textExists(v.id)) continue;
+    transcriptsTried++;
+    const r = await saveYouTubeTranscript(v.id, v.url);
+    if (r === 'ok') transcriptsGot++;
+    if (r === 'ratelimited') { transcriptsLimited = true; break; }
+    await new Promise(res => setTimeout(res, 3000));
+  }
+  if (transcriptsTried > 0) console.log(`[audio] backfill: transcripts for ${transcriptsGot}/${transcriptsTried} video(s)`
+    + (transcriptsLimited ? ' — YouTube rate-limited, remainder retries next restart' : ''));
 })();
 
 setInterval(() => {

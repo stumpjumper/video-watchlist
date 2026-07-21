@@ -1349,9 +1349,35 @@
 
     const isYouTube = video.content_type === 'video';
     const audioSt = video.audio_status || 'none';
+
+    function textBlockHtml(text) {
+      return '<div class="text-toolbar">' +
+          '<button class="btn-text-tool" id="btn-copy-text">Copy</button>' +
+          '<a class="btn-text-tool" href="/api/videos/' + id + '/text?download=1">Download</a>' +
+        '</div>' +
+        '<pre class="article-text">' + esc(text) + '</pre>';
+    }
+    function transcriptSectionHtml(text) {
+      return '<div class="article-text-empty"><button class="btn btn-green" id="btn-show-transcript">Show Transcript</button></div>' +
+        '<div id="transcript-wrap" hidden>' + textBlockHtml(text) + '</div>';
+    }
+    function bindTextTools(text) {
+      const cBtn = document.getElementById('btn-copy-text');
+      if (cBtn) cBtn.addEventListener('click', () => copyText(text).then(() => {
+        cBtn.textContent = 'Copied ✓';
+        setTimeout(() => { cBtn.textContent = 'Copy'; }, 1500);
+      }));
+      const tBtn = document.getElementById('btn-show-transcript');
+      if (tBtn) tBtn.addEventListener('click', () => {
+        const w = document.getElementById('transcript-wrap');
+        w.hidden = !w.hidden;
+        tBtn.textContent = w.hidden ? 'Show Transcript' : 'Hide Transcript';
+      });
+    }
+
     let textSection;
     if (textData && textData.text) {
-      textSection = '<pre class="article-text">' + esc(textData.text) + '</pre>';
+      textSection = isYouTube ? transcriptSectionHtml(textData.text) : textBlockHtml(textData.text);
     } else if (isYouTube && audioSt === 'ready') {
       textSection = '<div class="article-text-empty"><p>Audio ready.</p></div>';
     } else if (isYouTube && (audioSt === 'pending' || audioSt === 'generating')) {
@@ -1390,6 +1416,8 @@
       navigate('#list');
     });
 
+    if (textData && textData.text) bindTextTools(textData.text);
+
     document.getElementById('btn-reader-menu').addEventListener('click', async () => {
       // Fetch fresh so labels/status reflect any changes made since the reader loaded
       const fresh = await fetch('/api/videos/' + video.id).then(r => r.json()).catch(() => video);
@@ -1419,7 +1447,7 @@
             if (td && td.text) {
               textShown = true;
               const z = document.getElementById('reader-text-zone');
-              if (z) z.insertAdjacentHTML('afterend', '<pre class="article-text">' + esc(td.text) + '</pre>');
+              if (z) { z.insertAdjacentHTML('afterend', textBlockHtml(td.text)); bindTextTools(td.text); }
             }
           }
           const sd = await fetch('/api/videos/' + id + '/audio/status').then(r => r.json());
@@ -1428,11 +1456,14 @@
             if (sd.status === 'ready') {
               const z = document.getElementById('reader-text-zone');
               if (z) z.remove();
-              if (!isYouTube && !textShown) {
+              if (!textShown) {
                 const td = await fetch('/api/videos/' + id + '/text').then(r => r.json());
                 if (td && td.text) {
                   const c = document.querySelector('.reader-container');
-                  if (c) c.insertAdjacentHTML('beforeend', '<pre class="article-text">' + esc(td.text) + '</pre>');
+                  if (c) {
+                    c.insertAdjacentHTML('beforeend', isYouTube ? transcriptSectionHtml(td.text) : textBlockHtml(td.text));
+                    bindTextTools(td.text);
+                  }
                 }
               }
               if (!isYouTube) {

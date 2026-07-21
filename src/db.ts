@@ -547,6 +547,12 @@ export function getReadyArticleIdsMissingVoice(): number[] {
   ).all() as { id: number }[]).map(r => r.id);
 }
 
+export function getReadyYouTubeVideos(): { id: number; url: string }[] {
+  return db.prepare(
+    `SELECT id, url FROM videos WHERE audio_status = 'ready' AND content_type = 'video'`
+  ).all() as { id: number; url: string }[];
+}
+
 export function getReadyMissingPublishedAt(): { id: number; url: string; content_type: string }[] {
   return db.prepare(
     `SELECT id, url, content_type FROM videos WHERE audio_status = 'ready' AND published_at IS NULL`
