@@ -148,6 +148,22 @@ body {
 .label-picker-name  { font-size: 15px; color: var(--text); flex: 1; }
 .label-picker-since { font-size: 11px; color: var(--text-faint); white-space: nowrap; }
 
+/* ── File info panel ── */
+.file-info-loading { color: var(--text-muted); font-size: 14px; margin: 4px 0 12px; }
+.file-info-block   { margin: 0 0 14px; }
+.file-info-heading {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--text-faint); margin-bottom: 6px;
+}
+.file-info-row {
+  display: flex; justify-content: space-between; gap: 12px;
+  padding: 5px 0; font-size: 14px; border-bottom: 1px solid var(--border);
+}
+.file-info-row:last-child { border-bottom: none; }
+.file-info-key { color: var(--text-muted); }
+.file-info-val { color: var(--text); text-align: right; word-break: break-word; }
+.file-info-empty { color: var(--text-faint); font-size: 13px; margin: 0; }
+
 /* ── Settings page ── */
 .settings-container { max-width: 600px; margin: 0 auto; padding: 16px 16px 120px; }
 .settings-nav { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }

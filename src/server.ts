@@ -6,7 +6,7 @@ import { readFileSync } from 'fs';
 import path from 'path';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import { mkdtemp, readdir, readFile, rm, unlink } from 'fs/promises';
+import { mkdtemp, readdir, readFile, rm, stat, unlink } from 'fs/promises';
 import { tmpdir } from 'os';
 import {
   getVideos, getVideoById, addVideo, hardDelete, markStarted, markFinished, saveSummary,
@@ -267,6 +267,45 @@ app.get('/api/videos/:id/text', async (req: Request, res: Response) => {
     return;
   }
   res.json({ text: cached ?? null });
+});
+
+app.get('/api/videos/:id/fileinfo', async (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
+  const video = getVideoById(id);
+  if (!video) { res.status(404).json({ error: 'Not found' }); return; }
+
+  async function statOrNull(p: string) {
+    try {
+      const s = await stat(p);
+      return { size: s.size, mtime: s.mtime.toISOString() };
+    } catch { return null; }
+  }
+
+  const [audioStat, textStat] = await Promise.all([
+    statOrNull(audioPath(id)),
+    statOrNull(textPath(id)),
+  ]);
+
+  res.json({
+    added_at:     video.added_at,
+    published_at: video.published_at,
+    audio: audioStat && {
+      path:              path.relative(path.join(__dirname, '..'), audioPath(id)),
+      size:              audioStat.size,
+      modified_at:       audioStat.mtime,
+      generated_at:      video.audio_added_at,
+      expires_at:        video.audio_expires_at,
+      fetched_at:        video.audio_fetched_at,
+      duration_seconds:  video.audio_duration_seconds,
+      voice:             video.audio_voice,
+    },
+    text: textStat && {
+      path:        path.relative(path.join(__dirname, '..'), textPath(id)),
+      size:        textStat.size,
+      modified_at: textStat.mtime,
+    },
+  });
 });
 
 // ── Audio ────────────────────────────────────────────────────────────────────

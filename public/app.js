@@ -544,6 +544,7 @@
           audioLabel + '</button>'
         : '') +
       (!isArticle ? '<button class="btn btn-muted" id="ab-summary">Summary</button>' : '') +
+      '<button class="btn btn-muted"   id="ab-fileinfo">File Info…</button>' +
       '<div class="modal-divider"></div>' +
       '<button class="btn btn-indigo"  id="ab-labels">Labels…</button>' +
       '<button class="btn btn-cancel"  id="ab-cancel">Cancel</button>';
@@ -574,7 +575,92 @@
       const v = { ...current }; closeActionModal(); openSummaryOverlay(v);
     });
     document.getElementById('ab-labels').addEventListener('click', showLabelEditor);
+    document.getElementById('ab-fileinfo').addEventListener('click', showFileInfo);
     document.getElementById('ab-cancel').addEventListener('click', closeActionModal);
+  }
+
+  function fmtBytes(n) {
+    if (n == null) return '–';
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+    return (n / (1024 * 1024)).toFixed(2) + ' MB';
+  }
+
+  function fmtDuration(seconds) {
+    if (seconds == null) return '–';
+    const m = Math.floor(seconds / 60);
+    const s = Math.round(seconds % 60);
+    return m + ':' + String(s).padStart(2, '0');
+  }
+
+  async function showFileInfo() {
+    if (!current) return;
+    const id = current.id;
+    document.getElementById('action-modal-label').textContent = 'File info';
+    document.getElementById('action-url-row').style.display = 'none';
+    const el = document.getElementById('action-btns');
+    el.innerHTML = '<p class="file-info-loading">Loading…</p>' +
+      '<button class="btn btn-cancel" id="ab-fileinfo-back">Back</button>';
+    document.getElementById('ab-fileinfo-back').addEventListener('click', () => {
+      document.getElementById('action-url-row').style.display = '';
+      document.getElementById('action-modal-label').textContent =
+        current ? (current.emoji ? current.emoji + ' ' : '') + current.channel_name : '';
+      buildActionBtns(current.status, current.contentType);
+    });
+
+    let info;
+    try { info = await fetch('/api/videos/' + id + '/fileinfo').then(r => r.json()); }
+    catch { info = null; }
+    if (!current || current.id !== id) return; // modal moved on while we were fetching
+
+    function row(label, value) {
+      return '<div class="file-info-row"><span class="file-info-key">' + esc(label) + '</span>' +
+        '<span class="file-info-val">' + esc(value) + '</span></div>';
+    }
+
+    let html = '<div class="file-info-block">' +
+      '<div class="file-info-heading">Item</div>' +
+      row('Added to watchlist', fmtDate(info?.added_at)) +
+      row('Content created', info?.published_at ? fmtDate(info.published_at) : '–') +
+      '</div>';
+
+    if (info?.audio) {
+      const a = info.audio;
+      html += '<div class="file-info-block">' +
+        '<div class="file-info-heading">Audio file</div>' +
+        row('Location', a.path) +
+        row('Size', fmtBytes(a.size)) +
+        row('Duration', fmtDuration(a.duration_seconds)) +
+        (a.voice ? row('Voice', a.voice) : '') +
+        row('Generated', a.generated_at ? fmtDate(a.generated_at) : '–') +
+        row('Downloaded by Overcast', a.fetched_at ? fmtDate(a.fetched_at) : 'not yet') +
+        row('Expires', a.expires_at ? fmtDate(a.expires_at) : '–') +
+        '</div>';
+    } else {
+      html += '<div class="file-info-block"><div class="file-info-heading">Audio file</div>' +
+        '<p class="file-info-empty">No audio file.</p></div>';
+    }
+
+    if (info?.text) {
+      const t = info.text;
+      html += '<div class="file-info-block">' +
+        '<div class="file-info-heading">Text / transcript file</div>' +
+        row('Location', t.path) +
+        row('Size', fmtBytes(t.size)) +
+        row('Modified', fmtDate(t.modified_at)) +
+        '</div>';
+    } else {
+      html += '<div class="file-info-block"><div class="file-info-heading">Text / transcript file</div>' +
+        '<p class="file-info-empty">No text file.</p></div>';
+    }
+
+    el.innerHTML = html + '<button class="btn btn-cancel" id="ab-fileinfo-back">Back</button>';
+    document.getElementById('ab-fileinfo-back').addEventListener('click', () => {
+      document.getElementById('action-url-row').style.display = '';
+      document.getElementById('action-modal-label').textContent =
+        current ? (current.emoji ? current.emoji + ' ' : '') + current.channel_name : '';
+      buildActionBtns(current.status, current.contentType);
+    });
   }
 
   async function showLabelEditor() {
@@ -1353,7 +1439,7 @@
     function textBlockHtml(text) {
       return '<div class="text-toolbar">' +
           '<button class="btn-text-tool" id="btn-copy-text">Copy</button>' +
-          '<a class="btn-text-tool" href="/api/videos/' + id + '/text?download=1">Download</a>' +
+          '<button class="btn-text-tool" id="btn-download-text">Download</button>' +
         '</div>' +
         '<pre class="article-text">' + esc(text) + '</pre>';
     }
@@ -1372,6 +1458,19 @@
         const w = document.getElementById('transcript-wrap');
         w.hidden = !w.hidden;
         tBtn.textContent = w.hidden ? 'Show Transcript' : 'Hide Transcript';
+      });
+      const dBtn = document.getElementById('btn-download-text');
+      if (dBtn) dBtn.addEventListener('click', () => {
+        const safe = (video.title || '').replace(/[^\w\- ]+/g, '').trim().slice(0, 60) || ('watchlist-' + id);
+        const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = safe + '.txt';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
       });
     }
 
