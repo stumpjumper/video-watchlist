@@ -6,9 +6,9 @@ Personal video/article watchlist server. Adopted from Claude on 2026-08-15 (form
 
 ## Stack
 
-- Node + TypeScript via `tsx` (no build step): `npm start` / `npm run dev` / `npm test` (`tsx --test src/ingest/*.test.ts`)
+- Node + TypeScript via `tsx` (no build step): `npm start` / `npm run dev` / `npm test` (`tsx --test src/ingest/*.test.ts src/feed.test.ts`)
 - Express, SQLite (`watchlist.db`, schema `PRAGMA user_version` = 6), plain HTML/CSS/JS SPA
-- Live branch: **`overcast-feed`**. Do not treat `main` as live.
+- Live branch: **`main`**. `overcast-feed` landed (Overcast RSS + X + web ingest) and is no longer the home for new work.
 
 ## URLs / ports
 

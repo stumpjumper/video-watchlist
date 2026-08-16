@@ -58,7 +58,7 @@ npm run dev
 - `audio_voice` / `audio_duration_seconds` (V4): see Podcast feed section below.
 - **Add flow (`public/app.js`)**: `autoDetectCategory(url)` is a client hint; the server classifies in `src/ingest` (`youtube`/`x`/`ars_technica`/`web`) and overwrites those. Emoji defaults 📺/𝕏/🚀/📰 unless the user has already hand-edited the field. Title/channel auto-fill (`GET /api/preview`) uses the same ingest adapters — X Articles get `ArticleEntity.title` + `@handle`, not og:title. Preview failures return `{ error, code, retryable }` so the add modal can say why.
 
-## SPA architecture (V6, built on branch `v6-podcast-player`; current branch is `overcast-feed`, layered on top — see Podcast feed section)
+## SPA architecture (V6, built on branch `v6-podcast-player`; Overcast feeds landed from `overcast-feed` onto `main` — see Podcast feed section)
 
 The frontend is a Single Page Application — `index.html` loads once, `app.js` swaps `<div id=view>` content, mini-player bar is always visible. Hash-based routing: `#list`, `#reader/:id`, `#settings`, `#playlists`.
 
@@ -90,11 +90,10 @@ All content types (YouTube, article, web) tap → `#reader/:id`. The reader load
 
 ## Podcast feed (Overcast)
 
-Branch `overcast-feed` (off `v6-podcast-player`) adds a parallel consumption
-path: a personal RSS feed that Overcast (iOS podcast app) subscribes to
-directly, instead of using the in-app mini-player. Purely additive — the
-mini-player still works and remains the fallback during the trial period;
-nothing has been removed.
+A personal RSS feed that Overcast (iOS podcast app) subscribes to
+directly, alongside the in-app mini-player. Landed from branch
+`overcast-feed` (off `v6-podcast-player`). Purely additive — the
+mini-player still works; nothing has been removed.
 
 - `GET /feed/:token/:sourceKey.xml` (`server.ts`, near the `/audio` static
   route) — token-gated (`FEED_TOKEN` env var, compared against `:token`;
