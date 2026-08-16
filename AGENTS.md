@@ -48,11 +48,11 @@ Cert email uses **nano’s existing OneCLI** (`/Users/nano/.local/bin/onecli`, a
 
 ## Ingest
 
-`src/ingest/` is the URL pipeline: classify → preview → extract → quality gate. Adapters: YouTube (oEmbed + yt-dlp), **X** (Relay `ArticleEntity` / `note_tweet`), Ars/web (still `scripts/extract_article.py`). Failures are `IngestError` with a human sentence + `retryable`; permanent codes (`not_article`, `http_404`, `login_wall`, `unsupported`) must not be retried.
+`src/ingest/` is the URL pipeline: classify → preview → extract → quality gate. Adapters: YouTube (oEmbed + yt-dlp), **X** (Relay `ArticleEntity` / `note_tweet`), Ars/web (JSON-LD + Mozilla Readability + trafilatura on one fetch; Ars still prefers the `post-content` container). Failures are `IngestError` with a human sentence + `retryable`; permanent codes (`not_article`, `http_404`, `login_wall`, `unsupported`, `paywall`, `too_short`, `parse_failed`) must not be retried.
 
 X status URLs are not “web articles.” Regular short posts are refused. X has its own Overcast feed (`/feed/<token>/x.xml`). Do not buy the X API or add Playwright.
 
-**Next (not started):** harden the **generic web** adapter (Readability + trafilatura + JSON-LD) behind this same interface. Do not rewrite the app. Do not add X threads / native X video unless asked.
+Do not add X threads / native X video unless asked. JS-only shells (no article in the HTML) fail `parse_failed` — do not reach for Playwright.
 
 ## Conventions
 
