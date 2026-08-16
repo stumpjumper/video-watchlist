@@ -1,0 +1,39 @@
+#!/bin/zsh
+
+CERT_DIR=/Users/nano/projects/video_watchlist/certs
+PROJECT_DIR=/Users/nano/projects/video_watchlist
+HOSTNAME=turbo.taild6cb04.ts.net
+
+# Absolute path: ~/.local/bin is not in launchd's PATH, and a bare `onecli`
+# here silently cost us the Aug 15 success email (exit 127).
+ONECLI=/Users/nano/.local/bin/onecli
+
+notify() {
+  (cd "$PROJECT_DIR" && "$ONECLI" run --agent videowatchlist -- node scripts/notify_cert_status.mjs "$1" "$2")
+}
+
+echo "Renewing Tailscale cert for $HOSTNAME..."
+CERT_OUTPUT=$(tailscale cert \
+  --cert-file "$CERT_DIR/server.crt" \
+  --key-file  "$CERT_DIR/server.key" \
+  "$HOSTNAME" 2>&1)
+CERT_STATUS=$?
+echo "$CERT_OUTPUT"
+
+if [ $CERT_STATUS -ne 0 ]; then
+  echo "tailscale cert failed (exit $CERT_STATUS)"
+  notify failure "tailscale cert exited $CERT_STATUS:
+$CERT_OUTPUT"
+  exit 1
+fi
+
+echo "Restarting watchlist server..."
+if ! launchctl kickstart -k "gui/$(id -u)/com.video-watchlist"; then
+  echo "launchctl kickstart failed"
+  notify failure "Cert file renewed successfully, but launchctl kickstart failed to restart the video-watchlist server. The running server may still have the old (soon-to-expire) cert loaded in memory."
+  exit 1
+fi
+
+EXPIRY=$(openssl x509 -in "$CERT_DIR/server.crt" -noout -enddate | sed 's/notAfter=//')
+echo "Done. Cert renewed and server restarted. Expires: $EXPIRY"
+notify success "New cert expires: $EXPIRY"

@@ -19,7 +19,7 @@ npm run dev
 
 - HTTP: http://localhost:4000
 - HTTPS (iPhone via Tailscale): https://turbo.taild6cb04.ts.net:4443
-- Certs in `certs/` (gitignored); renew with `~/bin/renew_tailscale_https_cert`. Auto-renews weekly via launchd (`com.tailscale-cert-renew`, Sunday 4am) and emails success/failure to Alfred via the Gmail API through a dedicated OneCLI agent (`videowatchlist`) — see `scripts/notify_cert_status.mjs`. The plist's `EnvironmentVariables` PATH **must** include `/Users/nano/.local/bin` (where `onecli` lives) — launchd's default PATH doesn't, which silently broke the notification (exit 127) while the renewal itself succeeded. 90-day cert lifetime is a Let's Encrypt/Tailscale hard limit, not configurable.
+- Certs in `certs/` (gitignored); renew with `scripts/renew_tailscale_https_cert` (symlinked as `~/bin/renew_tailscale_https_cert`, which is the path the launchd plist invokes). Auto-renews weekly via launchd (`com.tailscale-cert-renew`, Sunday 4am) and emails success/failure to Alfred via the Gmail API through a dedicated OneCLI agent (`videowatchlist`) — see `scripts/notify_cert_status.mjs`. The plist's `EnvironmentVariables` PATH **must** include `/Users/nano/.local/bin` (where `onecli` lives) — launchd's default PATH doesn't, which silently broke the notification (exit 127) while the renewal itself succeeded. 90-day cert lifetime is a Let's Encrypt/Tailscale hard limit, not configurable.
 
 ## Key files
 
