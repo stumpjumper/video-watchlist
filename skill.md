@@ -62,16 +62,18 @@ curl -s -w "\n%{http_code}" -X POST "$WATCHLIST_URL/api/videos" \
   }"
 ```
 
-For articles, `title` is always required (no auto-fetch). Do **not** include article body text — the server fetches and extracts it on demand via Trafilatura when the user requests audio.
+`title` is optional — if omitted the server previews the URL (YouTube oEmbed, X ArticleEntity, or og:title). Do **not** include article body text — the server extracts it on demand when audio is generated.
 
-Known source identifiers: `youtube`, `ars_technica`, `web`. For new sources, use a lowercase underscore slug (e.g. `the_verge`) — the UI will display it in Title Case automatically.
+Known source identifiers: `youtube`, `ars_technica`, `x`, `web`. The server classifies youtube / x.com / arstechnica from the URL and overwrites those; other slugs you send are kept. For a new site, use a lowercase underscore slug (e.g. `the_verge`) — the UI will display it in Title Case automatically.
+
+X articles use a status URL (`https://x.com/{user}/status/{id}`). Regular short posts are refused at audio time (`not_article`) — only Articles and long Premium posts become audio.
 
 Success: HTTP 201 with the new item record as JSON. Notable response fields:
 - `id` — integer; use this to reference the item in subsequent API calls
 - `audio_status` — `none` | `pending` | `generating` | `ready` | `failed`; if `audio_on_add` is enabled on the server, YouTube and article items will begin audio production immediately after add and this field will reflect it
 
 Errors:
-- HTTP 400 — missing `url`, or `title` was not provided (articles never auto-fetch)
+- HTTP 400 — missing `url`, or `title` was not provided and preview also failed (error string explains why)
 - Connection refused / HTTP 5xx — server is unavailable; treat as a soft failure
 
 ## Handling the response

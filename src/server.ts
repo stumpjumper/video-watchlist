@@ -29,6 +29,10 @@ import {
   probeAudioDuration, probePublishedAt, SAY_VOICE,
 } from './audio';
 import { buildFeedXml } from './feed';
+import {
+  previewUrl, resolveSource, EMOJI_BY_SOURCE,
+  IngestError, formatFailure, isRetryableFailure,
+} from './ingest';
 
 const execFileAsync = promisify(execFile);
 
@@ -42,48 +46,6 @@ function parseVtt(vtt: string): string {
     if (clean && !seen.has(clean)) { seen.add(clean); text.push(clean); }
   }
   return text.join(' ');
-}
-
-function isYouTubeUrl(url: string): boolean {
-  return /youtube\.com|youtu\.be/.test(url);
-}
-
-// Mirrors autoDetectCategory() in public/app.js — keep in sync.
-function detectSourceKey(url: string): string {
-  if (isYouTubeUrl(url)) return 'youtube';
-  if (/arstechnica\.com/.test(url)) return 'ars_technica';
-  return 'web';
-}
-
-async function scrapeArticleMeta(url: string): Promise<{ title: string; channel_name: string } | null> {
-  try {
-    const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15' },
-      signal: AbortSignal.timeout(8000),
-    });
-    if (!res.ok) return null;
-    const html = await res.text();
-
-    const ogTitle = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)?.[1];
-    const titleTag = html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1];
-    const title = decodeHtmlEntities((ogTitle || titleTag || '').trim());
-
-    const siteName = html.match(/<meta[^>]+property=["']og:site_name["'][^>]+content=["']([^"']+)["']/i)?.[1];
-    const domain = new URL(url).hostname.replace(/^www\./, '');
-    const sourceKey = detectSourceKey(url);
-    const knownSource = getSources().find(s => s.source_key === sourceKey && sourceKey !== 'web');
-    const channel_name = decodeHtmlEntities((siteName || knownSource?.display_name || domain).trim());
-
-    return title ? { title, channel_name } : null;
-  } catch {
-    return null;
-  }
-}
-
-function decodeHtmlEntities(s: string): string {
-  return s
-    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"').replace(/&#0?39;/g, "'");
 }
 
 async function fetchTranscript(url: string): Promise<string> {
@@ -162,28 +124,28 @@ app.get('/api/videos', (req: Request, res: Response) => {
 
 app.post('/api/videos', async (req: Request, res: Response) => {
   let { url, title = '', channel_name = '', emoji = '📺', summary,
-        content_type = 'video', source = 'youtube', source_metadata } = req.body ?? {};
+        content_type, source, source_metadata } = req.body ?? {};
   if (typeof url !== 'string' || !url.trim()) {
     res.status(400).json({ error: 'url is required' }); return;
   }
   url = url.trim();
 
-  if (!title.trim() && content_type === 'video') {
+  const classified = resolveSource(url, typeof source === 'string' ? source : undefined);
+  source = classified.source;
+  content_type = classified.contentType;
+  if (!String(emoji).trim() || emoji === '📺') {
+    emoji = EMOJI_BY_SOURCE[classified.source] ?? emoji;
+  }
+
+  if (!title.trim()) {
     try {
-      const oEmbed = await fetch(
-        `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`
-      );
-      if (oEmbed.ok) {
-        const data = await oEmbed.json() as { title: string; author_name: string };
-        title        = data.title       || '';
-        channel_name = channel_name || data.author_name || '';
+      const preview = await previewUrl(url);
+      title        = preview.title || '';
+      channel_name = channel_name || preview.channel_name || '';
+    } catch (e) {
+      if (e instanceof IngestError) {
+        res.status(400).json({ error: e.toUserString(), code: e.code }); return;
       }
-    } catch {}
-  } else if (!title.trim()) {
-    const meta = await scrapeArticleMeta(url);
-    if (meta) {
-      title        = meta.title;
-      channel_name = channel_name || meta.channel_name;
     }
   }
 
@@ -326,6 +288,13 @@ function produceAudio(video: { id: number; url: string; title: string; published
     : generateAudio(video.id, video.url, video.title, video.published_at);
 }
 
+async function finishAudioSuccess(video: { id: number; content_type: string }): Promise<void> {
+  const duration = await probeAudioDuration(video.id);
+  if (duration !== null) setAudioDuration(video.id, duration);
+  if (video.content_type === 'article') setAudioVoice(video.id, SAY_VOICE);
+  markAudioReady(video.id);
+}
+
 // ── Background audio generation queue ────────────────────────────────────────
 
 const audioQueue: number[] = [];
@@ -349,16 +318,16 @@ const drainQueue = async (): Promise<void> => {
     setAudioGenerating(id);
     try {
       await produceAudio(video);
-      const duration = await probeAudioDuration(id);
-      if (duration !== null) setAudioDuration(id, duration);
-      if (video.content_type === 'article') setAudioVoice(id, SAY_VOICE);
-      markAudioReady(id);
+      await finishAudioSuccess(video);
       console.log('[audio] queue: generated audio for video', id);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
+      const msg = formatFailure(e);
       setAudioFailed(id, msg);
       console.error('[audio] queue: failed for video', id, msg);
-      // Retry after delay if under limit
+      if (!isRetryableFailure(e)) {
+        console.error('[audio] queue: permanent failure, not retrying', id);
+        continue;
+      }
       setTimeout(() => {
         const v = getVideoById(id);
         if (v && v.audio_retry_count < QUEUE_MAX_RETRIES) {
@@ -525,13 +494,14 @@ app.post('/api/videos/:id/audio', async (req: Request, res: Response) => {
   res.json({ status: 'generating' });
 
   produceAudio(video)
-    .then(() => { audioGenerating.delete(id); markAudioReady(id); })
+    .then(() => finishAudioSuccess(video))
+    .then(() => { audioGenerating.delete(id); })
     .catch(e => {
       audioGenerating.delete(id);
-      const msg = e instanceof Error ? e.message : String(e);
+      const msg = formatFailure(e);
       audioFailed.set(id, msg);
       setAudioFailed(id, msg);
-      console.error('[audio] production failed for video', id, e);
+      console.error('[audio] production failed for video', id, msg);
     });
 });
 
@@ -584,25 +554,18 @@ app.get('/api/audio/stats', async (_req: Request, res: Response) => {
 
 app.get('/api/preview', async (req: Request, res: Response) => {
   const url = req.query.url as string;
-  if (!url) { res.status(400).json({ error: 'url required' }); return; }
+  if (!url) { res.status(400).json({ error: 'url required', code: 'bad_url' }); return; }
 
-  if (isYouTubeUrl(url)) {
-    try {
-      const oEmbed = await fetch(
-        `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`
-      );
-      if (!oEmbed.ok) { res.status(422).json({ error: 'not a recognised YouTube URL' }); return; }
-      const data = await oEmbed.json() as { title: string; author_name: string };
-      res.json({ title: data.title, channel_name: data.author_name });
-    } catch {
-      res.status(502).json({ error: 'could not reach YouTube' });
+  try {
+    const preview = await previewUrl(url);
+    res.json(preview);
+  } catch (e) {
+    if (e instanceof IngestError) {
+      res.status(422).json({ error: e.message, code: e.code, retryable: e.retryable });
+      return;
     }
-    return;
+    res.status(502).json({ error: formatFailure(e), code: 'fetch_failed' });
   }
-
-  const meta = await scrapeArticleMeta(url);
-  if (!meta) { res.status(422).json({ error: 'could not fetch page metadata' }); return; }
-  res.json(meta);
 });
 
 app.delete('/api/videos/purge', (_req: Request, res: Response) => {

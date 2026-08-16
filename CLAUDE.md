@@ -39,12 +39,13 @@ npm run dev
 | `public/beep.wav` | Short tone played before autoplay navigation |
 | `skill.md` | API reference for NanoClaw agents |
 | `src/feed.ts` | Podcast RSS feed builder (Overcast integration) |
+| `src/ingest/` | URL classify / preview / extract (YouTube, X Articles, web) |
 
 ## Architecture notes
 
-- SQLite DB: `watchlist.db` (gitignored). Schema version tracked via `PRAGMA user_version` (currently **5**).
+- SQLite DB: `watchlist.db` (gitignored). Schema version tracked via `PRAGMA user_version` (currently **6**).
 - Labels are many-to-many. Every video has ≥1 label always. Inbox=1, Trash=2 are reserved.
-- `content_type`: `'video'` (YouTube) or `'article'`. Source examples: `'youtube'`, `'ars_technica'`, `'web'`.
+- `content_type`: `'video'` (YouTube) or `'article'`. Source examples: `'youtube'`, `'ars_technica'`, `'x'`, `'web'`.
 - `status`: `'new'` | `'started'` | `'finished'`
 - `published_at`: creation date (ISO 8601) — article publication date or YouTube upload date. Populated during audio generation for both types (`fetchAndCacheText` for articles; `yt-dlp --print` during `downloadYouTubeAudio` for videos). Null until first audio is generated, or when the source page exposes no date. The podcast feed's `<pubDate>` is `published_at ?? added_at` — Overcast sorts by it, so episodes sort by creation date, falling back to added date.
 - `audio_status`: `'none'` | `'pending'` | `'generating'` | `'ready'` | `'failed'` | `'deleted'`
@@ -55,7 +56,7 @@ npm run dev
 - `audio_added_at` / `audio_expires_at`: stamped by `markAudioReady()`; lifecycle cron deletes files older than 30 days on startup + every 24h
 - `audio_fetched_at` (V5): stamped once, the first time `/audio/<id>.m4a` is actually requested (almost always by Overcast) — via a small middleware ahead of the `express.static` audio route (`markAudioFetched()`, idempotent: `WHERE audio_fetched_at IS NULL`, so repeat range requests from streaming don't matter). Distinct from `audio_added_at` (generation finished) — this tracks whether a listening device has actually pulled the file, surfaced in the UI as a 🦴 badge next to the status badge on cards and in the reader view. It's a "was fetched" signal, not "was listened to" — Overcast auto-fetches the newest episode per feed regardless of whether you've chosen to listen.
 - `audio_voice` / `audio_duration_seconds` (V4): see Podcast feed section below.
-- **Add flow (`public/app.js`)**: `autoDetectCategory(url)` regex-matches the pasted URL to a `source` (`youtube`/`ars_technica`/`web`) and defaults the per-item `emoji` accordingly (📺/🚀/📰) unless the user has already hand-edited the emoji field. Title/channel auto-fill (`fetchPreview()` → `GET /api/preview`) now works for any URL, not just YouTube — non-YouTube URLs are scraped server-side for `og:title`/`<title>` and `og:site_name` (`scrapeArticleMeta()` in `server.ts`), falling back to the matched source's `sources.display_name` or the URL's hostname.
+- **Add flow (`public/app.js`)**: `autoDetectCategory(url)` is a client hint; the server classifies in `src/ingest` (`youtube`/`x`/`ars_technica`/`web`) and overwrites those. Emoji defaults 📺/𝕏/🚀/📰 unless the user has already hand-edited the field. Title/channel auto-fill (`GET /api/preview`) uses the same ingest adapters — X Articles get `ArticleEntity.title` + `@handle`, not og:title. Preview failures return `{ error, code, retryable }` so the add modal can say why.
 
 ## SPA architecture (V6, built on branch `v6-podcast-player`; current branch is `overcast-feed`, layered on top — see Podcast feed section)
 
@@ -104,7 +105,7 @@ nothing has been removed.
   generic web articles used to share one "Articles" feed, but that lumped
   together two sources that already have independent `default_speed`
   settings. Adding a future source needs only a new `sources` row + a
-  matching `public/feed-icons/<source_key>.png` — no route changes.
+  matching `public/feed-icons/<source_key>.png` — no route changes. `x` is a first-class source (X Articles / long posts).
 - `src/feed.ts` — `buildFeedXml(sourceKey, channelTitle, iconFile)` hand-rolls
   RSS 2.0 + iTunes-namespace XML from `getReadyAudioVideos(source)` (`db.ts`,
   filters `audio_status='ready'` + excludes Trash-labeled videos).
@@ -126,7 +127,7 @@ nothing has been removed.
   Both are backfilled for pre-existing ready rows in the startup IIFE —
   voice backfill assumes the *current* `SAY_VOICE` was always used, since
   there's no historical record if it was ever changed.
-- **Artwork:** `public/feed-icons/{youtube,ars_technica,web}.{svg,png}`
+- **Artwork:** `public/feed-icons/{youtube,ars_technica,web,x}.{svg,png}`
   (1400×1400, SVG source + rasterized PNG — rasterized via `qlmanage -t -s
   1400`, no ImageMagick/Pillow installed). Shared "claw-mark" visual theme
   (nods to both NanoClaw and Turbo, the cat this Mac's hostname is named

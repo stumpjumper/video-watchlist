@@ -6,8 +6,8 @@ Personal video/article watchlist server. Adopted from Claude on 2026-08-15 (form
 
 ## Stack
 
-- Node + TypeScript via `tsx` (no build step): `npm start` / `npm run dev`
-- Express, SQLite (`watchlist.db`, schema `PRAGMA user_version` = 5), plain HTML/CSS/JS SPA
+- Node + TypeScript via `tsx` (no build step): `npm start` / `npm run dev` / `npm test` (`tsx --test src/ingest/*.test.ts`)
+- Express, SQLite (`watchlist.db`, schema `PRAGMA user_version` = 6), plain HTML/CSS/JS SPA
 - Live branch: **`overcast-feed`**. Do not treat `main` as live.
 
 ## URLs / ports
@@ -40,10 +40,19 @@ Cert email uses **nano’s existing OneCLI** (`/Users/nano/.local/bin/onecli`, a
 | `src/db.ts` | SQLite + migrations |
 | `src/audio.ts` | TTS / yt-dlp audio |
 | `src/feed.ts` | Overcast RSS |
+| `src/ingest/` | URL classify / preview / extract (YouTube, X, web) |
 | `public/app.js` | SPA router + views |
 | `public/player.js` | AudioEngine |
 | `public/sw.js` | Service worker — bump `CACHE` on static changes |
 | `skill.md` | NanoClaw HTTP API (agents consume over the network) |
+
+## Ingest
+
+`src/ingest/` is the URL pipeline: classify → preview → extract → quality gate. Adapters: YouTube (oEmbed + yt-dlp), **X** (Relay `ArticleEntity` / `note_tweet`), Ars/web (still `scripts/extract_article.py`). Failures are `IngestError` with a human sentence + `retryable`; permanent codes (`not_article`, `http_404`, `login_wall`, `unsupported`) must not be retried.
+
+X status URLs are not “web articles.” Regular short posts are refused. X has its own Overcast feed (`/feed/<token>/x.xml`). Do not buy the X API or add Playwright.
+
+**Next (not started):** harden the **generic web** adapter (Readability + trafilatura + JSON-LD) behind this same interface. Do not rewrite the app. Do not add X threads / native X video unless asked.
 
 ## Conventions
 
@@ -51,7 +60,8 @@ Cert email uses **nano’s existing OneCLI** (`/Users/nano/.local/bin/onecli`, a
 - Bind `::`, not `0.0.0.0`.
 - iOS: no real navigation to `Content-Disposition` attachments (Blob download); do not intercept audio range requests in the SW.
 - Do not commit secrets, `certs/`, or the DB.
+- Bump `public/sw.js` `CACHE` on static changes (currently `v6-audio-v9`).
 
-## Immediate next step
+## Leftovers (not urgent)
 
-Runtime cutover is done. Do not delete nano’s tree until aal has been live for a while. Remaining ops: nano LaunchAgent leftovers (Prompt B); optional NanoClaw cert dead-man’s-switch.
+Nano launchd leftover cleanup is scheduled 2026-08-23 (do not delete `/Users/nano/projects/video_watchlist` until then). Optional: NanoClaw cert dead-man’s-switch. Sources: `youtube`, `ars_technica`, `x`, `web` (one Overcast feed each).

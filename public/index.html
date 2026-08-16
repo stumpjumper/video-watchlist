@@ -276,9 +276,10 @@
     input:focus        { border-color: var(--accent); }
     input::placeholder { color: var(--text-faint); }
 
-    .fetch-status     { font-size: 12px; color: var(--text-muted); min-height: 16px; margin-top: -8px; }
+    .fetch-status     { font-size: 12px; color: var(--text-muted); min-height: 16px; margin-top: -8px; line-height: 1.35; white-space: normal; }
     .fetch-status.ok  { color: var(--green); }
     .fetch-status.err { color: var(--red); }
+    .fetch-status.warn { color: #c47b16; }
 
     .summary-modal { display: flex; flex-direction: column; max-height: 85vh; }
     @media (min-width: 600px) { .summary-modal { max-height: 80vh; } }
@@ -559,7 +560,7 @@
 
     <div class="field">
       <label for="add-url">URL</label>
-      <input type="url" id="add-url" placeholder="https://www.youtube.com/watch?v=… or article URL"
+      <input type="url" id="add-url" placeholder="YouTube, x.com article, or any article URL"
         autocomplete="off" autocorrect="off" spellcheck="false">
       <span class="fetch-status" id="fetch-status"></span>
     </div>
@@ -585,6 +586,7 @@
         <select id="add-category" class="category-select" style="max-width:100%;width:100%;padding:10px 10px">
           <option value="youtube">YouTube</option>
           <option value="ars_technica">Ars Technica</option>
+          <option value="x">X</option>
           <option value="web">Web article</option>
         </select>
       </div>

@@ -77,7 +77,7 @@
     return Promise.resolve();
   }
 
-  const CATEGORY_NAMES = { youtube: 'YouTube', ars_technica: 'Ars Technica' };
+  const CATEGORY_NAMES = { youtube: 'YouTube', ars_technica: 'Ars Technica', x: 'X', web: 'Web article' };
   function categoryDisplayName(s) {
     return CATEGORY_NAMES[s] ?? s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   }
@@ -972,12 +972,14 @@
   }
 
   function autoDetectCategory(url) {
-    if (/youtube\.com|youtu\.be/.test(url))  return 'youtube';
-    if (/arstechnica\.com/.test(url))        return 'ars_technica';
+    if (/youtube\.com|youtu\.be/.test(url))           return 'youtube';
+    if (/(?:^|\.)(?:x\.com|twitter\.com)\b/i.test(url) ||
+        /https?:\/\/(?:www\.|mobile\.)?(?:x|twitter)\.com\//i.test(url)) return 'x';
+    if (/arstechnica\.com/.test(url))                 return 'ars_technica';
     return 'web';
   }
 
-  const EMOJI_BY_SOURCE = { youtube: '📺', ars_technica: '🚀', web: '📰' };
+  const EMOJI_BY_SOURCE = { youtube: '📺', ars_technica: '🚀', web: '📰', x: '𝕏' };
 
   document.getElementById('add-url').addEventListener('input', () => {
     clearTimeout(fetchTimer); updateAddBtn();
@@ -998,12 +1000,31 @@
   async function fetchPreview(url) {
     try {
       const res = await fetch('/api/preview?url=' + encodeURIComponent(url));
-      if (!res.ok) { setFetchStatus('Could not fetch title — enter it manually', 'err'); return; }
-      const { title, channel_name } = await res.json();
-      document.getElementById('add-title').value   = title        || '';
-      document.getElementById('add-channel').value = channel_name || '';
-      setFetchStatus(title ? 'Title fetched ✓' : 'No title returned — enter it manually',
-                     title ? 'ok' : 'err');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setFetchStatus(data.error || 'Could not fetch title — enter it manually', 'err');
+        return;
+      }
+      if (data.source) {
+        const sel = document.getElementById('add-category');
+        if (sel && ![...sel.options].some(o => o.value === data.source)) {
+          const opt = document.createElement('option');
+          opt.value = data.source;
+          opt.textContent = categoryDisplayName(data.source);
+          sel.appendChild(opt);
+        }
+        if (sel) sel.value = data.source;
+        const emojiEl = document.getElementById('add-emoji');
+        if (emojiEl && !emojiEl.dataset.userEdited && data.emoji) emojiEl.value = data.emoji;
+      }
+      document.getElementById('add-title').value   = data.title        || '';
+      document.getElementById('add-channel').value = data.channel_name || '';
+      if (data.warning) {
+        setFetchStatus((data.title ? 'Title fetched. ' : '') + data.warning.message, 'warn');
+      } else {
+        setFetchStatus(data.title ? 'Title fetched ✓' : 'No title returned — enter it manually',
+                       data.title ? 'ok' : 'err');
+      }
       updateAddBtn();
     } catch { setFetchStatus('Could not fetch title — enter it manually', 'err'); }
   }
@@ -1435,6 +1456,7 @@
 
     const isYouTube = video.content_type === 'video';
     const audioSt = video.audio_status || 'none';
+    const audioErr = video.audio_error || '';
 
     function textBlockHtml(text) {
       return '<div class="text-toolbar">' +
@@ -1482,8 +1504,12 @@
     } else if (isYouTube && (audioSt === 'pending' || audioSt === 'generating')) {
       textSection = '<div class="article-text-empty" id="reader-text-zone"><p class="reader-gen-status">Downloading audio…</p></div>';
     } else {
-      const emptyMsg = isYouTube ? '' : '<p>Generate audio to load article text.</p>';
-      const btnLabel = isYouTube ? 'Download Audio' : 'Generate Audio';
+      const emptyMsg = audioSt === 'failed'
+        ? '<p class="reader-audio-status failed">' + esc(audioErr || 'Audio generation failed.') + '</p>'
+        : (isYouTube ? '' : '<p>Generate audio to load article text.</p>');
+      const btnLabel = audioSt === 'failed'
+        ? 'Try again'
+        : (isYouTube ? 'Download Audio' : 'Generate Audio');
       textSection =
         '<div class="article-text-empty" id="reader-text-zone">' +
           emptyMsg +
@@ -1574,8 +1600,22 @@
                 }).catch(() => {});
               }
             } else {
-              const el = document.querySelector('.reader-gen-status');
-              if (el) { el.textContent = 'Audio failed.'; el.style.color = 'var(--red)'; }
+              const z = document.getElementById('reader-text-zone');
+              const msg = sd.error || 'Audio generation failed.';
+              if (z) {
+                z.innerHTML = '<p class="reader-audio-status failed">' + esc(msg) + '</p>' +
+                  '<button class="btn btn-green" id="btn-reader-gen">Try again</button>';
+                const again = document.getElementById('btn-reader-gen');
+                if (again) again.addEventListener('click', () => {
+                  z.innerHTML = '<p class="reader-gen-status">' +
+                    (isYouTube ? 'Downloading audio…' : 'Generating audio…') + '</p>';
+                  Player.triggerGenerate(id);
+                  startReaderPoll();
+                });
+              } else {
+                const el = document.querySelector('.reader-gen-status');
+                if (el) { el.textContent = msg; el.style.color = 'var(--red)'; }
+              }
             }
           }
         } catch {}

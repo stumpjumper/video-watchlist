@@ -154,6 +154,16 @@ if (userVersion < 5) {
   } catch (e) { db.exec('ROLLBACK'); throw e; }
 }
 
+if (userVersion < 6) {
+  db.exec('BEGIN');
+  try {
+    db.exec(`INSERT OR IGNORE INTO sources (source_key, display_name, default_speed) VALUES
+      ('x','X',1.0)`);
+    db.exec('PRAGMA user_version = 6');
+    db.exec('COMMIT');
+  } catch (e) { db.exec('ROLLBACK'); throw e; }
+}
+
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export interface Source {

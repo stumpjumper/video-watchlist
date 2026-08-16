@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "scripts": {
     "start": "tsx src/server.ts",
-    "dev": "tsx watch src/server.ts"
+    "dev": "tsx watch src/server.ts",
+    "test": "tsx --test src/ingest/*.test.ts"
   },
   "dependencies": {
     "dotenv": "^17.4.2",

@@ -5,6 +5,7 @@ import { existsSync } from 'fs';
 import path from 'path';
 import { tmpdir } from 'os';
 import { savePublishedAt } from './db';
+import { extractDocument } from './ingest';
 
 const execFileAsync = promisify(execFile);
 
@@ -27,11 +28,14 @@ export async function readCachedText(id: number): Promise<string | null> {
 }
 
 export async function fetchAndCacheText(id: number, url: string): Promise<string> {
-  const { text, publishedAt } = await fetchArticleText(url);
+  const doc = await extractDocument(url);
+  if (doc.nativeAudio || !doc.text) {
+    throw new Error('this URL has no article text to cache');
+  }
   await mkdir(TEXT_DIR, { recursive: true }).catch(() => {});
-  await writeFile(textPath(id), text, 'utf8').catch(() => {});
-  if (publishedAt) savePublishedAt(id, publishedAt);
-  return text;
+  await writeFile(textPath(id), doc.text, 'utf8').catch(() => {});
+  if (doc.publishedAt) savePublishedAt(id, doc.publishedAt);
+  return doc.text;
 }
 
 export function audioPath(id: number): string {
@@ -67,21 +71,7 @@ export async function audioDirSizeBytes(): Promise<number> {
   } catch { return 0; }
 }
 
-async function fetchArticleText(url: string): Promise<{text: string, publishedAt: string | null}> {
-  const script = path.join(__dirname, '..', 'scripts', 'extract_article.py');
-  const { stdout } = await execFileAsync('python3', [script, url], {
-    timeout: 40_000,
-    maxBuffer: 10 * 1024 * 1024,
-  });
-  const raw = stdout.trim();
-  if (!raw) throw new Error('article extraction returned empty output');
-  try {
-    const parsed = JSON.parse(raw) as { text: string; published_at: string | null };
-    return { text: parsed.text, publishedAt: parsed.published_at ?? null };
-  } catch {
-    return { text: raw, publishedAt: null };
-  }
-}
+
 
 function buildAudioHeader(title?: string, publishedAt?: string | null): string {
   const parts: string[] = [];
@@ -212,8 +202,8 @@ export async function probePublishedAt(url: string, contentType: string): Promis
       const d = stdout.trim();
       return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null;
     }
-    const { publishedAt } = await fetchArticleText(url);
-    return publishedAt;
+    const doc = await extractDocument(url);
+    return doc.publishedAt;
   } catch {
     return null;
   }
