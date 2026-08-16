@@ -20,7 +20,7 @@ import email.utils
 from datetime import datetime
 from html.parser import HTMLParser
 
-TRAFILATURA = '/Users/nano/.local/bin/trafilatura'
+TRAFILATURA = '/Users/aal/.local/bin/trafilatura'
 UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
 MIN_TEXT_LEN = 150  # below this it's a cookie wall / error page, not an article
 

@@ -1,11 +1,12 @@
 #!/bin/zsh
 
-CERT_DIR=/Users/nano/projects/video_watchlist/certs
-PROJECT_DIR=/Users/nano/projects/video_watchlist
+CERT_DIR=/Users/aal/projects/grok_video_watchlist/certs
+PROJECT_DIR=/Users/aal/projects/grok_video_watchlist
 HOSTNAME=turbo.taild6cb04.ts.net
 
-# Absolute path: ~/.local/bin is not in launchd's PATH, and a bare `onecli`
-# here silently cost us the Aug 15 success email (exit 127).
+# Absolute path: launchd PATH has no ~/.local/bin (Aug 15 notify died 127).
+# Reuse nano's existing OneCLI install + videowatchlist agent (no second gateway).
+# aal only needs ~/.onecli/config.json pointing at http://127.0.0.1:10254.
 ONECLI=/Users/nano/.local/bin/onecli
 
 notify() {
