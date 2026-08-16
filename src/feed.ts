@@ -43,6 +43,15 @@ function audioSourceLabel(v: Video): string {
   return v.audio_voice ? `Text-to-speech (${v.audio_voice})` : 'Text-to-speech';
 }
 
+/** Overcast playlists only show <title>, so put the channel there. DB title is unchanged. */
+export function feedItemTitle(channelName: string, title: string): string {
+  const channel = (channelName || '').trim();
+  const t = (title || '').trim();
+  if (!channel) return t;
+  if (t.toLowerCase().startsWith(channel.toLowerCase())) return t;
+  return `${channel} · ${t}`;
+}
+
 function buildDescription(v: Video, size: number, duration: number | null): string {
   const lines: string[] = [];
   lines.push(`<p><strong>Channel/Source:</strong> ${escapeXml(v.channel_name || v.source)}</p>`);
@@ -78,7 +87,7 @@ export function buildFeedXml(sourceKey: string, channelTitle: string, iconFile: 
 
     return `
     <item>
-      <title>${escapeXml(v.title)}</title>
+      <title>${escapeXml(feedItemTitle(v.channel_name, v.title))}</title>
       <guid isPermaLink="false">wl-${v.id}</guid>
       <pubDate>${pubDate}</pubDate>
       <itunes:author>${escapeXml(v.channel_name || v.source)}</itunes:author>

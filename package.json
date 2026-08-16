@@ -4,7 +4,7 @@
   "scripts": {
     "start": "tsx src/server.ts",
     "dev": "tsx watch src/server.ts",
-    "test": "tsx --test src/ingest/*.test.ts"
+    "test": "tsx --test src/ingest/*.test.ts src/feed.test.ts"
   },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
