@@ -1,0 +1,36 @@
+#!/bin/zsh
+# Daily Homebrew upgrade of yt-dlp only. Already-current is a no-op (no email).
+# Emails via nano's OneCLI agent `videowatchlist` on upgrade or failure.
+
+set -euo pipefail
+
+PROJECT_DIR=/Users/aal/projects/grok_video_watchlist
+export HOME=/Users/aal
+export PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin
+export HOMEBREW_NO_ENV_HINTS=1
+
+# Absolute path: launchd PATH has no ~/.local/bin (same gotcha as cert renew).
+ONECLI=/Users/nano/.local/bin/onecli
+
+notify() {
+  (cd "$PROJECT_DIR" && "$ONECLI" run --agent videowatchlist -- node scripts/notify_ytdlp_status.mjs "$1" "$2")
+}
+
+old=$(/opt/homebrew/bin/yt-dlp --version 2>/dev/null || echo unknown)
+echo "$(date): yt-dlp ${old} — checking for upgrade"
+
+if ! out=$(/opt/homebrew/bin/brew upgrade yt-dlp 2>&1); then
+  echo "$out"
+  notify failure "brew upgrade yt-dlp failed (was ${old}):
+$out"
+  exit 1
+fi
+echo "$out"
+
+new=$(/opt/homebrew/bin/yt-dlp --version 2>/dev/null || echo unknown)
+if [[ "$old" != "$new" ]]; then
+  echo "$(date): upgraded ${old} -> ${new}"
+  notify success "${old} -> ${new}"
+else
+  echo "$(date): already current (${new})"
+fi

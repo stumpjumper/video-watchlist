@@ -6,7 +6,7 @@ Personal video/article watchlist server. Adopted from Claude on 2026-08-15 (form
 
 ## Stack
 
-- Node + TypeScript via `tsx` (no build step): `npm start` / `npm run dev` / `npm test` (`tsx --test src/ingest/*.test.ts src/feed.test.ts src/lifecycle.test.ts`)
+- Node + TypeScript via `tsx` (no build step): `npm start` / `npm run dev` / `npm test` (`tsx --test src/ingest/*.test.ts src/feed.test.ts src/lifecycle.test.ts src/audio.test.ts`)
 - Express, SQLite (`watchlist.db`, schema `PRAGMA user_version` = 9), plain HTML/CSS/JS SPA
 - Live branch: **`main`**.
 
@@ -28,7 +28,9 @@ launchd as aal: `gui/502/com.video-watchlist`. Restart: `launchctl kickstart -k 
 
 Cert renew: `scripts/renew_tailscale_https_cert` (aal cert/project paths), invoked via `~/bin/renew_tailscale_https_cert`. Agent `com.tailscale-cert-renew`, Sunday 4am. LaunchAgent PATH must include `/Users/aal/.local/bin`.
 
-Cert email uses **nano’s existing OneCLI** (`/Users/nano/.local/bin/onecli`, agent `videowatchlist`, gateway on localhost:10254). Do not install a second OneCLI. aal only has `~/.onecli/config.json` pointing at that API. If nano’s OneCLI/Docker/gateway stops, notify stops.
+yt-dlp: Homebrew `/opt/homebrew/bin/yt-dlp`. Daily upgrade `com.ytdlp-upgrade` at 5:00 (`scripts/upgrade_ytdlp`). Plist lives at `scripts/com.ytdlp-upgrade.plist` — copy to `~/Library/LaunchAgents/`. Emails on version change or brew failure, not when already current. Hardcoded path in `src/audio.ts`; no server restart after upgrade.
+
+Cert / yt-dlp email uses **nano’s existing OneCLI** (`/Users/nano/.local/bin/onecli`, agent `videowatchlist`, gateway on localhost:10254). Do not install a second OneCLI. aal only has `~/.onecli/config.json` pointing at that API. If nano’s OneCLI/Docker/gateway stops, notify stops.
 
 Web extract uses `/Users/aal/.local/bin/trafilatura` (pipx; `TRAFILATURA` override). `scripts/extract_article.py` is leftover, not the live path.
 
@@ -56,7 +58,7 @@ X status URLs are not “web articles.” Attached native video (`kind=native_vi
 
 JS-only shells (no article in the HTML) fail `parse_failed` — do not reach for Playwright. Do not add X threads unless asked.
 
-`produceAudio` dispatches on `content_type === 'video'` (yt-dlp) vs article (TTS). X native video is stamped `content_type=video` at add time; do not re-`extractDocument` just to read `nativeAudio`. Transcript sweep is youtube-only.
+`produceAudio` dispatches on `content_type === 'video'` (yt-dlp) vs article (TTS). Article TTS (`renderArticleAudio`) appends 2s silence + Daniel “Article audio complete.” + 2s silence; not stored in the text cache; existing m4a until regen. Native video is unchanged. X native video is stamped `content_type=video` at add time; do not re-`extractDocument` just to read `nativeAudio`. Transcript sweep is youtube-only. The mini-player does not play `beep.wav` on `ended`.
 
 Lifecycle replaces the old 30-day generation TTL. Inbox auto-trash / audio-on-trash delay / Trash hard-delete are settings (`0` = that rule off, never “immediate”). Audio strips after the Trash delay; text is kept until the row is permanently deleted. Filed items are a library. Details in `README.md`.
 
@@ -66,7 +68,7 @@ Lifecycle replaces the old 30-day generation TTL. Inbox auto-trash / audio-on-tr
 - Bind `::`, not `0.0.0.0`.
 - iOS: no real navigation to `Content-Disposition` attachments (Blob download); do not intercept audio range requests in the SW.
 - Do not commit secrets, `certs/`, or the DB.
-- Bump `public/sw.js` `CACHE` on static changes (currently `v6-audio-v14`).
+- Bump `public/sw.js` `CACHE` on static changes (currently `v6-audio-v15`).
 - **When a feature is complete, update `README.md` in the same change** (ingest, audio, feed, UI, routes, schema, env vars). `README.md` is the human product/ops doc; this file is agent rules. Do not leave README as a historical snapshot. Do not revive `README_local.md` — machine facts that must be shared live here or in README.
 
 ## Leftovers (not urgent)

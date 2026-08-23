@@ -12,6 +12,9 @@ const execFileAsync = promisify(execFile);
 export const AUDIO_DIR  = path.join(__dirname, '..', 'audio');
 export const TEXT_DIR   = path.join(__dirname, '..', 'text');
 export const SAY_VOICE  = process.env.SAY_VOICE ?? 'Ava (Premium)';
+export const SAY_CLOSER_VOICE = process.env.SAY_CLOSER_VOICE ?? 'Daniel';
+export const SAY_CLOSER_TEXT = 'Article audio complete.';
+export const SAY_CLOSER_SILENCE_SEC = 2;
 const YTDLP_PATH        = '/opt/homebrew/bin/yt-dlp';
 const BROWSER_UA        = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36';
 
@@ -83,6 +86,127 @@ function buildAudioHeader(title?: string, publishedAt?: string | null): string {
     }
   }
   return parts.join('. ');
+}
+
+// ── WAV concat (article closer) ──────────────────────────────────────────────
+// afconvert WAVE output is not always a 44-byte header. Parse chunks; rewrite
+// a standard PCM WAV so body + silence + closer + silence can join.
+
+export type WavFormat = {
+  channels: number;
+  sampleRate: number;
+  bitsPerSample: number;
+};
+
+export type WavPcm = WavFormat & { pcm: Buffer };
+
+export function parseWav(buf: Buffer): WavPcm {
+  if (buf.length < 12 || buf.toString('ascii', 0, 4) !== 'RIFF' || buf.toString('ascii', 8, 12) !== 'WAVE') {
+    throw new Error('not a RIFF WAVE');
+  }
+  let offset = 12;
+  let fmt: WavFormat | null = null;
+  let pcm: Buffer | null = null;
+  while (offset + 8 <= buf.length) {
+    const id = buf.toString('ascii', offset, offset + 4);
+    const size = buf.readUInt32LE(offset + 4);
+    const dataStart = offset + 8;
+    if (dataStart + size > buf.length) throw new Error('truncated wav chunk ' + id);
+    if (id === 'fmt ') {
+      const audioFormat = buf.readUInt16LE(dataStart);
+      if (audioFormat !== 1 && audioFormat !== 0xFFFE) {
+        throw new Error(`unsupported wav format ${audioFormat}`);
+      }
+      fmt = {
+        channels: buf.readUInt16LE(dataStart + 2),
+        sampleRate: buf.readUInt32LE(dataStart + 4),
+        bitsPerSample: buf.readUInt16LE(dataStart + 14),
+      };
+    } else if (id === 'data') {
+      pcm = buf.subarray(dataStart, dataStart + size);
+    }
+    offset = dataStart + size + (size & 1);
+  }
+  if (!fmt || !pcm) throw new Error('wav missing fmt or data');
+  if (fmt.bitsPerSample !== 16) throw new Error(`expected 16-bit pcm, got ${fmt.bitsPerSample}`);
+  if (fmt.channels < 1) throw new Error('wav has no channels');
+  return { ...fmt, pcm };
+}
+
+export function writePcmWav(fmt: WavFormat, pcm: Buffer): Buffer {
+  const fmtSize = 16;
+  const headerSize = 44;
+  const buf = Buffer.alloc(headerSize + pcm.length);
+  buf.write('RIFF', 0);
+  buf.writeUInt32LE(36 + pcm.length, 4);
+  buf.write('WAVE', 8);
+  buf.write('fmt ', 12);
+  buf.writeUInt32LE(fmtSize, 16);
+  buf.writeUInt16LE(1, 20);
+  buf.writeUInt16LE(fmt.channels, 22);
+  buf.writeUInt32LE(fmt.sampleRate, 24);
+  const byteRate = fmt.sampleRate * fmt.channels * (fmt.bitsPerSample / 8);
+  buf.writeUInt32LE(byteRate, 28);
+  buf.writeUInt16LE(fmt.channels * (fmt.bitsPerSample / 8), 32);
+  buf.writeUInt16LE(fmt.bitsPerSample, 34);
+  buf.write('data', 36);
+  buf.writeUInt32LE(pcm.length, 40);
+  pcm.copy(buf, 44);
+  return buf;
+}
+
+export function silentPcmWav(seconds: number, fmt: WavFormat): Buffer {
+  const bytesPerSample = (fmt.bitsPerSample / 8) * fmt.channels;
+  const samples = Math.round(fmt.sampleRate * seconds);
+  return writePcmWav(fmt, Buffer.alloc(samples * bytesPerSample));
+}
+
+export function concatPcmWavs(wavs: Buffer[]): Buffer {
+  if (wavs.length === 0) throw new Error('no wavs to concat');
+  const parsed = wavs.map(parseWav);
+  const fmt = parsed[0];
+  for (const p of parsed) {
+    if (p.channels !== fmt.channels || p.sampleRate !== fmt.sampleRate || p.bitsPerSample !== fmt.bitsPerSample) {
+      throw new Error('wav format mismatch');
+    }
+  }
+  return writePcmWav(fmt, Buffer.concat(parsed.map(p => p.pcm)));
+}
+
+async function toPcmWav(input: string, dest: string): Promise<void> {
+  await execFileAsync('/usr/bin/afconvert', [
+    input, '-f', 'WAVE', '-d', 'LEI16@22050', '-c', '1', dest,
+  ]);
+}
+
+export async function renderArticleAudio(text: string, outFile: string): Promise<void> {
+  await mkdir(path.dirname(outFile), { recursive: true });
+  const stamp = `tts-${Date.now()}-${process.pid}`;
+  const txtFile    = path.join(tmpdir(), `${stamp}.txt`);
+  const bodyAiff   = path.join(tmpdir(), `${stamp}-body.aiff`);
+  const closerAiff = path.join(tmpdir(), `${stamp}-closer.aiff`);
+  const bodyWav    = path.join(tmpdir(), `${stamp}-body.wav`);
+  const closerWav  = path.join(tmpdir(), `${stamp}-closer.wav`);
+  const concatWav  = path.join(tmpdir(), `${stamp}-concat.wav`);
+  const tmpFiles = [txtFile, bodyAiff, closerAiff, bodyWav, closerWav, concatWav];
+  try {
+    await writeFile(txtFile, text, 'utf8');
+    await execFileAsync('/usr/bin/say', ['-v', SAY_VOICE, '-f', txtFile, '-o', bodyAiff]);
+    await execFileAsync('/usr/bin/say', ['-v', SAY_CLOSER_VOICE, SAY_CLOSER_TEXT, '-o', closerAiff]);
+    await toPcmWav(bodyAiff, bodyWav);
+    await toPcmWav(closerAiff, closerWav);
+    const body = await readFile(bodyWav);
+    const closer = await readFile(closerWav);
+    const fmt = parseWav(body);
+    const silence = silentPcmWav(SAY_CLOSER_SILENCE_SEC, fmt);
+    const combined = concatPcmWavs([body, silence, closer, silence]);
+    await writeFile(concatWav, combined);
+    await execFileAsync('/usr/bin/afconvert', [
+      concatWav, '-f', 'm4af', '-d', 'aac', '-b', '64000', outFile,
+    ]);
+  } finally {
+    await Promise.all(tmpFiles.map(f => unlink(f).catch(() => {})));
+  }
 }
 
 // ── YouTube transcripts ──────────────────────────────────────────────────────
@@ -217,21 +341,5 @@ export async function generateAudio(id: number, url: string, title?: string, pub
 
   const header = buildAudioHeader(title, publishedAt);
   const audioText = header ? `${header}\n\n${text}` : text;
-
-  const txtFile  = path.join(tmpdir(), `watchlist-${id}-${Date.now()}.txt`);
-  const aiffFile = path.join(tmpdir(), `watchlist-${id}-${Date.now()}.aiff`);
-  const outFile  = audioPath(id);
-
-  try {
-    await writeFile(txtFile, audioText, 'utf8');
-
-    await execFileAsync('/usr/bin/say', ['-v', SAY_VOICE, '-f', txtFile, '-o', aiffFile]);
-
-    await execFileAsync('/usr/bin/afconvert', [
-      aiffFile, '-f', 'm4af', '-d', 'aac', '-b', '64000', outFile,
-    ]);
-  } finally {
-    await unlink(txtFile).catch(() => {});
-    await unlink(aiffFile).catch(() => {});
-  }
+  await renderArticleAudio(audioText, audioPath(id));
 }

@@ -20,7 +20,7 @@ launchctl kickstart -k gui/502/com.video-watchlist
 tail -f logs/server.log
 
 # Tests
-npm test   # src/ingest/*.test.ts + src/feed.test.ts + src/lifecycle.test.ts
+npm test   # src/ingest/*.test.ts + src/feed.test.ts + src/lifecycle.test.ts + src/audio.test.ts
 
 # Dev (hot reload, same port — stop launchd first)
 npm run dev
@@ -33,6 +33,8 @@ npm run dev
 | Overcast feed XML / artwork | https://condor.taild6cb04.ts.net/feed/… |
 
 HTTPS is on **4443** so the process does not need root for 443. Certs in `certs/` (gitignored) are Tailscale Let’s Encrypt for `turbo.taild6cb04.ts.net` (90-day lifetime). Renew: `~/bin/renew_tailscale_https_cert` (`scripts/renew_tailscale_https_cert`), weekly via `com.tailscale-cert-renew` (Sunday 4am).
+
+**yt-dlp** is a Homebrew formula (`/opt/homebrew/bin/yt-dlp`). YouTube (and X native video) audio is a media-URL download; a stale extractor 403s even when the video still exists. Daily upgrade: `com.ytdlp-upgrade` at **5:00** (`scripts/upgrade_ytdlp`, plist `scripts/com.ytdlp-upgrade.plist` installed to `~/Library/LaunchAgents/`). Emails only when the version actually changes or `brew upgrade` fails — same OneCLI agent as cert renew. The server execs the binary per job, so an upgrade does not need a kickstart.
 
 **Do not enable Tailscale Funnel or serve on turbo.** Funnel for `/feed` lives on **condor**. Putting Funnel on turbo publishes public DNS for turbo and breaks iPhone browsers that use iCloud Private Relay (they hit Funnel on 443; the app only answers on 4443).
 
@@ -52,11 +54,14 @@ HTTPS is on **4443** so the process does not need root for 443. Certs in `certs/
 | `public/index.html` | SPA shell + mini-player CSS |
 | `public/app.js` | Router + list / reader / settings / playlists |
 | `public/player.js` | AudioEngine (`window.Player`) |
-| `public/sw.js` | Service worker — bump `CACHE` on static changes (currently `v6-audio-v14`) |
+| `public/sw.js` | Service worker — bump `CACHE` on static changes (currently `v6-audio-v15`) |
 | `public/feed-icons/` | 1400×1400 podcast artwork per source |
 | `skill.md` | HTTP API notes for NanoClaw agents |
 | `scripts/renew_tailscale_https_cert` | Cert renew |
 | `scripts/notify_cert_status.mjs` | Email cert renew success/failure via nano’s OneCLI |
+| `scripts/upgrade_ytdlp` | Daily `brew upgrade yt-dlp` |
+| `scripts/notify_ytdlp_status.mjs` | Email yt-dlp upgrade / failure via nano’s OneCLI |
+| `scripts/com.ytdlp-upgrade.plist` | launchd job (copy to `~/Library/LaunchAgents/`) |
 
 Gitignored runtime: `.env`, `certs/`, `watchlist.db`, `audio/`, `text/`, `logs/`, `node_modules/`.
 
@@ -167,7 +172,7 @@ Fixed frosted bar: scrub + `1:23 / 5:45`, ↺10s / ▶⏸ / ↻30s, speed badge 
 
 `window.Player` owns one `<audio>` element (never destroyed — iOS autoplay continuity). `Player.load(meta)`, `Player.setQueue(videos)`, `Player.triggerGenerate(id)`. Speed from `/api/sources`. MediaSession for lock screen / headphones.
 
-**Autoplay** on `ended`: mark finished; if next in queue has `audio_status=ready`, start that m4a **synchronously** (iOS allows play inside an audio event) then navigate; otherwise play `beep.wav` then navigate. Pre-cache message covers the next few **articles** that are already ready (not native video files).
+**Autoplay** on `ended`: mark finished; if next in queue has `audio_status=ready`, start that m4a **synchronously** (iOS allows play inside an audio event) then navigate; otherwise just navigate. Article TTS already ends with a spoken closer, so the player does not play a transition beep. Pre-cache message covers the next few **articles** that are already ready (not native video files).
 
 Position: `localStorage` `pos-<id>`, every 5s and on pause.
 
@@ -184,7 +189,7 @@ Dispatch on **`content_type`**:
 
 | `content_type` | Path |
 |----------------|------|
-| `article` | `extractDocument(url)` → `text/<id>.txt` → `say` → `afconvert` → `audio/<id>.m4a`. Records `audio_voice`. |
+| `article` | `extractDocument(url)` → `text/<id>.txt` → `say` (body) → 2s silence → `say` closer in `SAY_CLOSER_VOICE` (“Article audio complete.”) → 2s silence → `afconvert` → `audio/<id>.m4a`. Records `audio_voice` (body). Closer is audio-only, not stored in the text cache. Existing m4a are unchanged until regenerated. |
 | `video` | `yt-dlp -x --audio-format m4a` → `audio/<id>.m4a`. YouTube also tries captions (`saveYouTubeTranscript`); X video skips that. |
 
 Duration via `/usr/bin/afinfo`. Status: `pending` → `generating` → `ready` (or `failed`). Queue is sequential, 5-minute retry, max 5 attempts, re-queued on startup.
@@ -230,7 +235,7 @@ Do not rotate `FEED_TOKEN` or change those public URLs without resubscribing Ove
 |-------|--------|------|----------|
 | Text | `text/<id>.txt` | Article extract or YouTube transcript | Until the row is permanently deleted (not on Trash) |
 | Audio | `audio/<id>.m4a` | TTS or yt-dlp | Until Trash (filed library: until manual trash) |
-| Browser | SW cache `v6-audio-v14` | Precached full m4a + static assets | Until `CACHE` bump |
+| Browser | SW cache `v6-audio-v15` | Precached full m4a + static assets | Until `CACHE` bump |
 
 SW **must not** intercept audio **range** requests (iOS streaming; caching 206 corrupts playback). API is network-only.
 
@@ -280,7 +285,8 @@ Labels, trash, settings, sources, playlists, categories match the routes in `src
 | Variable | Purpose |
 |----------|---------|
 | `OPENROUTER_API_KEY` | YouTube summaries |
-| `SAY_VOICE` | TTS voice (default `Ava (Premium)`) |
+| `SAY_VOICE` | TTS body voice (default `Ava (Premium)`) |
+| `SAY_CLOSER_VOICE` | Spoken end-marker after article TTS (default `Daniel`) |
 | `CERT_DIR`, `HTTPS_PORT` | TLS (`4443` here) |
 | `FEED_TOKEN` | Feed path; wrong token → 404 |
 | `PUBLIC_AUDIO_BASE_URL` | Enclosure base (turbo:4443) |

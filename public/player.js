@@ -313,15 +313,9 @@
       audio.playbackRate = sourceSpeeds[next.source] || 1.0;
       audio.play().catch(() => {});
       updateMiniPlayerMeta(next);
-      if (typeof navigate === 'function') navigate('#reader/' + next.id);
-    } else {
-      // Audio not ready — play beep, navigate, let user trigger generation from reader
-      const beep = new Audio('/beep.wav');
-      beep.play().catch(() => {});
-      beep.addEventListener('ended', () => {
-        if (typeof navigate === 'function') navigate('#reader/' + next.id);
-      });
     }
+    // Article TTS already ends with a spoken closer + silence. No extra beep.
+    if (typeof navigate === 'function') navigate('#reader/' + next.id);
   }
 
   function markFinished(id) {

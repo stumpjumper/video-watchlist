@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.ytdlp-upgrade</string>
+  <key>ProgramArguments</key>
+  <array><string>/Users/aal/projects/grok_video_watchlist/scripts/upgrade_ytdlp</string></array>
+  <key>StartCalendarInterval</key>
+  <dict><key>Hour</key><integer>5</integer><key>Minute</key><integer>0</integer></dict>
+  <key>StandardOutPath</key><string>/Users/aal/projects/grok_video_watchlist/logs/ytdlp-upgrade.log</string>
+  <key>StandardErrorPath</key><string>/Users/aal/projects/grok_video_watchlist/logs/ytdlp-upgrade.log</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key><string>/Users/aal</string>
+    <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>HOMEBREW_NO_ENV_HINTS</key><string>1</string>
+  </dict>
+</dict>
+</plist>
