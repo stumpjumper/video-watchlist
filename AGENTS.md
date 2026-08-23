@@ -6,8 +6,8 @@ Personal video/article watchlist server. Adopted from Claude on 2026-08-15 (form
 
 ## Stack
 
-- Node + TypeScript via `tsx` (no build step): `npm start` / `npm run dev` / `npm test` (`tsx --test src/ingest/*.test.ts src/feed.test.ts`)
-- Express, SQLite (`watchlist.db`, schema `PRAGMA user_version` = 6), plain HTML/CSS/JS SPA
+- Node + TypeScript via `tsx` (no build step): `npm start` / `npm run dev` / `npm test` (`tsx --test src/ingest/*.test.ts src/feed.test.ts src/lifecycle.test.ts`)
+- Express, SQLite (`watchlist.db`, schema `PRAGMA user_version` = 9), plain HTML/CSS/JS SPA
 - Live branch: **`main`**.
 
 ## URLs / ports
@@ -38,6 +38,7 @@ Web extract uses `/Users/aal/.local/bin/trafilatura` (pipx; `TRAFILATURA` overri
 |---|---|
 | `src/server.ts` | Express routes |
 | `src/db.ts` | SQLite + migrations |
+| `src/lifecycle.ts` | Inbox/Trash clocks (`lifecycle.test.ts`) |
 | `src/audio.ts` | TTS / yt-dlp audio |
 | `src/feed.ts` | Overcast RSS |
 | `src/ingest/` | URL classify / preview / extract (YouTube, X, web) |
@@ -57,13 +58,15 @@ JS-only shells (no article in the HTML) fail `parse_failed` — do not reach for
 
 `produceAudio` dispatches on `content_type === 'video'` (yt-dlp) vs article (TTS). X native video is stamped `content_type=video` at add time; do not re-`extractDocument` just to read `nativeAudio`. Transcript sweep is youtube-only.
 
+Lifecycle replaces the old 30-day generation TTL. Inbox auto-trash / audio-on-trash delay / Trash hard-delete are settings (`0` = that rule off, never “immediate”). Audio strips after the Trash delay; text is kept until the row is permanently deleted. Filed items are a library. Details in `README.md`.
+
 ## Conventions
 
 - Client JS is `.js` files only — never embed TypeScript in HTML/template strings.
 - Bind `::`, not `0.0.0.0`.
 - iOS: no real navigation to `Content-Disposition` attachments (Blob download); do not intercept audio range requests in the SW.
 - Do not commit secrets, `certs/`, or the DB.
-- Bump `public/sw.js` `CACHE` on static changes (currently `v6-audio-v10`).
+- Bump `public/sw.js` `CACHE` on static changes (currently `v6-audio-v14`).
 - **When a feature is complete, update `README.md` in the same change** (ingest, audio, feed, UI, routes, schema, env vars). `README.md` is the human product/ops doc; this file is agent rules. Do not leave README as a historical snapshot. Do not revive `README_local.md` — machine facts that must be shared live here or in README.
 
 ## Leftovers (not urgent)

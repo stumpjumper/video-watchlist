@@ -1,7 +1,13 @@
 import { DatabaseSync } from 'node:sqlite';
 import path from 'path';
+import {
+  inboxFinishedIds, inboxInactiveIds, trashIds, trashOlderIds, trashAudioDueIds,
+  stampStarted, stampFinished,
+} from './lifecycle';
 
-const db = new DatabaseSync(path.join(__dirname, '..', 'watchlist.db'));
+const db = new DatabaseSync(
+  process.env.WATCHLIST_DB || path.join(__dirname, '..', 'watchlist.db'),
+);
 
 db.exec('PRAGMA foreign_keys = ON');
 
@@ -164,6 +170,41 @@ if (userVersion < 6) {
   } catch (e) { db.exec('ROLLBACK'); throw e; }
 }
 
+if (userVersion < 7) {
+  db.exec('BEGIN');
+  try {
+    try { db.exec(`ALTER TABLE videos ADD COLUMN finished_at TEXT`); } catch {}
+    db.exec(`INSERT OR IGNORE INTO settings (key, value) VALUES
+      ('lifecycle_trash_after_finished_hours','24'),
+      ('lifecycle_inbox_inactive_days','30'),
+      ('lifecycle_purge_trash_days','30')`);
+    db.exec('PRAGMA user_version = 7');
+    db.exec('COMMIT');
+  } catch (e) { db.exec('ROLLBACK'); throw e; }
+}
+
+if (userVersion < 8) {
+  db.exec('BEGIN');
+  try {
+    // started_at was never written. Without this, inactivity would be added_at
+    // and the first lifecycle pass would auto-trash the existing Inbox backlog.
+    db.exec(`UPDATE videos SET started_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+             WHERE started_at IS NULL`);
+    db.exec('PRAGMA user_version = 8');
+    db.exec('COMMIT');
+  } catch (e) { db.exec('ROLLBACK'); throw e; }
+}
+
+if (userVersion < 9) {
+  db.exec('BEGIN');
+  try {
+    db.exec(`INSERT OR IGNORE INTO settings (key, value) VALUES
+      ('lifecycle_strip_audio_after_trash_seconds','60')`);
+    db.exec('PRAGMA user_version = 9');
+    db.exec('COMMIT');
+  } catch (e) { db.exec('ROLLBACK'); throw e; }
+}
+
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export interface Source {
@@ -199,6 +240,8 @@ export interface Video {
   channel_name: string;
   emoji: string;
   added_at: string;
+  started_at: string | null;
+  finished_at: string | null;
   status: string;
   summary: string | null;
   source: string;
@@ -334,11 +377,31 @@ export function hardDelete(id: number): boolean {
 }
 
 export function markStarted(id: number): boolean {
-  return (db.prepare(`UPDATE videos SET status = 'started' WHERE id = ?`).run(id).changes as number) > 0;
+  return stampStarted(db, id);
 }
 
 export function markFinished(id: number): boolean {
-  return (db.prepare(`UPDATE videos SET status = 'finished' WHERE id = ?`).run(id).changes as number) > 0;
+  return stampFinished(db, id);
+}
+
+export function getInboxFinishedIds(hours: number): number[] {
+  return inboxFinishedIds(db, hours);
+}
+
+export function getInboxInactiveIds(days: number): number[] {
+  return inboxInactiveIds(db, days);
+}
+
+export function getTrashVideoIds(): number[] {
+  return trashIds(db);
+}
+
+export function getExpiredTrashIds(days: number): number[] {
+  return trashOlderIds(db, days);
+}
+
+export function getTrashAudioDueIds(seconds: number): number[] {
+  return trashAudioDueIds(db, seconds);
 }
 
 export function saveSummary(id: number, summary: string): boolean {
@@ -495,17 +558,9 @@ export function markAudioReady(id: number): void {
       audio_status    = 'ready',
       audio_added_at  = COALESCE(audio_added_at, strftime('%Y-%m-%dT%H:%M:%SZ','now')),
       audio_expires_at = strftime('%Y-%m-%dT%H:%M:%SZ', datetime('now', '+30 days'))
-     WHERE id = ? AND audio_status IN ('none','generating','pending','failed','deleted')`
+     WHERE id = ? AND audio_status IN ('none','generating','pending','failed','deleted')
+       AND NOT EXISTS (SELECT 1 FROM video_labels WHERE video_id = videos.id AND label_id = 2)`
   ).run(id);
-}
-
-export function getExpiredAudioIds(): number[] {
-  return (db.prepare(
-    `SELECT id FROM videos
-     WHERE audio_status = 'ready'
-       AND audio_expires_at IS NOT NULL
-       AND audio_expires_at < strftime('%Y-%m-%dT%H:%M:%SZ','now')`
-  ).all() as { id: number }[]).map(r => r.id);
 }
 
 export function markAudioDeleted(id: number): void {

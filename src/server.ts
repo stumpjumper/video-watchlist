@@ -15,13 +15,16 @@ import {
   getTrashCount, purgeTrash, getCategories,
   getSources, updateSourceSpeed, markAudioReady,
   getSettings, setSetting, getPlaylists, createPlaylist, updatePlaylist, deletePlaylist,
-  getExpiredAudioIds, markAudioDeleted,
+  markAudioDeleted,
   setAudioPending, setAudioGenerating, setAudioFailed, getAudioStatus, getPendingAudioIds,
   setAudioVoice, setAudioDuration, getReadyIdsMissingDuration, getReadyArticleIdsMissingVoice,
   getReadyMissingPublishedAt, savePublishedAt, getReadyYouTubeVideos,
   markAudioFetched,
+  getInboxFinishedIds, getInboxInactiveIds, getTrashVideoIds, getExpiredTrashIds,
+  getTrashAudioDueIds,
   VideoFilter,
 } from './db';
+import { parseLifecycleInt } from './lifecycle';
 import { buildReaderHtml } from './reader';
 import {
   generateAudio, downloadYouTubeAudio, audioExists, audioUrl, audioDirSizeBytes, AUDIO_DIR,
@@ -265,7 +268,6 @@ app.get('/api/videos/:id/fileinfo', async (req: Request, res: Response) => {
       size:              audioStat.size,
       modified_at:       audioStat.mtime,
       generated_at:      video.audio_added_at,
-      expires_at:        video.audio_expires_at,
       fetched_at:        video.audio_fetched_at,
       duration_seconds:  video.audio_duration_seconds,
       voice:             video.audio_voice,
@@ -362,21 +364,76 @@ const queueAudioGen = (id: number): void => {
   drainQueue().catch(e => console.error('[audio] queue error', e));
 };
 
-// ── Startup: sync audio_status with disk ─────────────────────────────────────
+// ── Lifecycle: Inbox auto-trash, audio-on-trash, Trash purge ─────────────────
 
-async function runAudioLifecycle(): Promise<void> {
-  const expired = getExpiredAudioIds();
-  for (const id of expired) {
-    try { await unlink(audioPath(id)); } catch {}
-    // Text (article extract / transcript) follows the same retention as audio.
-    try { await unlink(textPath(id)); } catch {}
+async function stripAudio(id: number): Promise<void> {
+  let hadFile = false;
+  try { await unlink(audioPath(id)); hadFile = true; } catch {}
+  const st = getAudioStatus(id);
+  if (hadFile || (st && st.audio_status !== 'none' && st.audio_status !== 'deleted')) {
     markAudioDeleted(id);
   }
-  if (expired.length > 0) console.log(`[audio] lifecycle: deleted ${expired.length} expired file(s)`);
+}
+
+/** Row is going away — drop leftover files so they don't orphan. */
+async function unlinkItemFiles(id: number): Promise<void> {
+  await stripAudio(id);
+  try { await unlink(textPath(id)); } catch {}
+}
+
+function stripAudioDelaySeconds(): number {
+  return parseLifecycleInt(getSettings().lifecycle_strip_audio_after_trash_seconds, 60);
+}
+
+async function stripDueAudio(): Promise<number> {
+  const seconds = stripAudioDelaySeconds();
+  if (seconds <= 0) return 0;
+  const ids = getTrashAudioDueIds(seconds);
+  for (const id of ids) await stripAudio(id);
+  return ids.length;
+}
+
+function scheduleStripAudio(id: number): void {
+  const seconds = stripAudioDelaySeconds();
+  if (seconds <= 0) return;
+  setTimeout(() => {
+    if (!getTrashAudioDueIds(seconds).includes(id)) return;
+    stripAudio(id).catch(e => console.error('[audio] delayed strip error:', e));
+  }, seconds * 1000);
+}
+
+async function runAudioLifecycle(): Promise<void> {
+  const settings = getSettings();
+  const finishedHours = parseLifecycleInt(settings.lifecycle_trash_after_finished_hours, 24);
+  const inactiveDays  = parseLifecycleInt(settings.lifecycle_inbox_inactive_days, 30);
+  const purgeDays     = parseLifecycleInt(settings.lifecycle_purge_trash_days, 30);
+
+  const toTrash = new Set<number>();
+  const finished = finishedHours > 0 ? getInboxFinishedIds(finishedHours) : [];
+  const inactive = inactiveDays > 0 ? getInboxInactiveIds(inactiveDays) : [];
+  for (const id of finished) toTrash.add(id);
+  for (const id of inactive) toTrash.add(id);
+  for (const id of toTrash) trashVideo(id);
+
+  const stripped = await stripDueAudio();
+
+  let purged = 0;
+  if (purgeDays > 0) {
+    for (const id of getExpiredTrashIds(purgeDays)) {
+      await unlinkItemFiles(id);
+      if (hardDelete(id)) purged++;
+    }
+  }
+
+  if (toTrash.size > 0 || stripped > 0 || purged > 0) {
+    console.log(
+      `[lifecycle] inbox→trash ${toTrash.size} (finished ${finished.length}, inactive ${inactive.length}); stripped audio ${stripped}; purged ${purged}`
+    );
+  }
 }
 
 (async () => {
-  // Delete expired audio files first, then mark remaining disk files as ready
+  // Inbox/Trash lifecycle first (may unlink media), then mark remaining disk files as ready
   await runAudioLifecycle().catch(e => console.error('[audio] lifecycle error:', e));
   try {
     const files = await readdir(AUDIO_DIR);
@@ -420,7 +477,7 @@ async function runAudioLifecycle(): Promise<void> {
 // Fetch transcripts for ready videos that don't have one (predate capture,
 // or hit a 429 when their audio was produced). Paced, and aborts on a 429 —
 // YouTube rate-limits caption-fetch bursts, sometimes for hours; runs at
-// startup and on the daily lifecycle timer, so gaps self-heal.
+// startup and on a daily timer, so gaps self-heal.
 async function sweepMissingTranscripts(): Promise<void> {
   let tried = 0, got = 0, limited = false;
   for (const v of getReadyYouTubeVideos()) {
@@ -435,10 +492,19 @@ async function sweepMissingTranscripts(): Promise<void> {
     + (limited ? ' — YouTube rate-limited, will retry on the daily sweep' : ''));
 }
 
+// Hourly so a 24h "after I finish" setting is ~24h, not 24–48h from a daily tick.
 setInterval(() => {
   runAudioLifecycle().catch(e => console.error('[audio] lifecycle error:', e));
+}, 60 * 60 * 1000);
+
+setInterval(() => {
   sweepMissingTranscripts().catch(e => console.error('[audio] transcript sweep error:', e));
 }, 24 * 60 * 60 * 1000);
+
+// Frequent enough that a 60s restore window is real, not "next hourly tick".
+setInterval(() => {
+  stripDueAudio().catch(e => console.error('[audio] strip error:', e));
+}, 15 * 1000);
 
 // Serve generated audio files. Record the first time each file is actually
 // requested (almost always Overcast) as "fetched" — a signal distinct from
@@ -575,14 +641,19 @@ app.get('/api/preview', async (req: Request, res: Response) => {
   }
 });
 
-app.delete('/api/videos/purge', (_req: Request, res: Response) => {
+app.delete('/api/videos/purge', async (_req: Request, res: Response) => {
+  const ids = getTrashVideoIds();
+  for (const id of ids) await unlinkItemFiles(id);
   const count = purgeTrash();
   res.json({ deleted: count });
 });
 
-app.delete('/api/videos/:id', (req: Request, res: Response) => {
+app.delete('/api/videos/:id', async (req: Request, res: Response) => {
   const id = parseInt(req.params.id, 10);
-  if (isNaN(id) || !hardDelete(id)) { res.status(404).json({ error: 'not found' }); return; }
+  if (isNaN(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
+  if (!getVideoById(id)) { res.status(404).json({ error: 'not found' }); return; }
+  await unlinkItemFiles(id);
+  if (!hardDelete(id)) { res.status(404).json({ error: 'not found' }); return; }
   res.json({ success: true });
 });
 
@@ -608,9 +679,10 @@ app.put('/api/videos/:id/labels', (req: Request, res: Response) => {
   res.json({ success: true });
 });
 
-app.post('/api/videos/:id/trash', (req: Request, res: Response) => {
+app.post('/api/videos/:id/trash', async (req: Request, res: Response) => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id) || !trashVideo(id)) { res.status(404).json({ error: 'not found' }); return; }
+  scheduleStripAudio(id);
   res.json({ success: true });
 });
 

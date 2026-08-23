@@ -170,12 +170,26 @@ body {
 .settings-heading { margin: 0; font-size: 18px; color: var(--text-head); font-weight: 600; }
 .settings-section { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 16px; }
 .settings-section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-faint); padding: 10px 14px 4px; }
-.settings-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+.settings-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--border); gap: 12px; }
 .settings-row:last-child { border-bottom: none; }
 .settings-label { font-size: 15px; color: var(--text); }
+.settings-label-wrap { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.settings-hint { font-size: 12px; color: var(--text-faint); line-height: 1.35; }
+.settings-section-note { font-size: 12px; color: var(--text-muted); padding: 4px 14px 10px; margin: 0; line-height: 1.4; }
+.settings-controls { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.settings-unit { font-size: 12px; color: var(--text-muted); }
+.settings-num {
+  background: var(--bg-raised); border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text); font-size: 14px; padding: 6px 8px; width: 64px; text-align: right;
+}
+.settings-num:disabled { opacity: 0.4; }
 .settings-input { background: var(--bg-raised); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 14px; padding: 6px 10px; width: 180px; }
 .settings-speed { background: var(--bg-raised); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 14px; padding: 6px 10px; width: 80px; text-align: right; }
 .settings-save-btn { width: 100%; margin-top: 4px; }
+@media (max-width: 420px) {
+  .settings-row { flex-wrap: wrap; }
+  .settings-controls { margin-left: auto; }
+}
 
 /* iOS-style toggle */
 .toggle-label { position: relative; display: inline-flex; cursor: pointer; }
@@ -219,7 +233,15 @@ body {
 .playlist-item input.playlist-rename-input { margin-bottom: 2px; }
 
 /* ── Small icon button ── */
-.icon-btn { min-width: 32px; padding-left: 8px; padding-right: 8px; }
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 36px;
+  padding: 6px 10px;
+}
+.icon-btn svg { display: block; }
 
 /* ── Audio status icons on cards ── */
 .card-audio-icon {

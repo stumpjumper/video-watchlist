@@ -20,7 +20,7 @@ launchctl kickstart -k gui/502/com.video-watchlist
 tail -f logs/server.log
 
 # Tests
-npm test   # src/ingest/*.test.ts + src/feed.test.ts
+npm test   # src/ingest/*.test.ts + src/feed.test.ts + src/lifecycle.test.ts
 
 # Dev (hot reload, same port — stop launchd first)
 npm run dev
@@ -43,7 +43,8 @@ HTTPS is on **4443** so the process does not need root for 443. Certs in `certs/
 | Path | Role |
 |------|------|
 | `src/server.ts` | Express routes, audio queue, lifecycle, feed route |
-| `src/db.ts` | SQLite + migrations (`PRAGMA user_version` = **6**) |
+| `src/db.ts` | SQLite + migrations (`PRAGMA user_version` = **9**) |
+| `src/lifecycle.ts` | Inbox/Trash clocks (queries + stamps); `lifecycle.test.ts` |
 | `src/audio.ts` | Article TTS + yt-dlp native-audio download, transcripts, duration |
 | `src/feed.ts` | Overcast RSS 2.0 + iTunes namespace |
 | `src/ingest/` | Classify / preview / extract (YouTube, X, Ars/web) |
@@ -51,7 +52,7 @@ HTTPS is on **4443** so the process does not need root for 443. Certs in `certs/
 | `public/index.html` | SPA shell + mini-player CSS |
 | `public/app.js` | Router + list / reader / settings / playlists |
 | `public/player.js` | AudioEngine (`window.Player`) |
-| `public/sw.js` | Service worker — bump `CACHE` on static changes (currently `v6-audio-v10`) |
+| `public/sw.js` | Service worker — bump `CACHE` on static changes (currently `v6-audio-v14`) |
 | `public/feed-icons/` | 1400×1400 podcast artwork per source |
 | `skill.md` | HTTP API notes for NanoClaw agents |
 | `scripts/renew_tailscale_https_cert` | Cert renew |
@@ -80,7 +81,7 @@ Do not buy the X API, add Playwright, or stitch X threads unless asked.
 
 ## Database
 
-**File:** `watchlist.db` (gitignored). Schema via `PRAGMA user_version` (currently **6**).
+**File:** `watchlist.db` (gitignored). Schema via `PRAGMA user_version` (currently **9**).
 
 ### `videos`
 
@@ -88,6 +89,8 @@ Do not buy the X API, add Playwright, or stitch X threads unless asked.
 |--------|--------|
 | `url`, `title`, `channel_name`, `emoji` | |
 | `added_at` | ISO 8601 UTC |
+| `started_at` | Last time the in-app reader was opened |
+| `finished_at` | First in-app `audio` ended (does not move on repeat) |
 | `status` | `new` \| `started` \| `finished` |
 | `source` | `youtube` \| `ars_technica` \| `x` \| `web` (or a custom slug) |
 | `content_type` | `video` \| `article` |
@@ -95,7 +98,7 @@ Do not buy the X API, add Playwright, or stitch X threads unless asked.
 | `summary` | AI HTML summary (YouTube, OpenRouter) |
 | `audio_status` | `none` \| `pending` \| `generating` \| `ready` \| `failed` \| `deleted` |
 | `audio_error` | Set on `failed` |
-| `audio_added_at` / `audio_expires_at` | Ready stamp; expiry = +30 days |
+| `audio_added_at` / `audio_expires_at` | Ready stamp. `audio_expires_at` is leftover; media now dies on Trash, not on a generation TTL |
 | `audio_retry_count` | Background queue |
 | `audio_voice` | TTS voice used (articles only) |
 | `audio_duration_seconds` | From macOS `afinfo` |
@@ -103,7 +106,7 @@ Do not buy the X API, add Playwright, or stitch X threads unless asked.
 
 Labels are many-to-many (`video_labels`). Every item has ≥1 label. Inbox = 1, Trash = 2 (reserved).
 
-**`settings`:** `autoplay` (default true), `audio_on_add` (default true in V3 seed), `tts_voice`, `pre_cache_count`.
+**`settings`:** `autoplay` (default true), `audio_on_add` (default true in V3 seed), `tts_voice`, `pre_cache_count`, plus lifecycle (below). `0` on a lifecycle key disables that rule.
 
 **`playlists`:** named snapshots of the current filter (not a frozen ID list).
 
@@ -117,6 +120,9 @@ Labels are many-to-many (`video_labels`). Every item has ≥1 label. Inbox = 1, 
 - **V4:** `audio_voice`, `audio_duration_seconds`
 - **V5:** `audio_fetched_at`
 - **V6:** `x` source row
+- **V7:** `finished_at`; lifecycle settings (`lifecycle_trash_after_finished_hours=24`, `lifecycle_inbox_inactive_days=30`, `lifecycle_purge_trash_days=30`)
+- **V8:** backfill `started_at = now` where null, so the inactivity clock does not treat the whole historic Inbox as already stale
+- **V9:** `lifecycle_strip_audio_after_trash_seconds` (default 60)
 
 ---
 
@@ -130,7 +136,7 @@ Labels are many-to-many (`video_labels`). Every item has ≥1 label. Inbox = 1, 
 
 ### List (`#list`)
 
-Filters: search (title/channel), source, labels (AND/OR), date range. Sort: added, posted, status, channel, title.
+Filters: search (title/channel; × clears the field), source, labels (AND/OR), date range. Sort: added, posted, status, channel, title.
 
 Cards: emoji + channel, title, status, published (✎) / added (↓), labels, 🦴 if Overcast fetched audio. `···` action sheet. 🗑 trash.
 
@@ -151,7 +157,7 @@ Text downloads must stay client-side Blobs — a real navigation to an attachmen
 
 ### Settings / playlists
 
-Autoplay, audio-on-add, TTS voice, per-source speed, audio dir size. Playlists re-run the saved filter live (`confirmTap` for destructive overwrite/delete).
+Autoplay, audio-on-add, TTS voice, per-source speed, Inbox/Trash lifecycle (toggles + durations; off is a toggle, not `0` in the number box), audio dir size. Playlists re-run the saved filter live (`confirmTap` for destructive overwrite/delete).
 
 ---
 
@@ -185,7 +191,18 @@ Duration via `/usr/bin/afinfo`. Status: `pending` → `generating` → `ready` (
 
 Supported: any `article` or `video` (YouTube **and** X native video). Wrong/missing token on the feed route is **404**, not 403.
 
-Lifecycle (startup + every 24h): delete expired `audio/<id>.m4a` **and** `text/<id>.txt` (30 days), mark `deleted`. Remaining on-disk m4a marked `ready`. Daily sweep backfills missing YouTube transcripts only (`source=youtube`); aborts on caption 429.
+Lifecycle (startup + every hour) in `runAudioLifecycle()`:
+
+| Rule | Default | Scope |
+|------|---------|--------|
+| Inbox, full listen in-app | 24 hours after first `finished_at` | Then Trash. Podcast RSS activity has no impact. Filing off Inbox cancels it. |
+| Inbox, last activity | 30 days | Activity = adding, opening the reader, partial listen (`started_at` on play), or full listen (`finished_at`). **Not** RSS/Overcast fetch. |
+| Audio files | after N seconds in Trash (default 60) | Manual 🗑 and auto-trash. Restore before then keeps the file. Toggle off = keep audio until the row is permanently deleted. Text is always kept on Trash. |
+| Hard-delete Trash | 30 days after Trash `labeled_at` | Row + leftover audio **and** text. |
+
+Settings `#settings` Inbox / Trash sections. `0` stored value = that rule is off (the toggle is unchecked; the number box still shows the last/default duration). Remaining on-disk m4a are marked `ready` after the job (crash recovery). Daily sweep still backfills missing YouTube transcripts only (`source=youtube`); aborts on caption 429.
+
+First run after deploy strips **audio** from everything already in Trash and hard-deletes Trash older than 30 days. V8 stamps `started_at` on rows that never had one, so the Inbox backlog is not auto-trashed on day one.
 
 ---
 
@@ -211,9 +228,9 @@ Do not rotate `FEED_TOKEN` or change those public URLs without resubscribing Ove
 
 | Layer | Where | What | Lifetime |
 |-------|--------|------|----------|
-| Text | `text/<id>.txt` | Article extract or YouTube transcript | Same 30-day lifecycle as audio |
-| Audio | `audio/<id>.m4a` | TTS or yt-dlp | 30 days from `audio_added_at` |
-| Browser | SW cache `v6-audio-v10` | Precached full m4a + static assets | Until `CACHE` bump |
+| Text | `text/<id>.txt` | Article extract or YouTube transcript | Until the row is permanently deleted (not on Trash) |
+| Audio | `audio/<id>.m4a` | TTS or yt-dlp | Until Trash (filed library: until manual trash) |
+| Browser | SW cache `v6-audio-v14` | Precached full m4a + static assets | Until `CACHE` bump |
 
 SW **must not** intercept audio **range** requests (iOS streaming; caching 206 corrupts playback). API is network-only.
 

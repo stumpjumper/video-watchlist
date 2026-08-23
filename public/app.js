@@ -140,12 +140,15 @@
     <button class="btn-ghost sm trash-btn" id="btn-show-trash">Trash</button>
     <button class="btn-ghost sm add-btn" id="btn-show-add">+ Add</button>
     <button class="btn-ghost sm" id="btn-nav-playlists">Playlists</button>
-    <button class="btn-ghost sm icon-btn" id="btn-nav-settings" title="Settings">⚙</button>
+    <button class="btn-ghost icon-btn" id="btn-nav-settings" title="Settings" aria-label="Settings"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/></svg></button>
   </div>
 
   <div class="filter-row">
-    <input type="search" class="filter-search" id="filter-text" placeholder="Search title or channel…"
-      autocomplete="off" autocorrect="off" spellcheck="false" value="${esc(filterText)}">
+    <div class="filter-search-wrap">
+      <input type="search" class="filter-search" id="filter-text" placeholder="Search title or channel…"
+        autocomplete="off" autocorrect="off" spellcheck="false" value="${esc(filterText)}">
+      <button type="button" class="filter-search-clear" id="btn-clear-search" title="Clear search" aria-label="Clear search"${filterText ? '' : ' hidden'}>×</button>
+    </div>
     <select id="category-filter" class="category-select">
       <option value="">All</option>
     </select>
@@ -202,7 +205,17 @@
     document.getElementById('filter-text').addEventListener('input', e => {
       clearTimeout(fetchTimer);
       filterText = e.target.value.trim();
+      syncSearchClear();
       fetchTimer = setTimeout(load, 300);
+    });
+    document.getElementById('btn-clear-search').addEventListener('click', () => {
+      clearTimeout(fetchTimer);
+      const input = document.getElementById('filter-text');
+      input.value = '';
+      filterText = '';
+      syncSearchClear();
+      input.focus();
+      load();
     });
     document.getElementById('btn-select-all').addEventListener('click', () => {
       const cards = document.querySelectorAll('#list .video-card.selectable');
@@ -284,6 +297,13 @@
 
   function userLabels() {
     return allLabels.filter(l => l.id !== 1 && l.id !== 2);
+  }
+
+  function syncSearchClear() {
+    const input = document.getElementById('filter-text');
+    const btn = document.getElementById('btn-clear-search');
+    if (!input || !btn) return;
+    btn.hidden = !input.value;
   }
 
   async function loadCategories() {
@@ -470,8 +490,11 @@
   async function onListClick(e) {
     const trashBtn = e.target.closest('.card-trash-btn');
     if (trashBtn) {
-      await fetch('/api/videos/' + trashBtn.dataset.id + '/trash', { method: 'POST' });
-      load(); return;
+      confirmTap(trashBtn, async () => {
+        await fetch('/api/videos/' + trashBtn.dataset.id + '/trash', { method: 'POST' });
+        load();
+      });
+      return;
     }
 
     const failedBtn = e.target.closest('.audio-failed-btn');
@@ -634,7 +657,6 @@
         (a.voice ? row('Voice', a.voice) : '') +
         row('Generated', a.generated_at ? fmtDate(a.generated_at) : '–') +
         row('Downloaded by Overcast', a.fetched_at ? fmtDate(a.fetched_at) : 'not yet') +
-        row('Expires', a.expires_at ? fmtDate(a.expires_at) : '–') +
         '</div>';
     } else {
       html += '<div class="file-info-block"><div class="file-info-heading">Audio file</div>' +
@@ -1149,6 +1171,30 @@
       ]);
     } catch {}
 
+    function lcState(key, fallback) {
+      const n = parseInt(settings[key], 10);
+      const on = Number.isFinite(n) && n > 0;
+      return { on: on, value: on ? n : fallback };
+    }
+    const fin = lcState('lifecycle_trash_after_finished_hours', 24);
+    const ina = lcState('lifecycle_inbox_inactive_days', 30);
+    const aud = lcState('lifecycle_strip_audio_after_trash_seconds', 60);
+    const pur = lcState('lifecycle_purge_trash_days', 30);
+
+    function lcRow(id, label, hint, value, on, unit) {
+      return '<div class="settings-row">' +
+        '<div class="settings-label-wrap">' +
+          '<span class="settings-label">' + label + '</span>' +
+          (hint ? '<span class="settings-hint">' + hint + '</span>' : '') +
+        '</div>' +
+        '<span class="settings-controls">' +
+          '<input type="number" class="settings-num" id="' + id + '-val" min="1" step="1" value="' + value + '"' + (on ? '' : ' disabled') + '>' +
+          '<span class="settings-unit">' + unit + '</span>' +
+          '<label class="toggle-label"><input type="checkbox" id="' + id + '-on"' + (on ? ' checked' : '') + '><span class="toggle-track"></span></label>' +
+        '</span>' +
+      '</div>';
+    }
+
     view.innerHTML =
       '<div class="settings-container">' +
         '<div class="settings-nav">' +
@@ -1185,6 +1231,17 @@
           '</div>' +
         '</div>' +
         '<div class="settings-section">' +
+          '<div class="settings-section-title">Inbox</div>' +
+          '<p class="settings-section-note">Move to Trash rules for items with the Inbox label. Filing to another label keeps the item and its audio. Podcast RSS feed activity has no impact.</p>' +
+          lcRow('s-lc-fin', 'After full listen in this app', 'Then move to Trash.', fin.value, fin.on, 'hours') +
+          lcRow('s-lc-ina', 'After last activity', 'Activities are adding, opening, and partial or full listen in this app.', ina.value, ina.on, 'days') +
+        '</div>' +
+        '<div class="settings-section">' +
+          '<div class="settings-section-title">Trash</div>' +
+          lcRow('s-lc-aud', 'Delete audio', 'After moving to Trash, so a quick restore keeps the file. Text is always kept.', aud.value, aud.on, 'seconds') +
+          lcRow('s-lc-pur', 'Permanently delete items', 'The row and remaining files, including text. Counted from the day it entered Trash.', pur.value, pur.on, 'days') +
+        '</div>' +
+        '<div class="settings-section">' +
           '<div class="settings-section-title">Audio storage</div>' +
           '<div class="settings-row" id="audio-stats-row"><span class="settings-label">Used</span><span id="audio-stats-val">…</span></div>' +
         '</div>' +
@@ -1194,6 +1251,12 @@
     document.getElementById('btn-settings-back').addEventListener('click', () => navigate('#list'));
     document.getElementById('btn-settings-save').addEventListener('click', saveSettings);
     document.getElementById('btn-settings-labels').addEventListener('click', openLabelsModal);
+
+    ['s-lc-fin', 's-lc-ina', 's-lc-aud', 's-lc-pur'].forEach(function(id) {
+      const t = document.getElementById(id + '-on');
+      const i = document.getElementById(id + '-val');
+      t.addEventListener('change', function() { i.disabled = !t.checked; });
+    });
 
     fetch('/api/audio/stats').then(r => r.json()).then(function(stats) {
       const el = document.getElementById('audio-stats-val');
@@ -1206,16 +1269,31 @@
     const audioOnAdd  = document.getElementById('s-audio-on-add').checked;
     const ttsVoice    = document.getElementById('s-tts-voice').value.trim() || 'Ava (Premium)';
 
+    function lcSave(id, fallback) {
+      if (!document.getElementById(id + '-on').checked) return '0';
+      const n = parseInt(document.getElementById(id + '-val').value, 10);
+      if (!Number.isFinite(n) || n < 1) return String(fallback);
+      return String(Math.round(n));
+    }
+
     await fetch('/api/settings', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ autoplay: String(autoplay), audio_on_add: String(audioOnAdd), tts_voice: ttsVoice }),
+      body: JSON.stringify({
+        autoplay: String(autoplay),
+        audio_on_add: String(audioOnAdd),
+        tts_voice: ttsVoice,
+        lifecycle_trash_after_finished_hours: lcSave('s-lc-fin', 24),
+        lifecycle_inbox_inactive_days: lcSave('s-lc-ina', 30),
+        lifecycle_strip_audio_after_trash_seconds: lcSave('s-lc-aud', 60),
+        lifecycle_purge_trash_days: lcSave('s-lc-pur', 30),
+      }),
     }).catch(function() {});
 
     // Sync autoplay to localStorage so player.js picks it up
     localStorage.setItem('v6-autoplay', String(autoplay));
 
-    const speedInputs = document.querySelectorAll('.settings-speed');
+    const speedInputs = document.querySelectorAll('.settings-speed[data-source-id]');
     await Promise.all(Array.from(speedInputs).map(function(inp) {
       const id    = inp.dataset.sourceId;
       const speed = parseFloat(inp.value);
@@ -1432,6 +1510,8 @@
       view.innerHTML = '<div class="reader-container"><div class="empty">Article not found.</div></div>';
       return;
     }
+
+    fetch('/api/videos/' + id + '/started', { method: 'POST' }).catch(() => {});
 
     // Load this video into the player
     Player.load({

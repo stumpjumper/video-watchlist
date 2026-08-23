@@ -66,7 +66,10 @@
     });
 
     // Audio events
-    audio.addEventListener('play',  updatePlayBtn);
+    audio.addEventListener('play', () => {
+      updatePlayBtn();
+      if (currentId) fetch('/api/videos/' + currentId + '/started', { method: 'POST' }).catch(() => {});
+    });
     audio.addEventListener('pause', updatePlayBtn);
     audio.addEventListener('ended', onEnded);
     audio.addEventListener('timeupdate', onTimeUpdate);
