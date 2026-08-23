@@ -52,7 +52,9 @@ Cert email uses **nano’s existing OneCLI** (`/Users/nano/.local/bin/onecli`, a
 
 X status URLs are not “web articles.” Regular short posts are refused. X has its own Overcast feed (`/feed/<token>/x.xml`). Do not buy the X API or add Playwright.
 
-Do not add X threads / native X video unless asked. JS-only shells (no article in the HTML) fail `parse_failed` — do not reach for Playwright.
+JS-only shells (no article in the HTML) fail `parse_failed` — do not reach for Playwright. Do not add X threads unless asked.
+
+**Next requested:** native X video audio (yt-dlp, `kind=native_video`) for status URLs with attached video, e.g. `https://x.com/0xcodez/status/2091331341212082196`. Today those fail as `not_article`. `produceAudio` still dispatches on `content_type === 'video'`, not `document.nativeAudio` — that leftover becomes load-bearing here. Stay on `main`.
 
 ## Conventions
 
@@ -64,4 +66,4 @@ Do not add X threads / native X video unless asked. JS-only shells (no article i
 
 ## Leftovers (not urgent)
 
-Nano launchd leftover cleanup is scheduled 2026-08-23 (do not delete `/Users/nano/projects/video_watchlist` until then). Optional: NanoClaw cert dead-man’s-switch. Sources: `youtube`, `ars_technica`, `x`, `web` (one Overcast feed each).
+Nano launchd leftover cleanup reminder is **2026-08-23** (ask first; do not auto-delete `/Users/nano/projects/video_watchlist`). Optional: NanoClaw cert dead-man’s-switch. Remote branches `overcast-feed` and `v6-podcast-player` are spent — delete when asked. Sources: `youtube`, `ars_technica`, `x`, `web` (one Overcast feed each).
