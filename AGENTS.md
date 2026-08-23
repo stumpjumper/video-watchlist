@@ -8,7 +8,7 @@ Personal video/article watchlist server. Adopted from Claude on 2026-08-15 (form
 
 - Node + TypeScript via `tsx` (no build step): `npm start` / `npm run dev` / `npm test` (`tsx --test src/ingest/*.test.ts src/feed.test.ts`)
 - Express, SQLite (`watchlist.db`, schema `PRAGMA user_version` = 6), plain HTML/CSS/JS SPA
-- Live branch: **`main`**. `overcast-feed` landed (Overcast RSS + X + web ingest) and is no longer the home for new work.
+- Live branch: **`main`**.
 
 ## URLs / ports
 
@@ -68,4 +68,4 @@ JS-only shells (no article in the HTML) fail `parse_failed` — do not reach for
 
 ## Leftovers (not urgent)
 
-Nano launchd leftover cleanup reminder is **2026-08-23** (ask first; do not auto-delete `/Users/nano/projects/video_watchlist`). Optional: NanoClaw cert dead-man’s-switch. Remote branches `overcast-feed` and `v6-podcast-player` are spent — delete when asked. Sources: `youtube`, `ars_technica`, `x`, `web` (one Overcast feed each).
+Nano launchd leftover cleanup reminder is **2026-08-23** (ask first; do not auto-delete `/Users/nano/projects/video_watchlist`). Optional: NanoClaw cert dead-man’s-switch. Sources: `youtube`, `ars_technica`, `x`, `web` (one Overcast feed each).
