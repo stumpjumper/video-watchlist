@@ -30,7 +30,7 @@ Cert renew: `scripts/renew_tailscale_https_cert` (aal cert/project paths), invok
 
 Cert email uses **nano’s existing OneCLI** (`/Users/nano/.local/bin/onecli`, agent `videowatchlist`, gateway on localhost:10254). Do not install a second OneCLI. aal only has `~/.onecli/config.json` pointing at that API. If nano’s OneCLI/Docker/gateway stops, notify stops.
 
-`scripts/extract_article.py` uses `/Users/aal/.local/bin/trafilatura` (pipx).
+Web extract uses `/Users/aal/.local/bin/trafilatura` (pipx; `TRAFILATURA` override). `scripts/extract_article.py` is leftover, not the live path.
 
 ## Layout
 
@@ -45,16 +45,17 @@ Cert email uses **nano’s existing OneCLI** (`/Users/nano/.local/bin/onecli`, a
 | `public/player.js` | AudioEngine |
 | `public/sw.js` | Service worker — bump `CACHE` on static changes |
 | `skill.md` | NanoClaw HTTP API (agents consume over the network) |
+| `README.md` | Human product/ops doc — update with each feature |
 
 ## Ingest
 
-`src/ingest/` is the URL pipeline: classify → preview → extract → quality gate. Adapters: YouTube (oEmbed + yt-dlp), **X** (Relay `ArticleEntity` / `note_tweet`), Ars/web (JSON-LD + Mozilla Readability + trafilatura on one fetch; Ars still prefers the `post-content` container). Failures are `IngestError` with a human sentence + `retryable`; permanent codes (`not_article`, `http_404`, `login_wall`, `unsupported`, `paywall`, `too_short`, `parse_failed`) must not be retried.
+`src/ingest/` is the URL pipeline: classify → preview → extract → quality gate. Adapters: YouTube (oEmbed + yt-dlp), **X** (Relay `ArticleEntity` / `note_tweet` / attached native video), Ars/web (JSON-LD + Mozilla Readability + trafilatura on one fetch; Ars still prefers the `post-content` container). Failures are `IngestError` with a human sentence + `retryable`; permanent codes (`not_article`, `http_404`, `login_wall`, `unsupported`, `paywall`, `too_short`, `parse_failed`) must not be retried.
 
-X status URLs are not “web articles.” Regular short posts are refused. X has its own Overcast feed (`/feed/<token>/x.xml`). Do not buy the X API or add Playwright.
+X status URLs are not “web articles.” Attached native video (`kind=native_video`, `content_type=video`, yt-dlp) and Articles / long Premium posts are in; regular short posts are refused (`not_article`). A reply that only *displays* someone else’s video is still `not_article` — detection is scoped to the opened status’s Relay id, not any `VideoInfo` on the page. `/status/{id}/video/N` is the same post as `/status/{id}` (`normalizeUrl` strips the suffix). Audio lands in the existing **x** Overcast feed (`/feed/<token>/x.xml`). Do not buy the X API or add Playwright.
 
 JS-only shells (no article in the HTML) fail `parse_failed` — do not reach for Playwright. Do not add X threads unless asked.
 
-**Next requested:** native X video audio (yt-dlp, `kind=native_video`) for status URLs with attached video, e.g. `https://x.com/0xcodez/status/2091331341212082196`. Today those fail as `not_article`. `produceAudio` still dispatches on `content_type === 'video'`, not `document.nativeAudio` — that leftover becomes load-bearing here. Stay on `main`.
+`produceAudio` dispatches on `content_type === 'video'` (yt-dlp) vs article (TTS). X native video is stamped `content_type=video` at add time; do not re-`extractDocument` just to read `nativeAudio`. Transcript sweep is youtube-only.
 
 ## Conventions
 
@@ -62,7 +63,8 @@ JS-only shells (no article in the HTML) fail `parse_failed` — do not reach for
 - Bind `::`, not `0.0.0.0`.
 - iOS: no real navigation to `Content-Disposition` attachments (Blob download); do not intercept audio range requests in the SW.
 - Do not commit secrets, `certs/`, or the DB.
-- Bump `public/sw.js` `CACHE` on static changes (currently `v6-audio-v9`).
+- Bump `public/sw.js` `CACHE` on static changes (currently `v6-audio-v10`).
+- **When a feature is complete, update `README.md` in the same change** (ingest, audio, feed, UI, routes, schema, env vars). `README.md` is the human product/ops doc; this file is agent rules. Do not leave README as a historical snapshot. Do not revive `README_local.md` — machine facts that must be shared live here or in README.
 
 ## Leftovers (not urgent)
 

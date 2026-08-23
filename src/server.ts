@@ -30,7 +30,7 @@ import {
 } from './audio';
 import { buildFeedXml } from './feed';
 import {
-  previewUrl, resolveSource, EMOJI_BY_SOURCE,
+  previewUrl, resolveSource, EMOJI_BY_SOURCE, normalizeUrl,
   IngestError, formatFailure, isRetryableFailure,
 } from './ingest';
 
@@ -133,14 +133,22 @@ app.post('/api/videos', async (req: Request, res: Response) => {
   const classified = resolveSource(url, typeof source === 'string' ? source : undefined);
   source = classified.source;
   content_type = classified.contentType;
+  if (classified.source === 'x') url = normalizeUrl(url);
   if (!String(emoji).trim() || emoji === '📺') {
     emoji = EMOJI_BY_SOURCE[classified.source] ?? emoji;
   }
 
-  if (!title.trim()) {
+  if (classified.source === 'x' || !title.trim()) {
     try {
       const preview = await previewUrl(url);
-      title        = preview.title || '';
+      if (classified.source === 'x') {
+        content_type = preview.contentType;
+        if (preview.warning?.code === 'not_article') {
+          res.status(400).json({ error: preview.warning.message, code: preview.warning.code });
+          return;
+        }
+      }
+      if (!title.trim()) title = preview.title || '';
       channel_name = channel_name || preview.channel_name || '';
     } catch (e) {
       if (e instanceof IngestError) {
@@ -278,12 +286,13 @@ const audioFailed     = new Map<number, string>(); // id → error message
 // ── Audio production ──────────────────────────────────────────────────────────
 // Articles: fetch text → TTS → m4a.  YouTube videos: yt-dlp download → m4a.
 
-function produceAudio(video: { id: number; url: string; title: string; published_at: string | null; content_type: string }): Promise<void> {
+function produceAudio(video: { id: number; url: string; title: string; published_at: string | null; content_type: string; source: string }): Promise<void> {
   return video.content_type === 'video'
     // Transcript after audio: saveYouTubeTranscript never throws, so a
-    // caption-less video still gets its audio marked ready.
+    // caption-less video still gets its audio marked ready. X native video
+    // uses the same yt-dlp grab but skips the YouTube caption path.
     ? downloadYouTubeAudio(video.id, video.url)
-        .then(() => saveYouTubeTranscript(video.id, video.url))
+        .then(() => video.source === 'youtube' ? saveYouTubeTranscript(video.id, video.url) : undefined)
         .then(() => undefined)
     : generateAudio(video.id, video.url, video.title, video.published_at);
 }
@@ -344,8 +353,7 @@ const drainQueue = async (): Promise<void> => {
 const queueAudioGen = (id: number): void => {
   const video = getVideoById(id);
   if (!video) return;
-  const supported = video.content_type === 'article' ||
-    (video.content_type === 'video' && video.source === 'youtube');
+  const supported = video.content_type === 'article' || video.content_type === 'video';
   if (!supported) return;
   if (video.audio_status === 'ready' || video.audio_status === 'generating' ||
       video.audio_status === 'pending') return;
@@ -475,8 +483,7 @@ app.post('/api/videos/:id/audio', async (req: Request, res: Response) => {
     return;
   }
 
-  const supported = video.content_type === 'article' ||
-    (video.content_type === 'video' && video.source === 'youtube');
+  const supported = video.content_type === 'article' || video.content_type === 'video';
   if (!supported) {
     res.status(422).json({ error: 'Audio not supported for this content type' });
     return;

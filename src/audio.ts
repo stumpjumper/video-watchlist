@@ -184,7 +184,7 @@ export async function downloadYouTubeAudio(id: number, url: string): Promise<voi
     '--no-warnings', '-q',
     '--no-simulate', '--print', '%(upload_date>%Y-%m-%d)s',
     '-o', path.join(AUDIO_DIR, `${id}.%(ext)s`), url,
-  ], { timeout: 5 * 60 * 1000 });
+  ], { timeout: 10 * 60 * 1000 });
   if (!existsSync(audioPath(id))) throw new Error('yt-dlp produced no output file');
   const uploadDate = stdout.trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(uploadDate)) savePublishedAt(id, uploadDate);

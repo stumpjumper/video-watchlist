@@ -559,7 +559,7 @@ export function getReadyArticleIdsMissingVoice(): number[] {
 
 export function getReadyYouTubeVideos(): { id: number; url: string }[] {
   return db.prepare(
-    `SELECT id, url FROM videos WHERE audio_status = 'ready' AND content_type = 'video'`
+    `SELECT id, url FROM videos WHERE audio_status = 'ready' AND content_type = 'video' AND source = 'youtube'`
   ).all() as { id: number; url: string }[];
 }
 

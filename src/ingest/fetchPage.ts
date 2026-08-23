@@ -37,6 +37,7 @@ export async function fetchPage(url: string, timeoutMs = 20_000): Promise<Fetche
 
 export function looksLikeLoginWall(html: string): boolean {
   if (html.includes('__typename:"ArticleEntity"')) return false;
+  if (html.includes('__typename:"ApiMediaEntityVideoInfo"')) return false;
   if (html.length > 80_000) return false;
   const lower = html.toLowerCase();
   return (

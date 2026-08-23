@@ -36,7 +36,7 @@ const MESSAGES: Record<IngestCode, string> = {
   login_wall:     'Got a login/signup page instead of the article.',
   paywall:        'Looks like a paywall or cookie wall — not enough article text.',
   too_short:      'Extracted text is too short to be an article.',
-  not_article:    'This looks like a regular X post, not an article or long post.',
+  not_article:    'This looks like a regular X post, not an article, long post, or video.',
   parse_failed:   "Fetched the page but couldn't find the article text. The page layout may have changed.",
   extract_failed: "Couldn't extract a readable article from this page.",
 };

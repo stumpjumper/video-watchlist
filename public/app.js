@@ -371,7 +371,7 @@
       const labelsJson = esc(JSON.stringify(v.labels || []));
       const sel = selectedIds.has(String(v.id));
       const audioSt = v.audio_status || 'none';
-      const audioIcon = !trash && (v.content_type === 'article' || v.source === 'youtube')
+      const audioIcon = !trash && (v.content_type === 'article' || v.content_type === 'video')
         ? (audioSt === 'pending' || audioSt === 'generating'
             ? '<span class="card-audio-icon spinning" title="Fetching audio…">⚙</span>'
             : audioSt === 'failed'
@@ -543,7 +543,7 @@
           (audioSt === 'pending' || audioSt === 'generating' ? ' disabled' : '') + '>' +
           audioLabel + '</button>'
         : '') +
-      (!isArticle ? '<button class="btn btn-muted" id="ab-summary">Summary</button>' : '') +
+      (current && current.source === 'youtube' ? '<button class="btn btn-muted" id="ab-summary">Summary</button>' : '') +
       '<button class="btn btn-muted"   id="ab-fileinfo">File Info…</button>' +
       '<div class="modal-divider"></div>' +
       '<button class="btn btn-indigo"  id="ab-labels">Labels…</button>' +
@@ -1454,7 +1454,7 @@
         ? '<span class="badge badge-started">Started</span>'
         : '<span class="badge badge-new">New</span>';
 
-    const isYouTube = video.content_type === 'video';
+    const isNativeAudio = video.content_type === 'video';
     const audioSt = video.audio_status || 'none';
     const audioErr = video.audio_error || '';
 
@@ -1498,18 +1498,18 @@
 
     let textSection;
     if (textData && textData.text) {
-      textSection = isYouTube ? transcriptSectionHtml(textData.text) : textBlockHtml(textData.text);
-    } else if (isYouTube && audioSt === 'ready') {
+      textSection = isNativeAudio ? transcriptSectionHtml(textData.text) : textBlockHtml(textData.text);
+    } else if (isNativeAudio && audioSt === 'ready') {
       textSection = '<div class="article-text-empty"><p>Audio ready.</p></div>';
-    } else if (isYouTube && (audioSt === 'pending' || audioSt === 'generating')) {
+    } else if (isNativeAudio && (audioSt === 'pending' || audioSt === 'generating')) {
       textSection = '<div class="article-text-empty" id="reader-text-zone"><p class="reader-gen-status">Downloading audio…</p></div>';
     } else {
       const emptyMsg = audioSt === 'failed'
         ? '<p class="reader-audio-status failed">' + esc(audioErr || 'Audio generation failed.') + '</p>'
-        : (isYouTube ? '' : '<p>Generate audio to load article text.</p>');
+        : (isNativeAudio ? '' : '<p>Generate audio to load article text.</p>');
       const btnLabel = audioSt === 'failed'
         ? 'Try again'
-        : (isYouTube ? 'Download Audio' : 'Generate Audio');
+        : (isNativeAudio ? 'Download Audio' : 'Generate Audio');
       textSection =
         '<div class="article-text-empty" id="reader-text-zone">' +
           emptyMsg +
@@ -1567,7 +1567,7 @@
       const readerPoll = setInterval(async () => {
         if (!document.querySelector('.reader-container')) { clearInterval(readerPoll); return; }
         try {
-          if (!textShown && !isYouTube) {
+          if (!textShown && !isNativeAudio) {
             const td = await fetch('/api/videos/' + id + '/text').then(r => r.json());
             if (td && td.text) {
               textShown = true;
@@ -1586,12 +1586,12 @@
                 if (td && td.text) {
                   const c = document.querySelector('.reader-container');
                   if (c) {
-                    c.insertAdjacentHTML('beforeend', isYouTube ? transcriptSectionHtml(td.text) : textBlockHtml(td.text));
+                    c.insertAdjacentHTML('beforeend', isNativeAudio ? transcriptSectionHtml(td.text) : textBlockHtml(td.text));
                     bindTextTools(td.text);
                   }
                 }
               }
-              if (!isYouTube) {
+              if (!isNativeAudio) {
                 fetch('/api/videos/' + id).then(r => r.json()).then(v => {
                   if (v.published_at) {
                     const el = document.querySelector('.reader-meta .meta-date');
@@ -1608,7 +1608,7 @@
                 const again = document.getElementById('btn-reader-gen');
                 if (again) again.addEventListener('click', () => {
                   z.innerHTML = '<p class="reader-gen-status">' +
-                    (isYouTube ? 'Downloading audio…' : 'Generating audio…') + '</p>';
+                    (isNativeAudio ? 'Downloading audio…' : 'Generating audio…') + '</p>';
                   Player.triggerGenerate(id);
                   startReaderPoll();
                 });
@@ -1626,12 +1626,12 @@
     if (genBtn) {
       genBtn.addEventListener('click', () => {
         const zone = document.getElementById('reader-text-zone');
-        const genStatusMsg = isYouTube ? 'Downloading audio…' : 'Generating audio…';
+        const genStatusMsg = isNativeAudio ? 'Downloading audio…' : 'Generating audio…';
         if (zone) zone.innerHTML = '<p class="reader-gen-status">' + genStatusMsg + '</p>';
         Player.triggerGenerate(id);
         startReaderPoll();
       });
-    } else if (isYouTube && (audioSt === 'pending' || audioSt === 'generating')) {
+    } else if (isNativeAudio && (audioSt === 'pending' || audioSt === 'generating')) {
       startReaderPoll();
     }
 

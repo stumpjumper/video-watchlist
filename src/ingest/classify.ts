@@ -78,6 +78,10 @@ export function normalizeUrl(raw: string): string {
       if (key === 's' || key === 't' || key.startsWith('utm_')) u.searchParams.delete(key);
     }
     u.hash = '';
+    const host = u.hostname.replace(/^www\./i, '').replace(/^mobile\./i, '');
+    if (X_HOST.test(host)) {
+      u.pathname = u.pathname.replace(/\/video\/\d+\/?$/, '');
+    }
     return u.toString();
   } catch {
     return raw.trim();

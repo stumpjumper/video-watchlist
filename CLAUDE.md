@@ -2,6 +2,8 @@
 
 Personal video/article watchlist server. Node 25 + TypeScript (tsx, no build step), Express, SQLite via `node:sqlite`, plain HTML/CSS/JS frontend.
 
+**Current product/ops doc is `README.md`.** Update it in the same change as any user-visible feature. This file is historical notes; `AGENTS.md` is agent rules. Launchd is `gui/502/com.video-watchlist` (aal), not `gui/511`.
+
 ## Running
 
 Managed by launchd — do **not** start manually in most cases.
@@ -39,13 +41,13 @@ npm run dev
 | `public/beep.wav` | Short tone played before autoplay navigation |
 | `skill.md` | API reference for NanoClaw agents |
 | `src/feed.ts` | Podcast RSS feed builder (Overcast integration) |
-| `src/ingest/` | URL classify / preview / extract (YouTube, X Articles, web) |
+| `src/ingest/` | URL classify / preview / extract (YouTube, X Articles / native video, web) |
 
 ## Architecture notes
 
 - SQLite DB: `watchlist.db` (gitignored). Schema version tracked via `PRAGMA user_version` (currently **6**).
 - Labels are many-to-many. Every video has ≥1 label always. Inbox=1, Trash=2 are reserved.
-- `content_type`: `'video'` (YouTube) or `'article'`. Source examples: `'youtube'`, `'ars_technica'`, `'x'`, `'web'`.
+- `content_type`: `'video'` (YouTube, or an X status with attached native video) or `'article'`. Source examples: `'youtube'`, `'ars_technica'`, `'x'`, `'web'`.
 - `status`: `'new'` | `'started'` | `'finished'`
 - `published_at`: creation date (ISO 8601) — article publication date or YouTube upload date. Populated during audio generation for both types (`fetchAndCacheText` for articles; `yt-dlp --print` during `downloadYouTubeAudio` for videos). Null until first audio is generated, or when the source page exposes no date. The podcast feed's `<pubDate>` is `published_at ?? added_at` — Overcast sorts by it, so episodes sort by creation date, falling back to added date.
 - `audio_status`: `'none'` | `'pending'` | `'generating'` | `'ready'` | `'failed'` | `'deleted'`
@@ -56,7 +58,7 @@ npm run dev
 - `audio_added_at` / `audio_expires_at`: stamped by `markAudioReady()`; lifecycle cron deletes files older than 30 days on startup + every 24h
 - `audio_fetched_at` (V5): stamped once, the first time `/audio/<id>.m4a` is actually requested (almost always by Overcast) — via a small middleware ahead of the `express.static` audio route (`markAudioFetched()`, idempotent: `WHERE audio_fetched_at IS NULL`, so repeat range requests from streaming don't matter). Distinct from `audio_added_at` (generation finished) — this tracks whether a listening device has actually pulled the file, surfaced in the UI as a 🦴 badge next to the status badge on cards and in the reader view. It's a "was fetched" signal, not "was listened to" — Overcast auto-fetches the newest episode per feed regardless of whether you've chosen to listen.
 - `audio_voice` / `audio_duration_seconds` (V4): see Podcast feed section below.
-- **Add flow (`public/app.js`)**: `autoDetectCategory(url)` is a client hint; the server classifies in `src/ingest` (`youtube`/`x`/`ars_technica`/`web`) and overwrites those. Emoji defaults 📺/𝕏/🚀/📰 unless the user has already hand-edited the field. Title/channel auto-fill (`GET /api/preview`) uses the same ingest adapters — X Articles get `ArticleEntity.title` + `@handle`, not og:title. Preview failures return `{ error, code, retryable }` so the add modal can say why.
+- **Add flow (`public/app.js`)**: `autoDetectCategory(url)` is a client hint; the server classifies in `src/ingest` (`youtube`/`x`/`ars_technica`/`web`) and overwrites those. Emoji defaults 📺/𝕏/🚀/📰 unless the user has already hand-edited the field. Title/channel auto-fill (`GET /api/preview`) uses the same ingest adapters — X Articles get `ArticleEntity.title` + `@handle`, not og:title; X native video uses this status’s caption. Preview failures return `{ error, code, retryable }` so the add modal can say why. Regular X posts (including a reply that only displays someone else’s video) warn `not_article` and POST refuses them.
 
 ## SPA architecture (V6, built on branch `v6-podcast-player`; Overcast feeds landed from `overcast-feed` onto `main` — see Podcast feed section)
 
@@ -74,7 +76,7 @@ Two entry points — both run the same logic via `produceAudio(video)` in server
 
 `produceAudio` dispatches by content type:
 - **Articles** (`content_type='article'`): `generateAudio()` — `scripts/extract_article.py <url>` → text cached to `text/<id>.txt`; `buildAudioHeader()` prepends title + date; `say -v "Ava (Premium)"` → AIFF → `afconvert` → M4A
-- **YouTube** (`content_type='video'`, `source='youtube'`): `downloadYouTubeAudio()` — `yt-dlp -x --audio-format m4a` → `audio/<id>.m4a` directly
+- **Native video** (`content_type='video'`): `downloadYouTubeAudio()` — `yt-dlp -x --audio-format m4a` → `audio/<id>.m4a` directly (YouTube and X attached video; X stays `source=x` and lands in the x feed)
 
 Both produce `audio/<id>.m4a`. `audio_status`: `pending` → `generating` → `ready` (or `failed`); `audio_added_at` and `audio_expires_at` (now+30d) stamped on ready.
 
@@ -104,7 +106,7 @@ mini-player still works; nothing has been removed.
   generic web articles used to share one "Articles" feed, but that lumped
   together two sources that already have independent `default_speed`
   settings. Adding a future source needs only a new `sources` row + a
-  matching `public/feed-icons/<source_key>.png` — no route changes. `x` is a first-class source (X Articles / long posts).
+  matching `public/feed-icons/<source_key>.png` — no route changes. `x` is a first-class source (X Articles / long posts / attached native video).
 - `src/feed.ts` — `buildFeedXml(sourceKey, channelTitle, iconFile)` hand-rolls
   RSS 2.0 + iTunes-namespace XML from `getReadyAudioVideos(source)` (`db.ts`,
   filters `audio_status='ready'` + excludes Trash-labeled videos).

@@ -66,7 +66,7 @@ curl -s -w "\n%{http_code}" -X POST "$WATCHLIST_URL/api/videos" \
 
 Known source identifiers: `youtube`, `ars_technica`, `x`, `web`. The server classifies youtube / x.com / arstechnica from the URL and overwrites those; other slugs you send are kept. For a new site, use a lowercase underscore slug (e.g. `the_verge`) — the UI will display it in Title Case automatically.
 
-X articles use a status URL (`https://x.com/{user}/status/{id}`). Regular short posts are refused at audio time (`not_article`) — only Articles and long Premium posts become audio.
+X status URLs (`https://x.com/{user}/status/{id}`, including `/video/N`) are classified by the server: attached native video becomes `content_type: video` (yt-dlp audio, x feed); Articles and long Premium posts become `content_type: article` (TTS). Regular short posts — including a reply that only displays someone else’s video — are refused (`not_article`).
 
 Success: HTTP 201 with the new item record as JSON. Notable response fields:
 - `id` — integer; use this to reference the item in subsequent API calls

@@ -1,469 +1,284 @@
 # video_watchlist
 
-Personal video and article watchlist server. Reimagined in V6 as a continuous-playback podcast player (Overcast model) optimised for hands-free listening on an iPhone while cycling.
+Personal video and article watchlist. The web app is a continuous-playback player (Overcast-style) for iPhone listening; Overcast itself also subscribes to per-source RSS feeds of the same audio.
 
-**Stack:** Node 25 + TypeScript (`tsx`, no build step), Express, SQLite via `node:sqlite`, plain HTML/CSS/JS SPA frontend.
+**Stack:** Node + TypeScript via `tsx` (no build step), Express, SQLite (`node:sqlite`), plain HTML/CSS/JS SPA.
+
+**Keep this file current.** When a feature lands — ingest, audio, feed, UI, routes, schema, env vars — update `README.md` in the same change. `AGENTS.md` is agent/ops rules; this file is the human product and ops doc. Do not leave it as a historical snapshot.
 
 ---
 
 ## Running
 
-The server is managed by launchd and starts automatically at login. **Do not start it manually** in normal use.
+Managed by launchd as `aal`: `gui/502/com.video-watchlist`. Do **not** start a second server.
 
 ```bash
 # Restart after code changes
-launchctl kickstart -k gui/511/com.video-watchlist
+launchctl kickstart -k gui/502/com.video-watchlist
 
-# View live logs
+# Logs
 tail -f logs/server.log
 
-# Dev mode — hot reload, same port (stop launchd first)
+# Tests
+npm test   # src/ingest/*.test.ts + src/feed.test.ts
+
+# Dev (hot reload, same port — stop launchd first)
 npm run dev
 ```
 
-**Endpoints**
-- HTTP: `http://localhost:4000`
-- HTTPS (iPhone via Tailscale): `https://turbo.taild6cb04.ts.net:4443`
-- TLS certs live in `certs/` (gitignored); renew with `~/bin/renew_tailscale_https_cert`
+| Client | URL |
+|--------|-----|
+| Mac | http://localhost:4000 |
+| iPhone / Overcast audio | https://turbo.taild6cb04.ts.net:4443 |
+| Overcast feed XML / artwork | https://condor.taild6cb04.ts.net/feed/… |
+
+HTTPS is on **4443** so the process does not need root for 443. Certs in `certs/` (gitignored) are Tailscale Let’s Encrypt for `turbo.taild6cb04.ts.net` (90-day lifetime). Renew: `~/bin/renew_tailscale_https_cert` (`scripts/renew_tailscale_https_cert`), weekly via `com.tailscale-cert-renew` (Sunday 4am).
+
+**Do not enable Tailscale Funnel or serve on turbo.** Funnel for `/feed` lives on **condor**. Putting Funnel on turbo publishes public DNS for turbo and breaks iPhone browsers that use iCloud Private Relay (they hit Funnel on 443; the app only answers on 4443).
 
 ---
 
 ## File map
 
-| File | Purpose |
-|------|---------|
-| `src/server.ts` | All Express routes, audio queue, lifecycle cron |
-| `src/db.ts` | SQLite schema, migrations, all query functions |
-| `src/audio.ts` | Article text extraction + TTS pipeline |
-| `src/reader.ts` | Legacy server-rendered reader — still wired but not the primary path |
-| `public/index.html` | SPA shell — loads `app.js` + `player.js`; contains mini-player CSS |
-| `public/app.js` | SPA router + list / reader / settings / playlists views |
-| `public/player.js` | AudioEngine singleton (`window.Player`), Service Worker registration |
-| `public/sw.js` | Service Worker — offline audio caching + pre-fetch |
-| `public/shared.css` | Design tokens + shared components |
-| `public/beep.wav` | Short tone played before autoplay navigation |
-| `scripts/extract_article.py` | Article text extractor (site-specific parsers + trafilatura fallback) |
+| Path | Role |
+|------|------|
+| `src/server.ts` | Express routes, audio queue, lifecycle, feed route |
+| `src/db.ts` | SQLite + migrations (`PRAGMA user_version` = **6**) |
+| `src/audio.ts` | Article TTS + yt-dlp native-audio download, transcripts, duration |
+| `src/feed.ts` | Overcast RSS 2.0 + iTunes namespace |
+| `src/ingest/` | Classify / preview / extract (YouTube, X, Ars/web) |
+| `src/reader.ts` | Legacy server-rendered reader — still wired, not the primary path |
+| `public/index.html` | SPA shell + mini-player CSS |
+| `public/app.js` | Router + list / reader / settings / playlists |
+| `public/player.js` | AudioEngine (`window.Player`) |
+| `public/sw.js` | Service worker — bump `CACHE` on static changes (currently `v6-audio-v10`) |
+| `public/feed-icons/` | 1400×1400 podcast artwork per source |
+| `skill.md` | HTTP API notes for NanoClaw agents |
+| `scripts/renew_tailscale_https_cert` | Cert renew |
+| `scripts/notify_cert_status.mjs` | Email cert renew success/failure via nano’s OneCLI |
+
+Gitignored runtime: `.env`, `certs/`, `watchlist.db`, `audio/`, `text/`, `logs/`, `node_modules/`.
+
+---
+
+## What gets ingested
+
+Server-side classify in `src/ingest` overwrites the client’s source hint for known hosts.
+
+| Source | URLs | Audio |
+|--------|------|--------|
+| `youtube` | YouTube / youtu.be | yt-dlp → m4a; optional captions → `text/<id>.txt` |
+| `x` | `x.com` / `twitter.com` status URLs | **Attached native video** → yt-dlp m4a. **X Articles** and long Premium posts → TTS. Regular tweets, and replies that only *display* someone else’s video, are refused (`not_article`). `/status/{id}/video/N` is the same post as `/status/{id}`. |
+| `ars_technica` | arstechnica.com | TTS (prefers `post-content`, then JSON-LD / Readability / trafilatura) |
+| `web` | everything else | TTS (one fetch: JSON-LD + Readability + trafilatura). JS-only shells fail `parse_failed` — no Playwright. |
+
+`content_type` is `video` (YouTube, or X with attached video) or `article`. Native X video stays `source=x` and lands in the **x** Overcast feed, not YouTube’s.
+
+Do not buy the X API, add Playwright, or stitch X threads unless asked.
 
 ---
 
 ## Database
 
-**File:** `watchlist.db` (gitignored). Schema version tracked via `PRAGMA user_version` (currently **3**).
+**File:** `watchlist.db` (gitignored). Schema via `PRAGMA user_version` (currently **6**).
 
-### Tables
+### `videos`
 
-**`videos`** — one row per item
+| Column | Notes |
+|--------|--------|
+| `url`, `title`, `channel_name`, `emoji` | |
+| `added_at` | ISO 8601 UTC |
+| `status` | `new` \| `started` \| `finished` |
+| `source` | `youtube` \| `ars_technica` \| `x` \| `web` (or a custom slug) |
+| `content_type` | `video` \| `article` |
+| `published_at` | Creation date. Filled during audio production (`yt-dlp` upload date, or extractor date). Feed `<pubDate>` is `published_at ?? added_at`. |
+| `summary` | AI HTML summary (YouTube, OpenRouter) |
+| `audio_status` | `none` \| `pending` \| `generating` \| `ready` \| `failed` \| `deleted` |
+| `audio_error` | Set on `failed` |
+| `audio_added_at` / `audio_expires_at` | Ready stamp; expiry = +30 days |
+| `audio_retry_count` | Background queue |
+| `audio_voice` | TTS voice used (articles only) |
+| `audio_duration_seconds` | From macOS `afinfo` |
+| `audio_fetched_at` | First time `/audio/<id>.m4a` was requested (almost always Overcast). Idempotent. UI 🦴 badge. |
 
-| Column | Type | Notes |
-|--------|------|-------|
-| `id` | INTEGER PK | |
-| `url` | TEXT | YouTube URL or article URL |
-| `title` | TEXT | |
-| `channel_name` | TEXT | Publisher / channel |
-| `emoji` | TEXT | Display emoji (default `📺`) |
-| `added_at` | TEXT | ISO 8601 UTC |
-| `started_at` | TEXT | Set on first play/open |
-| `status` | TEXT | `new` \| `started` \| `finished` |
-| `summary` | TEXT | AI-generated HTML summary (YouTube only) |
-| `source` | TEXT | `youtube` \| `ars_technica` \| `web` |
-| `content_type` | TEXT | `video` \| `article` |
-| `external_id` | TEXT | Reserved |
-| `source_metadata` | TEXT | Reserved |
-| `published_at` | TEXT | Article publication date; populated during audio generation |
-| `audio_status` | TEXT | `none` \| `pending` \| `generating` \| `ready` \| `failed` \| `deleted` |
-| `audio_error` | TEXT | Error message when `audio_status = 'failed'` |
-| `audio_added_at` | TEXT | When audio was first generated |
-| `audio_expires_at` | TEXT | `audio_added_at + 30 days`; reset on re-generation |
-| `audio_retry_count` | INTEGER | Background queue retry counter |
+Labels are many-to-many (`video_labels`). Every item has ≥1 label. Inbox = 1, Trash = 2 (reserved).
 
-**`labels`** — user-defined tags
-- Reserved: id 1 = `Inbox`, id 2 = `Trash`
-- Every video always has at least one label
+**`settings`:** `autoplay` (default true), `audio_on_add` (default true in V3 seed), `tts_voice`, `pre_cache_count`.
 
-**`video_labels`** — many-to-many join with `labeled_at` timestamp
+**`playlists`:** named snapshots of the current filter (not a frozen ID list).
 
-**`settings`** — global key/value store
+**`sources`:** per-source `default_speed` and `display_name` (podcast title). Seeded: youtube, ars_technica, web, x.
 
-| Key | Default | Notes |
-|-----|---------|-------|
-| `autoplay` | `true` | Auto-advance to next item on track end |
-| `audio_on_add` | `false` | Queue audio generation when an article is added |
-| `tts_voice` | `Ava (Premium)` | macOS `say` voice name |
-| `pre_cache_count` | `3` | How many upcoming items the SW pre-fetches (stored but not yet used to vary the window) |
+### Migrations
 
-**`playlists`** — saved filter configurations
-- `name` (unique), `filter_json` (serialised filter: labels, label_mode, source, sort, q), `created_at`
-
-**`sources`** — per-source default playback speed
-- Seeded: `youtube` (1.0×), `ars_technica` (1.2×), `web` (1.0×)
-
-### Migration history
-- **V0→1:** Labels system, `video_labels` table, Inbox/Trash reserved labels
-- **V1→2:** `published_at` column on videos
-- **V2→3:** `settings`, `playlists`, `sources` tables; audio lifecycle columns on videos
+- **V1:** labels + Inbox/Trash
+- **V2:** `published_at`
+- **V3:** settings, playlists, sources, audio lifecycle columns
+- **V4:** `audio_voice`, `audio_duration_seconds`
+- **V5:** `audio_fetched_at`
+- **V6:** `x` source row
 
 ---
 
-## SPA architecture
+## SPA
 
-`index.html` loads once. `app.js` swaps `<div id=view>` for each screen. The mini-player bar at the bottom is always in the DOM and never navigated away from. Hash-based routing:
+`index.html` loads once. `app.js` swaps `#view`. Mini-player is always in the DOM. Hash routes: `#list`, `#reader/:id`, `#settings`, `#playlists`.
 
-| Hash | View |
+`window.navigate(hash)` is global so `player.js` can autoplay-advance. List filters/sort/scroll persist in `localStorage` (`watchlist-state`).
+
+**Every content type taps through to `#reader/:id`** (YouTube is not a new-tab skip). Reader loads the item into the player.
+
+### List (`#list`)
+
+Filters: search (title/channel), source, labels (AND/OR), date range. Sort: added, posted, status, channel, title.
+
+Cards: emoji + channel, title, status, published (✎) / added (↓), labels, 🦴 if Overcast fetched audio. `···` action sheet. 🗑 trash.
+
+Audio spinner / fail icon shows for `content_type` article or video (generating / failed).
+
+**Action sheet:** Open original · Play / Download audio (native video) · Summary (**YouTube only**) · File Info… · Labels.
+
+### Reader (`#reader/:id`)
+
+Loads `/api/videos/:id` and `/api/videos/:id/text` in parallel, then `Player.load()`.
+
+- **Articles:** Generate Audio (TTS). Cached text shown as `<pre>` when present; Copy / Download are Blob-based (no navigation to `Content-Disposition`).
+- **Native audio** (`content_type=video`): Download Audio (yt-dlp). YouTube transcripts sit behind Show Transcript when `text/<id>.txt` exists; otherwise “Audio ready.”
+
+Green reader button is the generate/download entry point. Mini-player does not start generation.
+
+Text downloads must stay client-side Blobs — a real navigation to an attachment response can strand an iOS PWA outside the SPA.
+
+### Settings / playlists
+
+Autoplay, audio-on-add, TTS voice, per-source speed, audio dir size. Playlists re-run the saved filter live (`confirmTap` for destructive overwrite/delete).
+
+---
+
+## Mini-player and AudioEngine
+
+Fixed frosted bar: scrub + `1:23 / 5:45`, ↺10s / ▶⏸ / ↻30s, speed badge (0.75×–2×), info (tap → reader). iOS does not draw the range thumb when `background` is an inline style — do not depend on it.
+
+`window.Player` owns one `<audio>` element (never destroyed — iOS autoplay continuity). `Player.load(meta)`, `Player.setQueue(videos)`, `Player.triggerGenerate(id)`. Speed from `/api/sources`. MediaSession for lock screen / headphones.
+
+**Autoplay** on `ended`: mark finished; if next in queue has `audio_status=ready`, start that m4a **synchronously** (iOS allows play inside an audio event) then navigate; otherwise play `beep.wav` then navigate. Pre-cache message covers the next few **articles** that are already ready (not native video files).
+
+Position: `localStorage` `pos-<id>`, every 5s and on pause.
+
+---
+
+## Audio production
+
+Two entry points, same `produceAudio(video)` in `server.ts`:
+
+- Reader / Player: `POST /api/videos/:id/audio`
+- Add: `queueAudioGen(id)` when `settings.audio_on_add=true`
+
+Dispatch on **`content_type`**:
+
+| `content_type` | Path |
+|----------------|------|
+| `article` | `extractDocument(url)` → `text/<id>.txt` → `say` → `afconvert` → `audio/<id>.m4a`. Records `audio_voice`. |
+| `video` | `yt-dlp -x --audio-format m4a` → `audio/<id>.m4a`. YouTube also tries captions (`saveYouTubeTranscript`); X video skips that. |
+
+Duration via `/usr/bin/afinfo`. Status: `pending` → `generating` → `ready` (or `failed`). Queue is sequential, 5-minute retry, max 5 attempts, re-queued on startup.
+
+Supported: any `article` or `video` (YouTube **and** X native video). Wrong/missing token on the feed route is **404**, not 403.
+
+Lifecycle (startup + every 24h): delete expired `audio/<id>.m4a` **and** `text/<id>.txt` (30 days), mark `deleted`. Remaining on-disk m4a marked `ready`. Daily sweep backfills missing YouTube transcripts only (`source=youtube`); aborts on caption 429.
+
+---
+
+## Podcast feed (Overcast)
+
+`GET /feed/:token/:sourceKey.xml` — one feed per `sources` row (`youtube`, `ars_technica`, `web`, `x`). Token is `FEED_TOKEN`. Items are `audio_status=ready` and not Trash.
+
+- Episode `<title>` is `channel · title` (Overcast playlists ignore `itunes:author`). DB title unchanged.
+- `<itunes:author>` / subtitle = `channel_name`.
+- `<description>` is CDATA HTML (keep summaries unescaped).
+- `<enclosure>` uses **`PUBLIC_AUDIO_BASE_URL`** (turbo:4443) — the phone fetches audio on the tailnet.
+- `<link>` and artwork use **`PUBLIC_FEED_BASE_URL`** (condor, no port) — Overcast’s crawler is not on the tailnet.
+
+Artwork: `public/feed-icons/<source_key>.png`, served at `/feed/icons/`.
+
+Condor: `tailscale funnel --set-path=/feed` → local proxy → turbo:4443. Bare `tailscale funnel --bg 443` (no `--set-path`) silently maps `/` as well — don’t do that.
+
+Do not rotate `FEED_TOKEN` or change those public URLs without resubscribing Overcast.
+
+---
+
+## Caching
+
+| Layer | Where | What | Lifetime |
+|-------|--------|------|----------|
+| Text | `text/<id>.txt` | Article extract or YouTube transcript | Same 30-day lifecycle as audio |
+| Audio | `audio/<id>.m4a` | TTS or yt-dlp | 30 days from `audio_added_at` |
+| Browser | SW cache `v6-audio-v10` | Precached full m4a + static assets | Until `CACHE` bump |
+
+SW **must not** intercept audio **range** requests (iOS streaming; caching 206 corrupts playback). API is network-only.
+
+---
+
+## API
+
+Preview: `GET /api/preview?url=` — YouTube oEmbed, X Relay parse, or web title. Failures `{ error, code, retryable }`. Regular X posts return 200 with `warning.code = not_article`; `POST /api/videos` then 400s those.
+
+Add: `POST /api/videos` — server classifies. For `source=x` it always previews (even if title is filled), stamps `content_type` from that, normalizes `/video/N` off the URL.
+
+| Method | Path | Notes |
+|--------|------|--------|
+| `GET/POST` | `/api/videos` | List / add |
+| `GET` | `/api/videos/:id` | |
+| `GET` | `/api/videos/:id/text` | JSON; `?download=1` exists but the UI must not navigate to it |
+| `GET` | `/api/videos/:id/fileinfo` | Size/dates for audio + text files |
+| `POST` | `/api/videos/:id/audio` | Generate or return ready |
+| `GET` | `/api/videos/:id/audio/status` | |
+| `POST` | `/api/videos/:id/summary` | YouTube only |
+| `GET` | `/feed/:token/:sourceKey.xml` | RSS |
+| `GET` | `/audio/:id.m4a` | Stamps `audio_fetched_at` once |
+
+Labels, trash, settings, sources, playlists, categories match the routes in `src/server.ts`.
+
+---
+
+## NanoClaw
+
+`POST /api/videos` with `url`, `title`, `channel_name`, `emoji`, `content_type`, `source`. Do **not** send body text. See `skill.md`. Server still classifies youtube / x / ars from the URL.
+
+---
+
+## iOS
+
+- Clipboard over HTTP: `execCommand('copy')`, not `navigator.clipboard`.
+- `window.open()` must run before any `await`.
+- `audio.play()` only in a user gesture or audio event (never after `await`).
+- Never TypeScript inside HTML template-string JS.
+- `closeActionModal()` clears `current` — copy `id` / `url` first.
+- Blob downloads, not attachment navigations.
+
+---
+
+## Environment (`.env`, via `dotenv/config` — launchd only sets `PATH`)
+
+| Variable | Purpose |
+|----------|---------|
+| `OPENROUTER_API_KEY` | YouTube summaries |
+| `SAY_VOICE` | TTS voice (default `Ava (Premium)`) |
+| `CERT_DIR`, `HTTPS_PORT` | TLS (`4443` here) |
+| `FEED_TOKEN` | Feed path; wrong token → 404 |
+| `PUBLIC_AUDIO_BASE_URL` | Enclosure base (turbo:4443) |
+| `PUBLIC_FEED_BASE_URL` | Feed link + artwork (condor) |
+| `TRAFILATURA` | Optional path; default `/Users/aal/.local/bin/trafilatura` |
+
+Template: `.env.example`. Do not commit `.env`. Do not rotate feed token/URLs casually.
+
+---
+
+## Docs map
+
+| File | Role |
 |------|------|
-| `#list` | Main watchlist |
-| `#reader/:id` | Article reader |
-| `#settings` | Settings page |
-| `#playlists` | Playlist manager |
-
-`window.navigate(hash)` is exposed globally so `player.js` can trigger navigation (e.g. autoplay advance).
-
-List view state (filters, sort, scroll position) is persisted in `localStorage` under key `watchlist-state` and restored when navigating back.
-
----
-
-## List view (`#list`)
-
-### Header controls
-- **Labels** — opens the label management modal (create, rename, delete)
-- **Trash** — toggles trash mode; shows trashed items, enables bulk select/restore/delete
-- **+ Add** — opens the add-item modal
-- **Playlists** — navigates to `#playlists`
-- **⚙** — navigates to `#settings`
-
-### Filters
-- **Search** — debounced 300 ms, matches title and channel name
-- **Source selector** — filters to a single source (`youtube`, `ars_technica`, etc.)
-- **Filter** button — opens label filter modal with optional date range (`after` / `before`) and AND/OR mode toggle (shown when ≥ 2 labels selected)
-
-### Sort
-- Fields: Date added, Date posted (`published_at`), Status, Channel, Title
-- Direction toggle: ascending / descending
-
-### Cards
-Each card shows:
-- Emoji + channel name
-- Title
-- Status badge (New / Started / Finished)
-- Published date (✎) and added date (↓) — `fmtSmartDate`: month/day for items within the last year, month/day/'YY for older
-- Label chips (non-system labels only) with `labeled_at` date
-- **···** — opens action sheet
-- 🗑 — single-tap to trash
-
-For articles (non-trash):
-- **⚙ spinning** — audio is `pending` or `generating` (background queue)
-- **⚠** (amber, tappable) — audio generation `failed`; tap shows alert with error text
-
-Tapping a card:
-- **YouTube video** — opens YouTube URL in new tab, marks `started`
-- **Article** — navigates to `#reader/:id`, marks `started`
-
-### Action sheet (···)
-- **Open original** — opens URL in new tab
-- **Summary** (YouTube only) — generates or shows AI summary via OpenRouter (Gemini Flash)
-- **Labels** — inline label picker; Apply writes `PUT /api/videos/:id/labels`
-- **Copy** — copies URL (uses `execCommand('copy')` for iOS HTTP compatibility)
-
-### Trash mode
-- Entering trash shows trashed items with checkboxes
-- Bulk bar: Select all / count / Restore / Delete (permanent)
-- Both Restore and Delete require a two-tap confirmation (`confirmTap` helper)
-
----
-
-## Reader view (`#reader/:id`)
-
-Loads the article video record and its cached text in parallel. Passes the video into `Player.load()` so the mini-player reflects the current item.
-
-**Header:** emoji + channel, non-system label chips, title, published date, added date, status badge.
-
-**Text area:**
-- If `text/<id>.txt` exists: renders as `<pre class="article-text">`
-- If not: shows "Generate Audio" button which calls `Player.triggerGenerate(id)`
-
-**Nav:**
-- ← Back → `#list`
-- ··· → action sheet (fetches fresh video on open to reflect any in-session label edits)
-
----
-
-## Settings view (`#settings`)
-
-Global toggles:
-- **Autoplay next** — stored in DB (`settings.autoplay`) and mirrored to `localStorage('v6-autoplay')` for the player
-- **Audio on add** — when enabled, articles added via `POST /api/videos` are automatically queued for audio generation
-
-**TTS voice** — text input; any voice name accepted by `say -v` (e.g. `Ava (Premium)`)
-
-**Playback speed per source** — one number input per row in `sources` table; writes `PUT /api/sources/:id`
-
-**Labels** — opens the label management modal
-
-**Audio storage** — shows current `audio/` directory size in MB
-
-Save button writes `PUT /api/settings` and saves all source speeds.
-
----
-
-## Playlists view (`#playlists`)
-
-Playlists are named snapshots of the current filter state (labels, label_mode, source, sort field/direction, search text). They do **not** store a fixed set of video IDs — they re-run the filter live each time.
-
-**Save current filter** — names the current filter and writes `POST /api/playlists`
-
-**Playlist list:**
-- Tap row → applies `filter_json` to list state, saves state, navigates to `#list`
-- ✎ → inline rename (Enter to save, Escape to cancel); writes `PUT /api/playlists/:id`
-- ↻ → overwrite with current filter (first tap shows "Sure?", second confirms)
-- ✕ → delete (same double-tap confirmation pattern)
-
-Confirmation pattern (`confirmTap`): first tap changes button text to "Sure?" for 2.5 s, second tap within that window executes the action.
-
----
-
-## Mini-player (always visible)
-
-Fixed at the bottom, frosted-glass style. Only meaningful when a video is loaded into the player.
-
-**Layout (top to bottom):**
-1. Progress row: seek track (tappable to scrub) + `1:23 / 5:45` time display
-2. Controls: ↺10s / ▶⏸ / ↻30s
-3. Speed badge (always shown when loaded) + info area (emoji title, channel)
-
-**Speed picker** — tapping the speed badge opens a popup with presets: 0.75× 1× 1.25× 1.5× 1.75× 2×. Current speed is highlighted. Tapping outside closes it.
-
-**Info area** — tapping navigates to `#reader/:id` for the currently loaded item.
-
-**MediaSession** — wired so headphone/lock-screen controls work on iPhone:
-- Play / Pause / Seek backward (10 s) / Seek forward (10 s)
-- Next track → advance to next item in queue
-
----
-
-## AudioEngine (`public/player.js`)
-
-Singleton exposed as `window.Player`. Owns the single `<audio>` element (never destroyed or recreated — essential for iOS audio continuity).
-
-### Key state
-- `currentId` / `currentMeta` — currently loaded video
-- `queue` — ordered array of full video objects from the last list load
-- `sourceSpeeds` — map of `source_key → default_speed` fetched from `/api/sources` at init
-- `cachedStatus` — last fetched audio status `{ status, url?, error? }`
-
-### `Player.load(meta)`
-Called by `showReaderView`. Fetches audio status from `/api/videos/:id/audio/status`:
-- `ready` → enables play/pause button
-- `generating` / `pending` → shows `…` icon, starts polling every 2 s
-- `none` / `failed` / `deleted` → shows ⬇ icon (tap to generate)
-
-### `Player.setQueue(videos)`
-Called by `load()` in the list view after every fetch. Queue is the full sorted+filtered result.
-
-### `Player.triggerGenerate(id)`
-Posts to `POST /api/videos/:id/audio`, then polls until ready or failed. Failure triggers `speak()` with the error message.
-
-### Autoplay
-On `audio ended`:
-1. Mark current item finished (`POST /api/videos/:id/finished`)
-2. Clear saved position
-3. If autoplay enabled and there is a next item in queue: play `beep.wav`, then on beep end navigate to `#reader/<nextId>`
-4. If queue is exhausted: `speak('End of playlist.')`
-
-### Position persistence
-`localStorage` key `pos-<id>` stores current time, saved every 5 s and on pause. Restored when the same item is re-opened.
-
-### Verbal errors (`speak`)
-Uses `speechSynthesis` (cancels any pending utterance before speaking):
-- Audio generation network error (in `triggerGenerate`)
-- Audio generation failure reported by server (in polling loop)
-- End of playlist
-
-### Pre-caching
-`preCacheNext()` is called on track end. It sends a `PRECACHE_AUDIO` message to the Service Worker with the IDs of the next 3 articles in the queue that already have `audio_status = 'ready'`.
-
----
-
-## Caching overview
-
-There are three caching layers, each at a different level:
-
-| Layer | Location | What's cached | Lifetime |
-|-------|----------|---------------|----------|
-| **Text** | `text/<id>.txt` (server) | Extracted article text | Permanent — never deleted |
-| **Audio** | `audio/<id>.m4a` (server) | Generated M4A audio | 30 days from generation; reset on re-generation |
-| **Browser** | Service Worker cache | Audio files + static assets | Until SW cache is bumped or audio is evicted |
-
-**Text cache** — when audio is generated for an article, `extract_article.py` runs once and the result is written to `text/<id>.txt`. Subsequent re-generations (e.g. after the audio expires) read from this file rather than re-fetching the site. The reader view also reads from this cache to display article text.
-
-**Audio cache** — generated M4A files live in `audio/` and are served directly by Express. The 30-day lifecycle is managed server-side (see [Audio lifecycle](#audio-lifecycle)). The browser also receives a 7-day `max-age` cache header, so repeated plays don't re-request the file.
-
-**Browser / Service Worker cache** — the SW caches audio files cache-first so they survive going offline mid-ride. Static assets (app.js, player.js, shared.css, beep.wav) are pre-cached on SW install. The player proactively pre-fetches the next few items in the queue so they're available before you reach them (see [Service Worker](#service-worker-publicswjs)).
-
----
-
-## Article audio pipeline
-
-1. User taps "Generate Audio" in the reader, **or** the background queue picks up the item (if `audio_on_add = true`).
-2. `POST /api/videos/:id/audio` (user path) or `drainQueue()` (background path).
-3. Server runs `scripts/extract_article.py <url>` — outputs JSON `{ text, published_at }`. Text cached to `text/<id>.txt`; `published_at` saved to DB.
-4. `buildAudioHeader()` prepends `"<Title>. <Month Day, Year>"` to the text.
-5. `say -v "Ava (Premium)" -f <tmpfile> -o <aiff>` → `afconvert` → `audio/<id>.m4a`.
-6. `markAudioReady(id)` stamps `audio_added_at = now`, `audio_expires_at = now + 30 days`, sets `audio_status = 'ready'`.
-7. Client polling detects `ready` and enables playback.
-
-`scripts/extract_article.py` tries site-specific parsers first (Ars Technica, etc.), then falls back to `trafilatura`.
-
----
-
-## Background audio generation queue
-
-When `settings.audio_on_add = true`, articles added via `POST /api/videos` are immediately queued.
-
-**Queue mechanics (server-side, in-memory + DB-backed):**
-- `audioQueue: number[]` — FIFO list of video IDs
-- `drainQueue()` — processes one item at a time (sequential, since TTS is CPU-bound)
-- On enqueue: `setAudioPending(id)` writes `audio_status = 'pending'` to DB
-- On processing: `setAudioGenerating(id)` writes `audio_status = 'generating'`
-- On success: `markAudioReady(id)`
-- On failure: `setAudioFailed(id, error)` writes `audio_status = 'failed'`, increments `audio_retry_count`
-- Retry: after 5-minute delay, re-queues if `audio_retry_count < 5` (max 5 attempts total)
-- **Survives restarts:** on startup, `getPendingAudioIds()` re-queues any items still marked `pending` in DB
-
-User-triggered generation (`POST /api/videos/:id/audio`) runs independently (not via the queue) but also writes DB status, so the status endpoint is always consistent.
-
----
-
-## Audio lifecycle
-
-- **On startup** and **every 24 h**: `runAudioLifecycle()` deletes `audio/<id>.m4a` files where `audio_expires_at < now`, sets `audio_status = 'deleted'`.
-- After the deletion scan, any `.m4a` files still on disk are marked `audio_status = 'ready'` (handles files from a previous run that weren't tracked in DB).
-- When a `deleted` item is loaded into the player, tapping ⬇ re-generates it (same path as first generation, expiry resets to now + 30 days).
-
----
-
-## Service Worker (`public/sw.js`)
-
-Registered by `player.js` at init via `navigator.serviceWorker.register('/sw.js')`.
-
-**Install:** pre-caches static assets (`/`, `/app.js`, `/player.js`, `/shared.css`, `/beep.wav`).
-
-**Activate:** claims all clients, deletes old cache versions.
-
-**Fetch interception:**
-- `/audio/*` — cache-first; on miss fetches from network and stores in cache. Serves cached audio when offline.
-- `/api/*` — network-only (never cache API responses).
-- Everything else — cache-first (static assets).
-
-**`PRECACHE_AUDIO` message:** player sends `{ type: 'PRECACHE_AUDIO', ids: number[] }` after advancing tracks. SW fetches and caches each `audio/<id>.m4a` that isn't already cached.
-
-Cache name: `v6-audio-v1`. A version bump in `sw.js` triggers automatic old-cache eviction on activate.
-
----
-
-## API reference
-
-### Videos
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/videos` | List videos. Query: `q`, `labels`, `label_mode`, `source`, `after`, `before` |
-| `POST` | `/api/videos` | Add video. Body: `url`, `title`, `channel_name`, `emoji`, `content_type`, `source`, `summary`, `source_metadata` |
-| `GET` | `/api/videos/:id` | Get single video with labels |
-| `DELETE` | `/api/videos/:id` | Hard delete |
-| `POST` | `/api/videos/:id/started` | Mark started |
-| `POST` | `/api/videos/:id/finished` | Mark finished |
-| `POST` | `/api/videos/:id/trash` | Move to trash (adds Trash label) |
-| `POST` | `/api/videos/:id/restore` | Restore from trash |
-| `DELETE` | `/api/videos/purge` | Hard-delete all trashed videos |
-| `PUT` | `/api/videos/:id/labels` | Replace all labels. Body: `{ labelIds: number[] }` |
-| `POST` | `/api/videos/:id/labels/:labelId` | Add single label |
-| `DELETE` | `/api/videos/:id/labels/:labelId` | Remove single label (last label auto-restores Inbox) |
-| `POST` | `/api/videos/:id/summary` | Generate AI summary (YouTube only, via OpenRouter) |
-| `GET` | `/api/videos/:id/text` | Get cached article text |
-| `GET` | `/api/videos/:id/next` | Next video in filtered list. Same query params as `/api/videos` |
-
-### Audio
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/api/videos/:id/audio` | Trigger audio generation (or return existing). Returns `{ status, url? }` |
-| `GET` | `/api/videos/:id/audio/status` | Current status: `{ status, url?, error? }`. Checks in-memory → DB |
-| `GET` | `/api/audio/stats` | `{ bytes, mb }` — total audio directory size |
-| `GET` | `/audio/:id.m4a` | Serve generated audio file (7-day max-age cache header) |
-
-### Labels
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/labels` | All labels |
-| `POST` | `/api/labels` | Create label. Body: `{ name }` |
-| `PUT` | `/api/labels/:id` | Rename label. Body: `{ name }` |
-| `DELETE` | `/api/labels/:id` | Delete label (blocked if any video has it as its only non-system label) |
-
-### Settings, Sources, Playlists
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/settings` | All settings as `{ key: value }` |
-| `PUT` | `/api/settings` | Update one or many keys |
-| `GET` | `/api/sources` | All sources with `default_speed` |
-| `PUT` | `/api/sources/:id` | Update `default_speed`. Body: `{ default_speed: number }` |
-| `GET` | `/api/playlists` | All playlists |
-| `POST` | `/api/playlists` | Create. Body: `{ name, filter_json }` |
-| `PUT` | `/api/playlists/:id` | Update. Body: `{ name, filter_json }` |
-| `DELETE` | `/api/playlists/:id` | Delete |
-
-### Other
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/categories` | Distinct sources with item counts |
-| `GET` | `/api/preview` | Fetch YouTube title/channel via oEmbed. Query: `url` |
-| `GET` | `/api/trash` | Videos with Trash label |
-| `GET` | `/reader/:id` | Legacy server-rendered reader (deprecated, still functional) |
-
----
-
-## NanoClaw integration
-
-NanoClaw (the iOS Shortcut / agent) adds articles by posting to `POST /api/videos`. Send:
-
-```json
-{
-  "url": "https://...",
-  "title": "Article title",
-  "channel_name": "Publication name",
-  "emoji": "🚀",
-  "content_type": "article",
-  "source": "ars_technica"
-}
-```
-
-Do **not** send article body text — the server fetches and caches it on demand during audio generation.
-
-If `audio_on_add = true` is set in settings, audio generation begins automatically after the item is added.
-
----
-
-## iOS / Safari quirks
-
-- `navigator.clipboard.writeText` fails over HTTP — URL copy uses `execCommand('copy')` via a temporary `<textarea>`.
-- `window.open()` must be called synchronously before any `await` — iOS Safari kills popups opened after async gaps.
-- `audio.play()` must be called in a synchronous user-gesture handler — iOS blocks autoplay otherwise. The `<audio>` element is never destroyed for this reason.
-- Autoplay-next works by listening to `audio.ended` (a trusted audio event), then playing `beep.wav` via `new Audio()`, then navigating on `beep.ended` — all within synchronous audio event handlers.
-- Never embed TypeScript syntax inside HTML template-string JS blocks — causes a `SyntaxError` that silently kills the entire script.
-- All client JS lives in static `.js` files, never inlined in HTML templates.
-- `closeActionModal()` sets `current = null` — capture `id`, `url`, etc. into locals before calling it.
-
----
-
-## Environment variables
-
-Set in the launchd plist:
-
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `PORT` | `4000` | HTTP port |
-| `HTTPS_PORT` | `443` | HTTPS port |
-| `CERT_DIR` | — | Path to TLS cert/key files |
-| `OPENROUTER_API_KEY` | — | Required for YouTube AI summaries |
-| `SAY_VOICE` | `Ava (Premium)` | Override TTS voice for `say` |
+| **`README.md`** | This file — product + ops, kept in lockstep with features |
+| **`AGENTS.md`** | Agent rules (runtime user, ports, ingest constraints) |
+| **`CLAUDE.md`** | Historical notes; prefer README + AGENTS for current truth |
+| **`skill.md`** | NanoClaw HTTP add API |

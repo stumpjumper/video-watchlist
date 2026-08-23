@@ -1,8 +1,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { classifyUrl } from './classify';
+import { classifyUrl, normalizeUrl } from './classify';
 import { IngestError } from './errors';
-import { parseXHtml } from './x';
+import { parseXHtml, tweetRelayB64 } from './x';
 import { findTypedObjectFields, readJsString } from './relay';
 
 const ARTICLE_HTML = `
@@ -27,6 +27,37 @@ note_tweet:$R[10]={__id:"nt",__typename:"NoteTweet",text:"${'A'.repeat(80)} This
 legacy:$R[2]={full_text:"A truncated preview…"};
 `;
 
+const VIDEO_STATUS = '2091091937298182231';
+const VIDEO_B64 = tweetRelayB64(VIDEO_STATUS);
+const VIDEO_CAPTION = 'One of the most eloquent explanations of immigration you’ll ever hear.\\n\\nMilton Friedman had an extraordinary ability to cut through the political bullshit and explain complicated issues with simple economic logic.';
+const LONGER_REPLY = '@boot15_vu This reply is longer than the caption on purpose so a longest-full_text heuristic would steal the title and we must not do that because this is a conversation reply not the video post itself and it easily exceeds the original caption length.';
+
+const VIDEO_HTML = `
+self.$R=self.$R||{};
+screenName:"boot15_vu",name:"Jamais Vu",
+note_tweet:null,
+"client:${VIDEO_B64}:details":$R[112]={__id:"client:${VIDEO_B64}:details",__typename:"TBirdData",full_text:"${VIDEO_CAPTION}"};
+"client:${VIDEO_B64}:media_entities2:0:video_info":$R[85]={__id:"client:${VIDEO_B64}:media_entities2:0:video_info",__typename:"ApiMediaEntityVideoInfo",duration_millis:168063};
+legacy:$R[2]={full_text:"${LONGER_REPLY}"};
+`;
+
+const VIDEO_PLUS_QUOTED_ARTICLE_HTML = VIDEO_HTML + `
+QXJ0aWNsZUVudGl0eToyMDg5NjU1NDQyNjU3OTEwNzg0:$R[148]={__id:"art",__typename:"ArticleEntity",title:"Grok Bot Agents: how to automate your life in 10 Steps",preview_text:"Every AI tool you have used so far waits for you."};
+legacy:$R[3]={full_text:"https://t.co/eDBs67VMq2"};
+`;
+
+const REPLY_STATUS = '2091480040714478074';
+const REPLY_B64 = tweetRelayB64(REPLY_STATUS);
+const REPLY_HTML = `
+self.$R=self.$R||{};
+screenName:"elonmusk",name:"Elon Musk",
+note_tweet:null,
+legacy:$R[1]={full_text:"${VIDEO_CAPTION}"};
+"client:${REPLY_B64}:details":$R[10]={__id:"client:${REPLY_B64}:details",__typename:"TBirdData",full_text:"Precisely articulated"};
+"client:${VIDEO_B64}:media_entities2:0:video_info":$R[85]={__id:"client:${VIDEO_B64}:media_entities2:0:video_info",__typename:"ApiMediaEntityVideoInfo",duration_millis:168063};
+video.twimg.com/amplify_video/2091091772009033729/vid/foo.mp4
+`;
+
 describe('classifyUrl', () => {
   it('detects X status URLs including share junk', () => {
     const c = classifyUrl('https://x.com/xfreeze/status/2084975853272801623?s=46');
@@ -40,6 +71,12 @@ describe('classifyUrl', () => {
     assert.equal(classifyUrl('https://x.com/i/web/status/456').statusId, '456');
   });
 
+  it('captures the status id from /video/1 player paths', () => {
+    const c = classifyUrl('https://x.com/boot15_vu/status/2091091937298182231/video/1?s=46');
+    assert.equal(c.source, 'x');
+    assert.equal(c.statusId, '2091091937298182231');
+  });
+
   it('rejects Spaces and bare profiles', () => {
     assert.match(classifyUrl('https://x.com/i/spaces/1abc').unsupported ?? '', /Spaces/);
     assert.match(classifyUrl('https://x.com/xfreeze').unsupported ?? '', /post URL/);
@@ -49,6 +86,22 @@ describe('classifyUrl', () => {
     assert.equal(classifyUrl('https://youtu.be/abc').source, 'youtube');
     assert.equal(classifyUrl('https://arstechnica.com/foo').source, 'ars_technica');
     assert.equal(classifyUrl('https://example.com/post').source, 'web');
+  });
+});
+
+describe('normalizeUrl', () => {
+  it('strips /video/N and share junk from X status URLs', () => {
+    assert.equal(
+      normalizeUrl('https://x.com/boot15_vu/status/2091091937298182231/video/1?s=46'),
+      'https://x.com/boot15_vu/status/2091091937298182231',
+    );
+  });
+
+  it('leaves non-X /video/ paths alone', () => {
+    assert.equal(
+      normalizeUrl('https://example.com/watch/video/1'),
+      'https://example.com/watch/video/1',
+    );
   });
 });
 
@@ -89,6 +142,30 @@ describe('parseXHtml', () => {
     assert.equal(d.kind, 'long_post');
     assert.equal(d.author, 'Long Writer (@LongWriter)');
     assert.ok(d.text.length > 281);
+  });
+
+  it('detects attached native video on this status', () => {
+    const d = parseXHtml(VIDEO_HTML, VIDEO_STATUS);
+    assert.equal(d.kind, 'native_video');
+    assert.match(d.title, /eloquent explanations of immigration/);
+    assert.doesNotMatch(d.title, /steal the title/);
+    assert.equal(d.author, 'Jamais Vu (@boot15_vu)');
+    assert.equal(d.text, '');
+  });
+
+  it('still treats a video that quotes an article as native_video', () => {
+    const d = parseXHtml(VIDEO_PLUS_QUOTED_ARTICLE_HTML, VIDEO_STATUS);
+    assert.equal(d.kind, 'native_video');
+    assert.match(d.title, /eloquent explanations of immigration/);
+    assert.doesNotMatch(d.title, /Grok Bot Agents/);
+    assert.doesNotMatch(d.title, /t\.co/);
+  });
+
+  it('does not treat a reply that displays parent video as native_video', () => {
+    const d = parseXHtml(REPLY_HTML, REPLY_STATUS);
+    assert.equal(d.kind, 'tweet');
+    assert.match(d.text, /Precisely articulated/);
+    assert.doesNotMatch(d.text, /eloquent explanations/);
   });
 });
 
