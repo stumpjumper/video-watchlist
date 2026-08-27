@@ -54,7 +54,7 @@ Web extract uses `/Users/aal/.local/bin/trafilatura` (pipx; `TRAFILATURA` overri
 
 `src/ingest/` is the URL pipeline: classify → preview → extract → quality gate. Adapters: YouTube (oEmbed + yt-dlp), **X** (Relay `ArticleEntity` / `note_tweet` / attached native video), Ars/web (JSON-LD + Mozilla Readability + trafilatura on one fetch; Ars still prefers the `post-content` container). Failures are `IngestError` with a human sentence + `retryable`; permanent codes (`not_article`, `http_404`, `login_wall`, `unsupported`, `paywall`, `too_short`, `parse_failed`) must not be retried.
 
-X status URLs are not “web articles.” Attached native video (`kind=native_video`, `content_type=video`, yt-dlp) and Articles / long Premium posts are in; regular short posts are refused (`not_article`). A reply that only *displays* someone else’s video is still `not_article` — detection is scoped to the opened status’s Relay id, not any `VideoInfo` on the page. `/status/{id}/video/N` is the same post as `/status/{id}` (`normalizeUrl` strips the suffix). Audio lands in the existing **x** Overcast feed (`/feed/<token>/x.xml`). Do not buy the X API or add Playwright.
+X status URLs are not “web articles.” Attached native video (`kind=native_video`, `content_type=video`, yt-dlp) and Articles / long Premium posts are in; regular short posts are refused (`not_article`). A reply that only *displays* someone else’s video is still `not_article` — detection is scoped to the opened status’s Relay id, not any `VideoInfo` on the page. `/status/{id}/video/N` is the same post as `/status/{id}` (`normalizeUrl` strips the suffix). Audio lands in the existing **x** Overcast feed (`/feed/<token>/x.xml`). Relay `firstJsStringField` keys must be whole identifiers (`__typename:"__Root"` contains `name:"__Root"`). Prefer `authorName`. `fetchPage` retries HTTP 5xx. Do not buy the X API or add Playwright.
 
 JS-only shells (no article in the HTML) fail `parse_failed` — do not reach for Playwright. Do not add X threads unless asked.
 
@@ -73,4 +73,4 @@ Lifecycle replaces the old 30-day generation TTL. Inbox auto-trash / audio-on-tr
 
 ## Leftovers (not urgent)
 
-Nano launchd leftover cleanup reminder is **2026-08-23** (ask first; do not auto-delete `/Users/nano/projects/video_watchlist`). Optional: NanoClaw cert dead-man’s-switch. Sources: `youtube`, `ars_technica`, `x`, `web` (one Overcast feed each).
+Nano leftover cleanup reminder was **2026-08-23** (ask first; do not auto-delete `/Users/nano/projects/video_watchlist`). Optional: NanoClaw cert dead-man’s-switch. Sources: `youtube`, `ars_technica`, `x`, `web` (one Overcast feed each).

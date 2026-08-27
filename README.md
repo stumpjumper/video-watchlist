@@ -74,7 +74,7 @@ Server-side classify in `src/ingest` overwrites the client’s source hint for k
 | Source | URLs | Audio |
 |--------|------|--------|
 | `youtube` | YouTube / youtu.be | yt-dlp → m4a; optional captions → `text/<id>.txt` |
-| `x` | `x.com` / `twitter.com` status URLs | **Attached native video** → yt-dlp m4a. **X Articles** and long Premium posts → TTS. Regular tweets, and replies that only *display* someone else’s video, are refused (`not_article`). `/status/{id}/video/N` is the same post as `/status/{id}`. |
+| `x` | `x.com` / `twitter.com` status URLs | **Attached native video** → yt-dlp m4a. **X Articles** and long Premium posts → TTS. Regular tweets, and replies that only *display* someone else’s video, are refused (`not_article`). `/status/{id}/video/N` is the same post as `/status/{id}`. Page fetch retries HTTP 5xx a couple of times (X does that). |
 | `ars_technica` | arstechnica.com | TTS (prefers `post-content`, then JSON-LD / Readability / trafilatura) |
 | `web` | everything else | TTS (one fetch: JSON-LD + Readability + trafilatura). JS-only shells fail `parse_failed` — no Playwright. |
 

@@ -149,10 +149,20 @@ export function findTypedObjectFields(
 
 export function firstJsStringField(html: string, key: string): string | null {
   const needle = `${key}:"`;
-  const idx = html.indexOf(needle);
-  if (idx < 0) return null;
-  const str = readJsString(html, idx + key.length + 1);
-  return str?.value ?? null;
+  let from = 0;
+  while (from < html.length) {
+    const idx = html.indexOf(needle, from);
+    if (idx < 0) return null;
+    // `__typename:"__Root"` contains the substring `name:"` — require a
+    // non-identifier character before the key (or start of string).
+    if (idx > 0 && /[A-Za-z0-9_$]/.test(html[idx - 1]!)) {
+      from = idx + 1;
+      continue;
+    }
+    const str = readJsString(html, idx + key.length + 1);
+    return str?.value ?? null;
+  }
+  return null;
 }
 
 /** First note_tweet that is an object (not null) — returns its text field. */

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { classifyUrl, normalizeUrl } from './classify';
 import { IngestError } from './errors';
 import { parseXHtml, tweetRelayB64 } from './x';
-import { findTypedObjectFields, readJsString } from './relay';
+import { findTypedObjectFields, firstJsStringField, readJsString } from './relay';
 
 const ARTICLE_HTML = `
 self.$R=self.$R||{};
@@ -106,6 +106,14 @@ describe('normalizeUrl', () => {
 });
 
 describe('relay string parser', () => {
+  it('does not treat __typename as a name field', () => {
+    assert.equal(
+      firstJsStringField('__typename:"__Root",name:"DogeDesigner"', 'name'),
+      'DogeDesigner',
+    );
+    assert.equal(firstJsStringField('plain_text:"hello"', 'text'), null);
+  });
+
   it('unescapes unicode and newlines', () => {
     const raw = `"What It\\u2019s For\\nNext"`;
     const got = readJsString(raw, 0);
@@ -159,6 +167,22 @@ describe('parseXHtml', () => {
     assert.match(d.title, /eloquent explanations of immigration/);
     assert.doesNotMatch(d.title, /Grok Bot Agents/);
     assert.doesNotMatch(d.title, /t\.co/);
+  });
+
+  it('reads authorName and strips t.co from a native-video caption', () => {
+    const status = '2092298224224919949';
+    const b64 = tweetRelayB64(status);
+    const html = `
+__typename:"__Root",
+authorName:"DogeDesigner",screenName:"cb_doge",
+"client:${b64}:details":$R[1]={__id:"client:${b64}:details",__typename:"TBirdData",full_text:"BREAKING: SpaceX President and COO Gwynne Shotwell’s full keynote address during today’s official announcement of Starbase, Louisiana. https://t.co/YYNxBFDXeP"};
+"client:${b64}:media_entities2:0:video_info":$R[2]={__id:"client:${b64}:media_entities2:0:video_info",__typename:"ApiMediaEntityVideoInfo",duration_millis:834066};
+`;
+    const d = parseXHtml(html, status);
+    assert.equal(d.kind, 'native_video');
+    assert.equal(d.author, 'DogeDesigner (@cb_doge)');
+    assert.match(d.title, /Starbase, Louisiana/);
+    assert.doesNotMatch(d.title, /https|t\.co/);
   });
 
   it('does not treat a reply that displays parent video as native_video', () => {

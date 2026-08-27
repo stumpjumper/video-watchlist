@@ -55,18 +55,22 @@ function ogDescription(html: string): string {
   return raw.replace(/\s+/g, ' ').trim();
 }
 
+function stripUrls(s: string): string {
+  return s.replace(/\s*https?:\/\/\S+/gi, '').replace(/\s+/g, ' ').trim();
+}
+
 function videoTitle(caption: string, html: string): string {
-  const collapsed = caption.replace(/\s+/g, ' ').trim();
+  const collapsed = stripUrls(caption);
   if (collapsed.length >= 8) return collapsed.slice(0, 140);
-  const og = ogDescription(html);
+  const og = stripUrls(ogDescription(html));
   if (og.length >= 8) return og.slice(0, 140);
   return 'X video';
 }
 
 function authorFromHtml(html: string): string {
   const handle = firstJsStringField(html, 'screenName');
-  let name: string | null = null;
-  if (handle) {
+  let name = firstJsStringField(html, 'authorName');
+  if (!name && handle) {
     const hIdx = html.indexOf(`screenName:"${handle}"`);
     if (hIdx >= 0) {
       name = firstJsStringField(html.slice(Math.max(0, hIdx - 2500), hIdx + 2500), 'name');
