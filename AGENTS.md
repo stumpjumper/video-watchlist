@@ -26,7 +26,7 @@ Overcast subscriptions use `FEED_TOKEN` + `PUBLIC_AUDIO_BASE_URL` + `PUBLIC_FEED
 
 launchd as aal: `gui/502/com.video-watchlist`. Restart: `launchctl kickstart -k gui/502/com.video-watchlist`. Dev: stop launchd first, then `npm run dev`.
 
-Cert renew: `scripts/renew_tailscale_https_cert` (aal cert/project paths), invoked via `~/bin/renew_tailscale_https_cert`. Agent `com.tailscale-cert-renew`, Sunday 4am. LaunchAgent PATH must include `/Users/aal/.local/bin`.
+Cert renew: `scripts/renew_tailscale_https_cert` (aal cert/project paths), invoked via `~/bin/renew_tailscale_https_cert`. Agent `com.tailscale-cert-renew`, Sunday 4am. LaunchAgent PATH must include `/Users/aal/.local/bin`. Inbox (`com.aal.inbox`) symlinks these cert files; the renew script kickstarts it too (non-fatal if that job is missing).
 
 yt-dlp: Homebrew `/opt/homebrew/bin/yt-dlp`. Daily upgrade `com.ytdlp-upgrade` at 5:00 (`scripts/upgrade_ytdlp`). Plist lives at `scripts/com.ytdlp-upgrade.plist` — copy to `~/Library/LaunchAgents/`. Emails on version change or brew failure, not when already current. Hardcoded path in `src/audio.ts`; no server restart after upgrade.
 

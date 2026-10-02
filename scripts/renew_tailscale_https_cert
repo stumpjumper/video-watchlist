@@ -35,6 +35,11 @@ if ! launchctl kickstart -k "gui/$(id -u)/com.video-watchlist"; then
   exit 1
 fi
 
+echo "Restarting inbox server (shares these cert files via symlink)..."
+if ! launchctl kickstart -k "gui/$(id -u)/com.aal.inbox"; then
+  echo "inbox kickstart failed (non-fatal; watchlist is serving the new cert)"
+fi
+
 EXPIRY=$(openssl x509 -in "$CERT_DIR/server.crt" -noout -enddate | sed 's/notAfter=//')
 echo "Done. Cert renewed and server restarted. Expires: $EXPIRY"
 notify success "New cert expires: $EXPIRY"
