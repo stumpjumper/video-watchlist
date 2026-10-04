@@ -6,8 +6,8 @@ Personal video/article watchlist server. Adopted from Claude on 2026-08-15 (form
 
 ## Stack
 
-- Node + TypeScript via `tsx` (no build step): `npm start` / `npm run dev` / `npm test` (`tsx --test src/ingest/*.test.ts src/feed.test.ts src/lifecycle.test.ts src/audio.test.ts`)
-- Express, SQLite (`watchlist.db`, schema `PRAGMA user_version` = 9), plain HTML/CSS/JS SPA
+- Node + TypeScript via `tsx` (no build step): `npm start` / `npm run dev` / `npm test` (`tsx --test src/ingest/*.test.ts src/feed.test.ts src/lifecycle.test.ts src/audio.test.ts src/dedupe.test.ts`)
+- Express, SQLite (`watchlist.db`, schema `PRAGMA user_version` = 10), plain HTML/CSS/JS SPA
 - Live branch: **`main`**.
 
 ## URLs / ports
@@ -58,6 +58,8 @@ X status URLs are not “web articles.” Attached native video (`kind=native_vi
 
 JS-only shells (no article in the HTML) fail `parse_failed` — do not reach for Playwright. Do not add X threads unless asked.
 
+`POST /api/videos` is idempotent on `(source, external_id)`: YouTube video id, X status id, or canonical page URL. A duplicate returns **200** with the existing row (Trash included — do not resurrect) and does not queue audio. **201** means newly inserted. `skill.md` is the agent contract: 200 is `(already on watchlist)`, not a failure.
+
 `produceAudio` dispatches on `content_type === 'video'` (yt-dlp) vs article (TTS). Article TTS (`renderArticleAudio`) appends 2s silence + Daniel “Article audio complete.” + 2s silence; not stored in the text cache; existing m4a until regen. Native video is unchanged. X native video is stamped `content_type=video` at add time; do not re-`extractDocument` just to read `nativeAudio`. Transcript sweep is youtube-only. The mini-player does not play `beep.wav` on `ended`.
 
 Lifecycle replaces the old 30-day generation TTL. Inbox auto-trash / audio-on-trash delay / Trash hard-delete are settings (`0` = that rule off, never “immediate”). Audio strips after the Trash delay; text is kept until the row is permanently deleted. Filed items are a library. Details in `README.md`.
@@ -68,9 +70,10 @@ Lifecycle replaces the old 30-day generation TTL. Inbox auto-trash / audio-on-tr
 - Bind `::`, not `0.0.0.0`.
 - iOS: no real navigation to `Content-Disposition` attachments (Blob download); do not intercept audio range requests in the SW.
 - Do not commit secrets, `certs/`, or the DB.
-- Bump `public/sw.js` `CACHE` on static changes (currently `v6-audio-v15`).
+- Bump `public/sw.js` `CACHE` on static changes (currently `v6-audio-v17`).
+- `npm test` imports `src/db.ts` through the audio and feed tests, so it opens the live `watchlist.db` and runs migrations. Dedupe tests set `WATCHLIST_DB` before that import. A fresh database has no legacy `played_at` column; that copy is guarded.
 - **When a feature is complete, update `README.md` in the same change** (ingest, audio, feed, UI, routes, schema, env vars). `README.md` is the human product/ops doc; this file is agent rules. Do not leave README as a historical snapshot. Do not revive `README_local.md` — machine facts that must be shared live here or in README.
 
 ## Leftovers (not urgent)
 
-Nano leftover cleanup reminder was **2026-08-23** (ask first; do not auto-delete `/Users/nano/projects/video_watchlist`). Optional: NanoClaw cert dead-man’s-switch. Sources: `youtube`, `ars_technica`, `x`, `web` (one Overcast feed each).
+Nano tree `/Users/nano/projects/video_watchlist` is a rollback copy (`RETIRED.md`, 2026-09-12). Ask before deleting it. Do not re-enable nano's `com.video-watchlist` or `com.tailscale-cert-renew`. Optional: NanoClaw cert dead-man’s-switch. Sources: `youtube`, `ars_technica`, `x`, `web` (one Overcast feed each).

@@ -68,9 +68,15 @@ Known source identifiers: `youtube`, `ars_technica`, `x`, `web`. The server clas
 
 X status URLs (`https://x.com/{user}/status/{id}`, including `/video/N`) are classified by the server: attached native video becomes `content_type: video` (yt-dlp audio, x feed); Articles and long Premium posts become `content_type: article` (TTS). Regular short posts — including a reply that only displays someone else’s video — are refused (`not_article`).
 
-Success: HTTP 201 with the new item record as JSON. Notable response fields:
+The same item posted again is not a second row. The server matches a YouTube video id (`watch?v=`, `youtu.be/`, `/shorts/`), an X status id (including `/video/N`), or a canonical article URL. It does not overwrite the stored title, status, labels, or audio.
+
+Success:
+- HTTP 201 — new item. Body is the new record.
+- HTTP 200 — already on the list. Body is the **existing** record, including when that row is in Trash. Do not retry, do not report a failure, and do not treat Trash as permission to add it again.
+
+Notable response fields:
 - `id` — integer; use this to reference the item in subsequent API calls
-- `audio_status` — `none` | `pending` | `generating` | `ready` | `failed`; if `audio_on_add` is enabled on the server, YouTube and article items will begin audio production immediately after add and this field will reflect it
+- `audio_status` — `none` | `pending` | `generating` | `ready` | `failed`; if `audio_on_add` is enabled on the server, YouTube and article items will begin audio production immediately after a **201**. A 200 does not start another download.
 
 Errors:
 - HTTP 400 — missing `url`, or `title` was not provided and preview also failed (error string explains why)
@@ -80,13 +86,16 @@ Errors:
 
 On HTTP 201: note `(added to watchlist)` in your report for this item.
 
-On any non-201: note `(watchlist unavailable)` and continue without stopping the check. Do not retry.
+On HTTP 200: note `(already on watchlist)` and continue. Do not send a Telegram "new item" notification for it.
+
+On connection refused, HTTP 400, or HTTP 5xx: note `(watchlist unavailable)` and continue without stopping the check. Do not retry.
 
 ## Reporting example
 
 ```
 🔭 Scott Manley: NEW — "Apollo at 50" — https://youtu.be/abc123 (added to watchlist)
 🛸 Ars Technica: NEW — "NASA's new rocket" — https://arstechnica.com/... (added to watchlist)
+⚡ Tesla: NEW — "Cybertruck Update" — https://youtu.be/xyz789 (already on watchlist)
 ⚡ Tesla: NEW — "Cybertruck Update" — https://youtu.be/xyz789 (watchlist unavailable)
 ```
 

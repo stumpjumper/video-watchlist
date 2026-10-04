@@ -45,7 +45,7 @@ HTTPS is on **4443** so the process does not need root for 443. Certs in `certs/
 | Path | Role |
 |------|------|
 | `src/server.ts` | Express routes, audio queue, lifecycle, feed route |
-| `src/db.ts` | SQLite + migrations (`PRAGMA user_version` = **9**) |
+| `src/db.ts` | SQLite + migrations (`PRAGMA user_version` = **10**) |
 | `src/lifecycle.ts` | Inbox/Trash clocks (queries + stamps); `lifecycle.test.ts` |
 | `src/audio.ts` | Article TTS + yt-dlp native-audio download, transcripts, duration |
 | `src/feed.ts` | Overcast RSS 2.0 + iTunes namespace |
@@ -86,7 +86,7 @@ Do not buy the X API, add Playwright, or stitch X threads unless asked.
 
 ## Database
 
-**File:** `watchlist.db` (gitignored). Schema via `PRAGMA user_version` (currently **9**).
+**File:** `watchlist.db` (gitignored). Schema via `PRAGMA user_version` (currently **10**).
 
 ### `videos`
 
@@ -98,6 +98,7 @@ Do not buy the X API, add Playwright, or stitch X threads unless asked.
 | `finished_at` | First in-app `audio` ended (does not move on repeat) |
 | `status` | `new` \| `started` \| `finished` |
 | `source` | `youtube` \| `ars_technica` \| `x` \| `web` (or a custom slug) |
+| `external_id` | Dedupe key with `source`. YouTube video id, X status id, or canonical page URL. Unique when set. |
 | `content_type` | `video` \| `article` |
 | `published_at` | Creation date. Filled during audio production (`yt-dlp` upload date, or extractor date). Feed `<pubDate>` is `published_at ?? added_at`. |
 | `summary` | AI HTML summary (YouTube, OpenRouter) |
@@ -128,6 +129,7 @@ Labels are many-to-many (`video_labels`). Every item has ≥1 label. Inbox = 1, 
 - **V7:** `finished_at`; lifecycle settings (`lifecycle_trash_after_finished_hours=24`, `lifecycle_inbox_inactive_days=30`, `lifecycle_purge_trash_days=30`)
 - **V8:** backfill `started_at = now` where null, so the inactivity clock does not treat the whole historic Inbox as already stale
 - **V9:** `lifecycle_strip_audio_after_trash_seconds` (default 60)
+- **V10:** backfill `external_id`. Unique index `videos_source_external_id` once no duplicate keys remain.
 
 ---
 
@@ -235,7 +237,7 @@ Do not rotate `FEED_TOKEN` or change those public URLs without resubscribing Ove
 |-------|--------|------|----------|
 | Text | `text/<id>.txt` | Article extract or YouTube transcript | Until the row is permanently deleted (not on Trash) |
 | Audio | `audio/<id>.m4a` | TTS or yt-dlp | Until Trash (filed library: until manual trash) |
-| Browser | SW cache `v6-audio-v15` | Precached full m4a + static assets | Until `CACHE` bump |
+| Browser | SW cache `v6-audio-v17` | Precached full m4a + static assets | Until `CACHE` bump |
 
 SW **must not** intercept audio **range** requests (iOS streaming; caching 206 corrupts playback). API is network-only.
 
@@ -245,7 +247,7 @@ SW **must not** intercept audio **range** requests (iOS streaming; caching 206 c
 
 Preview: `GET /api/preview?url=` — YouTube oEmbed, X Relay parse, or web title. Failures `{ error, code, retryable }`. Regular X posts return 200 with `warning.code = not_article`; `POST /api/videos` then 400s those.
 
-Add: `POST /api/videos` — server classifies. For `source=x` it always previews (even if title is filled), stamps `content_type` from that, normalizes `/video/N` off the URL.
+Add: `POST /api/videos` — server classifies. For `source=x` it always previews on a **new** row (even if title is filled), stamps `content_type` from that, normalizes `/video/N` off the URL. A repeat of the same YouTube id, X status id, or canonical article URL returns **200** with the existing row and does not overwrite it or queue audio. A Trash match is returned as-is (not restored). **201** is a new row.
 
 | Method | Path | Notes |
 |--------|------|--------|

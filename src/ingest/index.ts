@@ -5,7 +5,7 @@ import { extractX, previewX } from './x';
 import { previewYouTube, youtubeDocument } from './youtube';
 import type { Document, Preview } from './types';
 
-export { classifyUrl, EMOJI_BY_SOURCE, normalizeUrl } from './classify';
+export { classifyUrl, EMOJI_BY_SOURCE, canonicalPageUrl, externalIdFor, normalizeUrl, youtubeVideoId } from './classify';
 export type { ClassifiedUrl, ContentType, DocumentKind, SourceKey } from './classify';
 export { IngestError, formatFailure, ingestError, isRetryableFailure } from './errors';
 export type { IngestCode } from './errors';

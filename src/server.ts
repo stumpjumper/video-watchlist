@@ -9,7 +9,7 @@ import { promisify } from 'util';
 import { mkdtemp, readdir, readFile, rm, stat, unlink } from 'fs/promises';
 import { tmpdir } from 'os';
 import {
-  getVideos, getVideoById, addVideo, hardDelete, markStarted, markFinished, saveSummary,
+  getVideos, getVideoById, addVideoDeduped, findExistingVideo, hardDelete, markStarted, markFinished, saveSummary,
   getLabels, createLabel, deleteLabel, renameLabel,
   addLabelToVideo, removeLabelFromVideo, setVideoLabels, trashVideo, restoreFromTrash,
   getTrashCount, purgeTrash, getCategories,
@@ -33,7 +33,7 @@ import {
 } from './audio';
 import { buildFeedXml } from './feed';
 import {
-  previewUrl, resolveSource, EMOJI_BY_SOURCE, normalizeUrl,
+  previewUrl, resolveSource, EMOJI_BY_SOURCE, normalizeUrl, externalIdFor,
   IngestError, formatFailure, isRetryableFailure,
 } from './ingest';
 
@@ -137,6 +137,16 @@ app.post('/api/videos', async (req: Request, res: Response) => {
   source = classified.source;
   content_type = classified.contentType;
   if (classified.source === 'x') url = normalizeUrl(url);
+
+  const externalId = externalIdFor(String(source), url);
+  if (externalId) {
+    const existing = findExistingVideo(String(source), externalId);
+    if (existing) {
+      res.status(200).json(existing);
+      return;
+    }
+  }
+
   if (!String(emoji).trim() || emoji === '📺') {
     emoji = EMOJI_BY_SOURCE[classified.source] ?? emoji;
   }
@@ -165,11 +175,16 @@ app.post('/api/videos', async (req: Request, res: Response) => {
   }
 
   const summaryStr = typeof summary === 'string' && summary.trim() ? summary.trim() : undefined;
-  const video = addVideo(
+  const { video, created } = addVideoDeduped(
     url, title.trim(), String(channel_name), String(emoji),
     summaryStr, String(source), String(content_type),
     typeof source_metadata === 'string' ? source_metadata : undefined,
+    externalId,
   );
+  if (!created) {
+    res.status(200).json(video);
+    return;
+  }
   res.status(201).json(video);
 
   const settings = getSettings();

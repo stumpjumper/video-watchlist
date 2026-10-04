@@ -86,6 +86,8 @@
 
   let current        = null;
   let fetchTimer     = null;
+  let previewTimer   = null;
+  let previewGen     = 0;
   let sortBy         = 'added_at';
   let sortDir        = 'desc';
   let allLabels      = [];
@@ -1004,7 +1006,7 @@
   const EMOJI_BY_SOURCE = { youtube: '📺', ars_technica: '🚀', web: '📰', x: '𝕏' };
 
   document.getElementById('add-url').addEventListener('input', () => {
-    clearTimeout(fetchTimer); updateAddBtn();
+    clearTimeout(previewTimer); updateAddBtn();
     const url = document.getElementById('add-url').value.trim();
     if (!url) { setFetchStatus('', ''); return; }
     const detected = autoDetectCategory(url);
@@ -1014,15 +1016,17 @@
       if (!emojiEl.dataset.userEdited) emojiEl.value = EMOJI_BY_SOURCE[detected] || '📺';
     }
     setFetchStatus('Fetching title…', '');
-    fetchTimer = setTimeout(() => fetchPreview(url), 600);
+    const gen = ++previewGen;
+    previewTimer = setTimeout(() => fetchPreview(url, gen), 600);
   });
   document.getElementById('add-emoji').addEventListener('input', e => { e.target.dataset.userEdited = '1'; });
   document.getElementById('add-title').addEventListener('input', updateAddBtn);
 
-  async function fetchPreview(url) {
+  async function fetchPreview(url, gen) {
     try {
       const res = await fetch('/api/preview?url=' + encodeURIComponent(url));
       const data = await res.json().catch(() => ({}));
+      if (gen !== previewGen) return;
       if (!res.ok) {
         setFetchStatus(data.error || 'Could not fetch title — enter it manually', 'err');
         return;
@@ -1039,6 +1043,7 @@
         const emojiEl = document.getElementById('add-emoji');
         if (emojiEl && !emojiEl.dataset.userEdited && data.emoji) emojiEl.value = data.emoji;
       }
+      if (gen !== previewGen) return;
       document.getElementById('add-title').value   = data.title        || '';
       document.getElementById('add-channel').value = data.channel_name || '';
       if (data.warning) {
@@ -1048,7 +1053,10 @@
                        data.title ? 'ok' : 'err');
       }
       updateAddBtn();
-    } catch { setFetchStatus('Could not fetch title — enter it manually', 'err'); }
+    } catch {
+      if (gen !== previewGen) return;
+      setFetchStatus('Could not fetch title — enter it manually', 'err');
+    }
   }
 
   function setFetchStatus(msg, cls) {
@@ -1067,11 +1075,22 @@
     if (!url || !title) return;
     const btn = document.getElementById('btn-add-submit');
     btn.disabled = true; btn.textContent = 'Adding…';
+    previewGen++;
+    clearTimeout(previewTimer);
     const res = await fetch('/api/videos', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url, title, channel_name: channel, emoji, source, content_type }),
     });
-    if (res.ok) { closeAddModal(); load(); }
+    if (res.ok) {
+      const data = await res.json().catch(() => null);
+      const trashed = res.status === 200 && data?.labels?.some(l => l.label_id === 2);
+      if (trashed) {
+        btn.disabled = false; btn.textContent = 'Add to watchlist';
+        setFetchStatus('Already in Trash — left it there', 'warn');
+        return;
+      }
+      closeAddModal(); load();
+    }
     else {
       btn.disabled = false; btn.textContent = 'Add to watchlist';
       setFetchStatus('Error adding — try again', 'err');

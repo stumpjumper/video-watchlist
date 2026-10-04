@@ -4,6 +4,8 @@ import {
   inboxFinishedIds, inboxInactiveIds, trashIds, trashOlderIds, trashAudioDueIds,
   stampStarted, stampFinished,
 } from './lifecycle';
+import { externalIdFor } from './ingest/classify';
+import { chooseKeeper, isUniqueConstraint } from './dedupe';
 
 const db = new DatabaseSync(
   process.env.WATCHLIST_DB || path.join(__dirname, '..', 'watchlist.db'),
@@ -34,7 +36,12 @@ try { db.exec('ALTER TABLE videos ADD COLUMN summary TEXT'); } catch {}
 // legacy status value migrations
 db.exec(`UPDATE videos SET status = 'new'     WHERE status = 'unplayed'`);
 db.exec(`UPDATE videos SET status = 'started' WHERE status = 'played'`);
-db.exec(`UPDATE videos SET started_at = played_at WHERE played_at IS NOT NULL AND started_at IS NULL`);
+const videoCols = new Set(
+  (db.prepare('PRAGMA table_info(videos)').all() as { name: string }[]).map(c => c.name),
+);
+if (videoCols.has('played_at')) {
+  db.exec(`UPDATE videos SET started_at = played_at WHERE played_at IS NOT NULL AND started_at IS NULL`);
+}
 
 // V3 prep columns (idempotent)
 try { db.exec(`ALTER TABLE videos ADD COLUMN source TEXT NOT NULL DEFAULT 'youtube'`); } catch {}
@@ -205,6 +212,44 @@ if (userVersion < 9) {
   } catch (e) { db.exec('ROLLBACK'); throw e; }
 }
 
+if (userVersion < 10) {
+  const rows = db.prepare(
+    `SELECT id, url, source FROM videos WHERE external_id IS NULL OR external_id = ''`
+  ).all() as { id: number; url: string; source: string }[];
+  const upd = db.prepare(
+    `UPDATE videos SET external_id = ? WHERE id = ? AND (external_id IS NULL OR external_id = '')`
+  );
+  db.exec('BEGIN');
+  try {
+    for (const row of rows) {
+      const ext = externalIdFor(row.source, row.url);
+      if (ext) upd.run(ext, row.id);
+    }
+    db.exec('PRAGMA user_version = 10');
+    db.exec('COMMIT');
+  } catch (e) { db.exec('ROLLBACK'); throw e; }
+}
+
+function ensureExternalIdIndex(): void {
+  const dupe = db.prepare(`
+    SELECT 1 AS n FROM videos
+    WHERE external_id IS NOT NULL AND external_id != ''
+    GROUP BY source, external_id
+    HAVING COUNT(*) > 1
+    LIMIT 1
+  `).get();
+  if (dupe) {
+    console.warn('[db] duplicate external_id rows present; unique index not created yet');
+    return;
+  }
+  db.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS videos_source_external_id
+    ON videos(source, external_id)
+    WHERE external_id IS NOT NULL AND external_id != ''
+  `);
+}
+ensureExternalIdIndex();
+
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export interface Source {
@@ -348,20 +393,68 @@ export function addVideo(
   source?: string,
   content_type?: string,
   source_metadata?: string,
+  external_id?: string | null,
 ): Video {
   const info = db.prepare(
-    `INSERT INTO videos (url, title, channel_name, emoji, status, summary, source, content_type, source_metadata)
-     VALUES (?, ?, ?, ?, 'new', ?, ?, ?, ?)`
+    `INSERT INTO videos (url, title, channel_name, emoji, status, summary, source, content_type, source_metadata, external_id)
+     VALUES (?, ?, ?, ?, 'new', ?, ?, ?, ?, ?)`
   ).run(
     url, title, channel_name, emoji,
     summary ?? null,
     source ?? 'youtube',
     content_type ?? 'video',
     source_metadata ?? null,
+    external_id || null,
   );
   const id = info.lastInsertRowid as number;
   db.prepare(`INSERT INTO video_labels (video_id, label_id) VALUES (?, 1)`).run(id);
   return getVideoById(id)!;
+}
+
+function getVideosByExternalId(source: string, externalId: string): Video[] {
+  const rows = db.prepare(
+    `SELECT * FROM videos WHERE source = ? AND external_id = ? ORDER BY id`
+  ).all(source, externalId) as Omit<Video, 'labels'>[];
+  return attachLabels(rows);
+}
+
+export function findExistingVideo(source: string, externalId: string): Video | null {
+  const existing = getVideosByExternalId(source, externalId);
+  if (existing.length === 0) return null;
+  return chooseKeeper(existing);
+}
+
+/**
+ * Insert, or return the row already stored for this source + external id.
+ * Does not overwrite title, status, labels, or audio. A Trash match is returned as-is.
+ */
+export function addVideoDeduped(
+  url: string,
+  title: string,
+  channel_name: string,
+  emoji: string,
+  summary: string | undefined,
+  source: string,
+  content_type: string,
+  source_metadata: string | undefined,
+  external_id: string | null,
+): { video: Video; created: boolean } {
+  if (external_id) {
+    const existing = findExistingVideo(source, external_id);
+    if (existing) return { video: existing, created: false };
+  }
+  try {
+    const video = addVideo(
+      url, title, channel_name, emoji, summary, source, content_type, source_metadata, external_id,
+    );
+    return { video, created: true };
+  } catch (err) {
+    if (external_id && isUniqueConstraint(err)) {
+      const existing = findExistingVideo(source, external_id);
+      if (existing) return { video: existing, created: false };
+    }
+    throw err;
+  }
 }
 
 export function getCategories(): { source: string; count: number }[] {

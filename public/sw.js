@@ -1,6 +1,6 @@
 // Service Worker — caches audio files for offline playback and pre-fetches the queue.
 
-const CACHE = 'v6-audio-v15';
+const CACHE = 'v6-audio-v17';
 const STATIC = ['/', '/app.js', '/player.js', '/shared.css', '/beep.wav'];
 
 self.addEventListener('install', e => {
