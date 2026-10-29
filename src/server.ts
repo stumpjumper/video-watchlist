@@ -27,10 +27,11 @@ import {
 import { parseLifecycleInt } from './lifecycle';
 import { buildReaderHtml } from './reader';
 import {
-  generateAudio, downloadYouTubeAudio, audioExists, audioUrl, audioDirSizeBytes, AUDIO_DIR,
+  generateAudio, generateEpisodeAudio, downloadYouTubeAudio, audioExists, audioUrl, audioDirSizeBytes, AUDIO_DIR,
   readCachedText, audioPath, textPath, textExists, saveYouTubeTranscript,
-  probeAudioDuration, probePublishedAt, SAY_VOICE,
+  probeAudioDuration, probePublishedAt, SAY_VOICE, episodeVoice, XaiTtsError,
 } from './audio';
+import { createEpisode, EpisodeError, isLoopbackAddress } from './episode';
 import { buildFeedXml } from './feed';
 import {
   previewUrl, resolveSource, EMOJI_BY_SOURCE, normalizeUrl, externalIdFor,
@@ -104,7 +105,7 @@ const HTTP_PORT  = parseInt(process.env.PORT      ?? '4000', 10);
 const HTTPS_PORT = parseInt(process.env.HTTPS_PORT ?? '443',  10);
 const CERT_DIR   = process.env.CERT_DIR ?? '';
 
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 // ── Videos ──────────────────────────────────────────────────────────────────
@@ -190,6 +191,28 @@ app.post('/api/videos', async (req: Request, res: Response) => {
   const settings = getSettings();
   if (settings.audio_on_add === 'true') {
     queueAudioGen(video.id); // queueAudioGen filters to supported types
+  }
+});
+
+// Submitted script → AI Update feed. Caller supplies the origin URL, creator,
+// and date. The server stores them and does not fetch the page. Loopback only,
+// so the tailnet HTTPS listener does not gain an unauthenticated write.
+app.post('/api/episodes', async (req: Request, res: Response) => {
+  if (!isLoopbackAddress(req.socket.remoteAddress)) {
+    res.sendStatus(404);
+    return;
+  }
+  try {
+    const { video, created } = await createEpisode(req.body ?? {});
+    if (created) queueAudioGen(video.id);
+    res.status(created ? 201 : 200).json(video);
+  } catch (err) {
+    if (err instanceof EpisodeError) {
+      res.status(err.status).json({ error: err.message });
+      return;
+    }
+    console.error('[episodes]', err instanceof Error ? err.message : err);
+    res.status(500).json({ error: 'Could not create episode' });
   }
 });
 
@@ -303,7 +326,10 @@ const audioFailed     = new Map<number, string>(); // id → error message
 // ── Audio production ──────────────────────────────────────────────────────────
 // Articles: fetch text → TTS → m4a.  YouTube videos: yt-dlp download → m4a.
 
-function produceAudio(video: { id: number; url: string; title: string; published_at: string | null; content_type: string; source: string }): Promise<void> {
+function produceAudio(video: { id: number; url: string; title: string; published_at: string | null; content_type: string; source: string; source_metadata: string | null }): Promise<void> {
+  if (video.source === 'ai_update') {
+    return generateEpisodeAudio(video.id, video.title, video.published_at, video.source_metadata);
+  }
   return video.content_type === 'video'
     // Transcript after audio: saveYouTubeTranscript never throws, so a
     // caption-less video still gets its audio marked ready. X native video
@@ -314,10 +340,10 @@ function produceAudio(video: { id: number; url: string; title: string; published
     : generateAudio(video.id, video.url, video.title, video.published_at);
 }
 
-async function finishAudioSuccess(video: { id: number; content_type: string }): Promise<void> {
+async function finishAudioSuccess(video: { id: number; content_type: string; source_metadata: string | null }): Promise<void> {
   const duration = await probeAudioDuration(video.id);
   if (duration !== null) setAudioDuration(video.id, duration);
-  if (video.content_type === 'article') setAudioVoice(video.id, SAY_VOICE);
+  if (video.content_type === 'article') setAudioVoice(video.id, episodeVoice(video.source_metadata).voice);
   markAudioReady(video.id);
 }
 
@@ -350,7 +376,8 @@ const drainQueue = async (): Promise<void> => {
       const msg = formatFailure(e);
       setAudioFailed(id, msg);
       console.error('[audio] queue: failed for video', id, msg);
-      if (!isRetryableFailure(e)) {
+      const retry = e instanceof XaiTtsError ? e.retryable : isRetryableFailure(e);
+      if (!retry) {
         console.error('[audio] queue: permanent failure, not retrying', id);
         continue;
       }

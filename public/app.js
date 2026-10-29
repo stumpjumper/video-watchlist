@@ -77,7 +77,7 @@
     return Promise.resolve();
   }
 
-  const CATEGORY_NAMES = { youtube: 'YouTube', ars_technica: 'Ars Technica', x: 'X', web: 'Web article' };
+  const CATEGORY_NAMES = { youtube: 'YouTube', ars_technica: 'Ars Technica', x: 'X', web: 'Web article', ai_update: 'AI Update' };
   function categoryDisplayName(s) {
     return CATEGORY_NAMES[s] ?? s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   }
@@ -561,8 +561,9 @@
     const audioLabel = (audioSt === 'pending' || audioSt === 'generating')
       ? 'Fetching audio…'
       : audioSt === 'ready' ? 'Play audio' : 'Download audio';
+    const canOpen = /^https?:\/\//i.test((current && current.url) || '');
     el.innerHTML =
-      '<button class="btn btn-muted"   id="ab-source">Open original ↗</button>' +
+      (canOpen ? '<button class="btn btn-muted" id="ab-source">Open original ↗</button>' : '') +
       (!isArticle
         ? '<button class="btn btn-muted" id="ab-play-audio"' +
           (audioSt === 'pending' || audioSt === 'generating' ? ' disabled' : '') + '>' +
@@ -574,7 +575,8 @@
       '<button class="btn btn-indigo"  id="ab-labels">Labels…</button>' +
       '<button class="btn btn-cancel"  id="ab-cancel">Cancel</button>';
 
-    document.getElementById('ab-source').addEventListener('click', () => {
+    const sourceBtn = document.getElementById('ab-source');
+    if (sourceBtn) sourceBtn.addEventListener('click', () => {
       if (!current) return;
       const url = current.url;
       openUrl(url); closeActionModal();
@@ -979,6 +981,7 @@
       const cats = await fetch('/api/categories').then(r => r.json());
       const existing = new Set(Array.from(sel.options).map(o => o.value).filter(Boolean));
       for (const cat of cats) {
+        if (cat.source === 'ai_update') continue;
         if (!existing.has(cat.source)) {
           const opt = document.createElement('option');
           opt.value = cat.source;

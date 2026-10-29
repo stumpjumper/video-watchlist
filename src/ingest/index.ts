@@ -11,7 +11,7 @@ export { IngestError, formatFailure, ingestError, isRetryableFailure } from './e
 export type { IngestCode } from './errors';
 export type { Document, Preview } from './types';
 
-const KNOWN: ReadonlySet<string> = new Set(['youtube', 'ars_technica', 'web', 'x']);
+const KNOWN: ReadonlySet<string> = new Set(['youtube', 'ars_technica', 'web', 'x', 'ai_update']);
 
 /** Server-side source of truth. Client source wins only for unknown custom slugs. */
 export function resolveSource(url: string, clientSource?: string): ClassifiedUrl {

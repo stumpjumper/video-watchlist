@@ -230,6 +230,16 @@ if (userVersion < 10) {
   } catch (e) { db.exec('ROLLBACK'); throw e; }
 }
 
+if (userVersion < 11) {
+  db.exec('BEGIN');
+  try {
+    db.exec(`INSERT OR IGNORE INTO sources (source_key, display_name, default_speed) VALUES
+      ('ai_update','AI Update',1.0)`);
+    db.exec('PRAGMA user_version = 11');
+    db.exec('COMMIT');
+  } catch (e) { db.exec('ROLLBACK'); throw e; }
+}
+
 function ensureExternalIdIndex(): void {
   const dupe = db.prepare(`
     SELECT 1 AS n FROM videos

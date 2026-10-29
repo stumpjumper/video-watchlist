@@ -109,6 +109,10 @@ curl -s -X POST "$WATCHLIST_URL/api/videos/$VIDEO_ID/summary"
 
 The server fetches the YouTube transcript via yt-dlp, sends it to an LLM, and returns structured HTML. This requires `OPENROUTER_API_KEY` to be configured on the server.
 
+## AI Update episodes
+
+A finished script for the AI Update feed is a different call. Follow `skill-ai-update.md`. Do not send that script to `POST /api/videos`.
+
 ## Other available endpoints
 
 ```

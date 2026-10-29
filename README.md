@@ -57,6 +57,7 @@ HTTPS is on **4443** so the process does not need root for 443. Certs in `certs/
 | `public/sw.js` | Service worker — bump `CACHE` on static changes (currently `v6-audio-v15`) |
 | `public/feed-icons/` | 1400×1400 podcast artwork per source |
 | `skill.md` | HTTP API notes for NanoClaw agents |
+| `skill-ai-update.md` | Agent contract for the AI Update episode route |
 | `scripts/renew_tailscale_https_cert` | Cert renew |
 | `scripts/notify_cert_status.mjs` | Email cert renew success/failure via nano’s OneCLI |
 | `scripts/upgrade_ytdlp` | Daily `brew upgrade yt-dlp` |
@@ -97,7 +98,7 @@ Do not buy the X API, add Playwright, or stitch X threads unless asked.
 | `started_at` | Last time the in-app reader was opened |
 | `finished_at` | First in-app `audio` ended (does not move on repeat) |
 | `status` | `new` \| `started` \| `finished` |
-| `source` | `youtube` \| `ars_technica` \| `x` \| `web` (or a custom slug) |
+| `source` | `youtube` \| `ars_technica` \| `x` \| `web` \| `ai_update` (or a custom slug) |
 | `external_id` | Dedupe key with `source`. YouTube video id, X status id, or canonical page URL. Unique when set. |
 | `content_type` | `video` \| `article` |
 | `published_at` | Creation date. Filled during audio production (`yt-dlp` upload date, or extractor date). Feed `<pubDate>` is `published_at ?? added_at`. |
@@ -116,7 +117,7 @@ Labels are many-to-many (`video_labels`). Every item has ≥1 label. Inbox = 1, 
 
 **`playlists`:** named snapshots of the current filter (not a frozen ID list).
 
-**`sources`:** per-source `default_speed` and `display_name` (podcast title). Seeded: youtube, ars_technica, web, x.
+**`sources`:** per-source `default_speed` and `display_name` (podcast title). Seeded: youtube, ars_technica, web, x, ai_update.
 
 ### Migrations
 
@@ -130,6 +131,7 @@ Labels are many-to-many (`video_labels`). Every item has ≥1 label. Inbox = 1, 
 - **V8:** backfill `started_at = now` where null, so the inactivity clock does not treat the whole historic Inbox as already stale
 - **V9:** `lifecycle_strip_audio_after_trash_seconds` (default 60)
 - **V10:** backfill `external_id`. Unique index `videos_source_external_id` once no duplicate keys remain.
+- **V11:** `ai_update` source row (podcast title “AI Update”)
 
 ---
 
@@ -192,6 +194,7 @@ Dispatch on **`content_type`**:
 | `content_type` | Path |
 |----------------|------|
 | `article` | `extractDocument(url)` → `text/<id>.txt` → `say` (body) → 2s silence → `say` closer in `SAY_CLOSER_VOICE` (“Article audio complete.”) → 2s silence → `afconvert` → `audio/<id>.m4a`. Records `audio_voice` (body). Closer is audio-only, not stored in the text cache. Existing m4a are unchanged until regenerated. |
+| `ai_update` episode | Text is the script from `POST /api/episodes` (the origin URL is not fetched). Mac `say` uses `SAY_VOICE` and skips the closer. An xAI voice (`XAI_API_KEY_WATCHLIST`) is one `POST https://api.x.ai/v1/tts` per 50k characters, then the same `afconvert` to `audio/<id>.m4a`. A failure stays `failed`. |
 | `video` | `yt-dlp -x --audio-format m4a` → `audio/<id>.m4a`. YouTube also tries captions (`saveYouTubeTranscript`); X video skips that. |
 
 Duration via `/usr/bin/afinfo`. Status: `pending` → `generating` → `ready` (or `failed`). Queue is sequential, 5-minute retry, max 5 attempts, re-queued on startup.
@@ -215,7 +218,7 @@ First run after deploy strips **audio** from everything already in Trash and har
 
 ## Podcast feed (Overcast)
 
-`GET /feed/:token/:sourceKey.xml` — one feed per `sources` row (`youtube`, `ars_technica`, `web`, `x`). Token is `FEED_TOKEN`. Items are `audio_status=ready` and not Trash.
+`GET /feed/:token/:sourceKey.xml` — one feed per `sources` row (`youtube`, `ars_technica`, `web`, `x`, `ai_update`). Token is `FEED_TOKEN`. Items are `audio_status=ready` and not Trash.
 
 - Episode `<title>` is `channel · title` (Overcast playlists ignore `itunes:author`). DB title unchanged.
 - `<itunes:author>` / subtitle = `channel_name`.
@@ -237,7 +240,7 @@ Do not rotate `FEED_TOKEN` or change those public URLs without resubscribing Ove
 |-------|--------|------|----------|
 | Text | `text/<id>.txt` | Article extract or YouTube transcript | Until the row is permanently deleted (not on Trash) |
 | Audio | `audio/<id>.m4a` | TTS or yt-dlp | Until Trash (filed library: until manual trash) |
-| Browser | SW cache `v6-audio-v17` | Precached full m4a + static assets | Until `CACHE` bump |
+| Browser | SW cache `v6-audio-v18` | Precached full m4a + static assets | Until `CACHE` bump |
 
 SW **must not** intercept audio **range** requests (iOS streaming; caching 206 corrupts playback). API is network-only.
 
@@ -255,6 +258,7 @@ Add: `POST /api/videos` — server classifies. For `source=x` it always previews
 | `GET` | `/api/videos/:id` | |
 | `GET` | `/api/videos/:id/text` | JSON; `?download=1` exists but the UI must not navigate to it |
 | `GET` | `/api/videos/:id/fileinfo` | Size/dates for audio + text files |
+| `POST` | `/api/episodes` | AI Update script. Loopback only (other addresses get 404). See below. |
 | `POST` | `/api/videos/:id/audio` | Generate or return ready |
 | `GET` | `/api/videos/:id/audio/status` | |
 | `POST` | `/api/videos/:id/summary` | YouTube only |
@@ -262,6 +266,46 @@ Add: `POST /api/videos` — server classifies. For `source=x` it always previews
 | `GET` | `/audio/:id.m4a` | Stamps `audio_fetched_at` once |
 
 Labels, trash, settings, sources, playlists, categories match the routes in `src/server.ts`.
+
+### AI Update episodes
+
+`POST /api/episodes` on `127.0.0.1:4000` only. Any other remote address gets **404**. The server does not fetch `url`. The caller sends the script and the origin metadata it already has. Agent instructions for Grok Bot and NanoClaw are `skill-ai-update.md`.
+
+| Field | Required | Notes |
+|-------|----------|--------|
+| `text` | yes | Plain text, up to 200,000 characters. JSON body limit is 1mb. |
+| `title` | yes | Episode title |
+| `url` | yes | Origin `http` or `https` page. Stored for Open original. Dedupe key (YouTube video id, X status id, or canonical page URL) with `source=ai_update`. |
+| `channel_name` | yes | Creator name. Feed author / subtitle. |
+| `published_at` | yes | `YYYY-MM-DD` creation date. |
+| `voice` | no | `say` (default, `SAY_VOICE`) or `ara`, `eve`, `rex`, `sal`, `leo`. |
+| `summary` | no | Optional HTML, CDATA-wrapped in the feed. |
+
+**201** is a new Inbox row (`content_type=article`, emoji 🤖) and audio is queued even if `audio_on_add` is off. **200** is the existing row for that origin, including Trash. Text and audio are left as they were. An xAI voice with no `XAI_API_KEY_WATCHLIST` is **400** and inserts nothing. Poll `GET /api/videos/:id/audio/status`.
+
+The add-by-URL form does not offer AI Update. A pasted link cannot be filed onto this feed.
+
+```bash
+python3 - <<'PY'
+import json, pathlib, urllib.request
+body = {
+  "text": pathlib.Path("episode.txt").read_text(),
+  "title": "Morning note",
+  "url": "https://example.com/story",
+  "channel_name": "Ada Lovelace",
+  "published_at": "2026-10-28",
+  "voice": "say",
+}
+req = urllib.request.Request(
+  "http://127.0.0.1:4000/api/episodes",
+  data=json.dumps(body).encode(),
+  headers={"Content-Type": "application/json"},
+)
+print(urllib.request.urlopen(req).read().decode())
+PY
+```
+
+Subscribe in Overcast to `/feed/<FEED_TOKEN>/ai_update.xml`. Same token and public base URLs as the other feeds.
 
 ---
 
@@ -288,6 +332,7 @@ Labels, trash, settings, sources, playlists, categories match the routes in `src
 |----------|---------|
 | `OPENROUTER_API_KEY` | YouTube summaries |
 | `SAY_VOICE` | TTS body voice (default `Ava (Premium)`) |
+| `XAI_API_KEY_WATCHLIST` | xAI TTS for AI Update episodes. Absent key rejects an xAI voice at `POST /api/episodes`. Do not name this `XAI_API_KEY`. |
 | `SAY_CLOSER_VOICE` | Spoken end-marker after article TTS (default `Daniel`) |
 | `CERT_DIR`, `HTTPS_PORT` | TLS (`4443` here) |
 | `FEED_TOKEN` | Feed path; wrong token → 404 |
@@ -307,3 +352,4 @@ Template: `.env.example`. Do not commit `.env`. Do not rotate feed token/URLs ca
 | **`AGENTS.md`** | Agent rules (runtime user, ports, ingest constraints) |
 | **`CLAUDE.md`** | Historical notes; prefer README + AGENTS for current truth |
 | **`skill.md`** | NanoClaw HTTP add API |
+| **`skill-ai-update.md`** | Agent contract for posting an AI Update episode |

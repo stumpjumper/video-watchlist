@@ -10,7 +10,9 @@ import { extractDocument } from './ingest';
 const execFileAsync = promisify(execFile);
 
 export const AUDIO_DIR  = path.join(__dirname, '..', 'audio');
-export const TEXT_DIR   = path.join(__dirname, '..', 'text');
+export function textDir(): string {
+  return process.env.WATCHLIST_TEXT_DIR || path.join(__dirname, '..', 'text');
+}
 export const SAY_VOICE  = process.env.SAY_VOICE ?? 'Ava (Premium)';
 export const SAY_CLOSER_VOICE = process.env.SAY_CLOSER_VOICE ?? 'Daniel';
 export const SAY_CLOSER_TEXT = 'Article audio complete.';
@@ -19,7 +21,7 @@ const YTDLP_PATH        = '/opt/homebrew/bin/yt-dlp';
 const BROWSER_UA        = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36';
 
 export function textPath(id: number): string {
-  return path.join(TEXT_DIR, `${id}.txt`);
+  return path.join(textDir(), `${id}.txt`);
 }
 
 export async function textExists(id: number): Promise<boolean> {
@@ -35,7 +37,7 @@ export async function fetchAndCacheText(id: number, url: string): Promise<string
   if (doc.nativeAudio || !doc.text) {
     throw new Error('this URL has no article text to cache');
   }
-  await mkdir(TEXT_DIR, { recursive: true }).catch(() => {});
+  await mkdir(textDir(), { recursive: true }).catch(() => {});
   await writeFile(textPath(id), doc.text, 'utf8').catch(() => {});
   if (doc.publishedAt) savePublishedAt(id, doc.publishedAt);
   return doc.text;
@@ -179,7 +181,12 @@ async function toPcmWav(input: string, dest: string): Promise<void> {
   ]);
 }
 
-export async function renderArticleAudio(text: string, outFile: string): Promise<void> {
+export async function renderArticleAudio(
+  text: string,
+  outFile: string,
+  opts?: { closer?: boolean },
+): Promise<void> {
+  const withCloser = opts?.closer !== false;
   await mkdir(path.dirname(outFile), { recursive: true });
   const stamp = `tts-${Date.now()}-${process.pid}`;
   const txtFile    = path.join(tmpdir(), `${stamp}.txt`);
@@ -192,6 +199,12 @@ export async function renderArticleAudio(text: string, outFile: string): Promise
   try {
     await writeFile(txtFile, text, 'utf8');
     await execFileAsync('/usr/bin/say', ['-v', SAY_VOICE, '-f', txtFile, '-o', bodyAiff]);
+    if (!withCloser) {
+      await execFileAsync('/usr/bin/afconvert', [
+        bodyAiff, '-f', 'm4af', '-d', 'aac', '-b', '64000', outFile,
+      ]);
+      return;
+    }
     await execFileAsync('/usr/bin/say', ['-v', SAY_CLOSER_VOICE, SAY_CLOSER_TEXT, '-o', closerAiff]);
     await toPcmWav(bodyAiff, bodyWav);
     await toPcmWav(closerAiff, closerWav);
@@ -207,6 +220,167 @@ export async function renderArticleAudio(text: string, outFile: string): Promise
   } finally {
     await Promise.all(tmpFiles.map(f => unlink(f).catch(() => {})));
   }
+}
+
+// ── xAI TTS (AI Update episodes) ─────────────────────────────────────────────
+// One request up to XAI_MAX_CHARS. Longer text is split, spoken in order, and
+// concatenated. No loudness pass: afconvert matches the Mac article path.
+
+export const XAI_TTS_URL = 'https://api.x.ai/v1/tts';
+export const XAI_MAX_CHARS = 50_000;
+const XAI_RETRIES = 3;
+const XAI_TIMEOUT_MS = 180_000;
+
+export class XaiTtsError extends Error {
+  readonly retryable: boolean;
+  constructor(message: string, retryable: boolean) {
+    super(message);
+    this.name = 'XaiTtsError';
+    this.retryable = retryable;
+  }
+}
+
+export function xaiApiKey(): string | null {
+  const key = process.env.XAI_API_KEY_WATCHLIST?.trim();
+  return key || null;
+}
+
+/** Pack text into chunks of at most maxChars. Words are kept; separators may be normalized. */
+export function splitTtsText(text: string, maxChars = XAI_MAX_CHARS): string[] {
+  const src = text.replace(/\r\n/g, '\n').trim();
+  if (!src) return [];
+  if (src.length <= maxChars) return [src];
+
+  const pieces: string[] = [];
+  const pushWrapped = (block: string) => {
+    let rest = block.trim();
+    while (rest.length > maxChars) {
+      let cut = rest.lastIndexOf(' ', maxChars);
+      if (cut < Math.floor(maxChars / 2)) cut = maxChars;
+      pieces.push(rest.slice(0, cut).trim());
+      rest = rest.slice(cut).trim();
+    }
+    if (rest) pieces.push(rest);
+  };
+
+  for (const para of src.split(/\n{2,}/)) {
+    const trimmed = para.trim();
+    if (!trimmed) continue;
+    if (trimmed.length <= maxChars) {
+      pieces.push(trimmed);
+      continue;
+    }
+    const sentences = trimmed.match(/[^.!?]+[.!?]+(?:\s+|$)|[^.!?]+$/g) ?? [trimmed];
+    for (const sentence of sentences) pushWrapped(sentence);
+  }
+
+  const chunks: string[] = [];
+  let cur = '';
+  for (const piece of pieces) {
+    if (!piece) continue;
+    const sep = cur ? '\n\n' : '';
+    if (cur && cur.length + sep.length + piece.length > maxChars) {
+      chunks.push(cur);
+      cur = piece;
+    } else {
+      cur += sep + piece;
+    }
+  }
+  if (cur) chunks.push(cur);
+  return chunks;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function xaiTtsChunk(
+  key: string,
+  voice: string,
+  text: string,
+  fetchImpl: typeof fetch,
+): Promise<Buffer> {
+  let last = 'xAI TTS failed';
+  for (let attempt = 0; attempt < XAI_RETRIES; attempt++) {
+    try {
+      const resp = await fetchImpl(XAI_TTS_URL, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${key}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text,
+          voice_id: voice,
+          language: 'en',
+          output_format: { codec: 'wav', sample_rate: 24000 },
+        }),
+        signal: AbortSignal.timeout(XAI_TIMEOUT_MS),
+      });
+      const buf = Buffer.from(await resp.arrayBuffer());
+      if (!resp.ok) {
+        const retryable = resp.status === 429 || resp.status >= 500;
+        const message = `xAI TTS HTTP ${resp.status}`;
+        if (retryable && attempt + 1 < XAI_RETRIES) {
+          last = message;
+          await sleep(1000 * 2 ** (attempt + 1));
+          continue;
+        }
+        throw new XaiTtsError(message, retryable);
+      }
+      const ctype = resp.headers.get('content-type') || '';
+      if (buf.length < 1000 || /json|text\//i.test(ctype)) {
+        throw new XaiTtsError('xAI TTS returned a non-audio response', false);
+      }
+      const requestId = resp.headers.get('x-request-id') || resp.headers.get('request-id');
+      console.log(`[audio] xai tts voice=${voice} chars=${text.length}${requestId ? ` request=${requestId}` : ''}`);
+      return buf;
+    } catch (err) {
+      if (err instanceof XaiTtsError) throw err;
+      last = err instanceof Error ? err.message : String(err);
+      if (attempt + 1 < XAI_RETRIES) {
+        await sleep(1000 * 2 ** (attempt + 1));
+        continue;
+      }
+      throw new XaiTtsError(last, true);
+    }
+  }
+  throw new XaiTtsError(last, true);
+}
+
+export async function renderXaiAudio(
+  text: string,
+  outFile: string,
+  voice: string,
+  fetchImpl: typeof fetch = globalThis.fetch,
+): Promise<void> {
+  const key = xaiApiKey();
+  if (!key) throw new XaiTtsError('XAI_API_KEY_WATCHLIST is not set', false);
+  const chunks = splitTtsText(text);
+  if (chunks.length === 0) throw new XaiTtsError('no text to speak', false);
+  const wavs: Buffer[] = [];
+  for (const chunk of chunks) wavs.push(await xaiTtsChunk(key, voice, chunk, fetchImpl));
+  const combined = wavs.length === 1 ? wavs[0] : concatPcmWavs(wavs);
+  await mkdir(path.dirname(outFile), { recursive: true });
+  const wavFile = path.join(tmpdir(), `xai-${Date.now()}-${process.pid}.wav`);
+  try {
+    await writeFile(wavFile, combined);
+    await execFileAsync('/usr/bin/afconvert', [
+      wavFile, '-f', 'm4af', '-d', 'aac', '-b', '64000', outFile,
+    ]);
+  } finally {
+    await unlink(wavFile).catch(() => {});
+  }
+}
+
+export function episodeVoice(sourceMetadata: string | null): { tts: 'say' | 'xai'; voice: string } {
+  try {
+    const meta = JSON.parse(sourceMetadata || '') as { tts?: string; voice?: string };
+    if (meta?.tts === 'xai' && typeof meta.voice === 'string' && meta.voice.trim()) {
+      return { tts: 'xai', voice: meta.voice.trim() };
+    }
+  } catch { /* Mac voice */ }
+  return { tts: 'say', voice: SAY_VOICE };
 }
 
 // ── YouTube transcripts ──────────────────────────────────────────────────────
@@ -289,7 +463,7 @@ export async function saveYouTubeTranscript(id: number, url: string): Promise<Tr
     const data = await resp.json() as { events?: CaptionEvent[] };
     const text = captionEventsToText(data.events ?? []);
     if (text.length < 100) return 'none';
-    await mkdir(TEXT_DIR, { recursive: true }).catch(() => {});
+    await mkdir(textDir(), { recursive: true }).catch(() => {});
     await writeFile(textPath(id), text, 'utf8');
     return 'ok';
   } catch (e) {
@@ -335,11 +509,31 @@ export async function probePublishedAt(url: string, contentType: string): Promis
 
 export async function generateAudio(id: number, url: string, title?: string, publishedAt?: string | null): Promise<void> {
   if (!existsSync(AUDIO_DIR)) await mkdir(AUDIO_DIR, { recursive: true });
-  if (!existsSync(TEXT_DIR))  await mkdir(TEXT_DIR,  { recursive: true });
+  if (!existsSync(textDir())) await mkdir(textDir(), { recursive: true });
 
   const text = await fetchAndCacheText(id, url);
 
   const header = buildAudioHeader(title, publishedAt);
   const audioText = header ? `${header}\n\n${text}` : text;
   await renderArticleAudio(audioText, audioPath(id));
+}
+
+/** Speak text already stored for an AI Update episode. Does not fetch the origin URL. */
+export async function generateEpisodeAudio(
+  id: number,
+  title: string | undefined,
+  publishedAt: string | null,
+  sourceMetadata: string | null,
+): Promise<void> {
+  if (!existsSync(AUDIO_DIR)) await mkdir(AUDIO_DIR, { recursive: true });
+  const text = await readCachedText(id);
+  if (!text?.trim()) throw new Error('episode has no text to speak');
+  const header = buildAudioHeader(title, publishedAt);
+  const audioText = header ? `${header}\n\n${text}` : text;
+  const choice = episodeVoice(sourceMetadata);
+  if (choice.tts === 'xai') {
+    await renderXaiAudio(audioText, audioPath(id), choice.voice);
+  } else {
+    await renderArticleAudio(audioText, audioPath(id), { closer: false });
+  }
 }
