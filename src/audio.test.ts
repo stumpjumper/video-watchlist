@@ -5,9 +5,10 @@ import { promisify } from 'util';
 import { unlink, stat } from 'fs/promises';
 import path from 'path';
 import { tmpdir } from 'os';
+import { spokenPublishedDate } from './calendarDate';
 import {
   parseWav, writePcmWav, silentPcmWav, concatPcmWavs,
-  renderArticleAudio, SAY_CLOSER_SILENCE_SEC,
+  renderArticleAudio, SAY_CLOSER_SILENCE_SEC, buildAudioHeader,
 } from './audio';
 
 const execFileAsync = promisify(execFile);
@@ -19,6 +20,16 @@ function pcmFilled(nSamples: number, value: number): Buffer {
   for (let i = 0; i < nSamples; i++) pcm.writeInt16LE(value, i * 2);
   return pcm;
 }
+
+describe('spoken header', () => {
+  it('uses the calendar-day label for a date-only published_at', () => {
+    assert.equal(
+      buildAudioHeader('Spudtronomy', '2026-10-29'),
+      `Spudtronomy. ${spokenPublishedDate('2026-10-29')}`,
+    );
+    assert.equal(buildAudioHeader('Spudtronomy', null), 'Spudtronomy');
+  });
+});
 
 describe('pcm wav concat', () => {
   it('round-trips a standard header', () => {

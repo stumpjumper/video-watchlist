@@ -6,7 +6,7 @@ Personal video/article watchlist server. Adopted from Claude on 2026-08-15 (form
 
 ## Stack
 
-- Node + TypeScript via `tsx` (no build step): `npm start` / `npm run dev` / `npm test` (`tsx --test src/ingest/*.test.ts src/feed.test.ts src/lifecycle.test.ts src/audio.test.ts src/dedupe.test.ts src/episode.test.ts`)
+- Node + TypeScript via `tsx` (no build step): `npm start` / `npm run dev` / `npm test` (`tsx --test src/ingest/*.test.ts src/feed.test.ts src/lifecycle.test.ts src/audio.test.ts src/calendarDate.test.ts src/dedupe.test.ts src/episode.test.ts`)
 - Express, SQLite (`watchlist.db`, schema `PRAGMA user_version` = 11), plain HTML/CSS/JS SPA
 - Live branch: **`main`**.
 
@@ -67,10 +67,11 @@ Lifecycle replaces the old 30-day generation TTL. Inbox auto-trash / audio-on-tr
 ## Conventions
 
 - Client JS is `.js` files only — never embed TypeScript in HTML/template strings.
+- A `YYYY-MM-DD` `published_at` is a calendar day. Format it with `src/calendarDate.ts` (`spokenPublishedDate` / `formatStoredDate`) or the same check in `public/app.js`. `new Date("YYYY-MM-DD")` is UTC midnight and lands on the previous evening in America/Denver. Timestamps that include a time stay in local time. Do not regenerate existing m4a just to fix an old spoken date.
 - Bind `::`, not `0.0.0.0`.
 - iOS: no real navigation to `Content-Disposition` attachments (Blob download); do not intercept audio range requests in the SW.
 - Do not commit secrets, `certs/`, or the DB.
-- Bump `public/sw.js` `CACHE` on static changes (currently `v6-audio-v18`).
+- Bump `public/sw.js` `CACHE` on static changes (currently `v6-audio-v19`).
 - `npm test` imports `src/db.ts` through the audio and feed tests, so it opens the live `watchlist.db` and runs migrations. Dedupe tests set `WATCHLIST_DB` before that import. A fresh database has no legacy `played_at` column; that copy is guarded.
 - **When a feature is complete, update `README.md` in the same change** (ingest, audio, feed, UI, routes, schema, env vars). `README.md` is the human product/ops doc; this file is agent rules. Do not leave README as a historical snapshot. Do not revive `README_local.md` — machine facts that must be shared live here or in README.
 

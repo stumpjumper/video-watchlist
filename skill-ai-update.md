@@ -26,7 +26,7 @@ One episode is one origin. Use that page's own URL, the creator's name, and the 
 | `voice` | no | Omit it, or send `say`. Send `ara`, `eve`, `rex`, `sal`, or `leo` only when the task names that voice. |
 | `summary` | no | Short HTML note for the episode description. It is not spoken. |
 
-`text` is the only thing spoken, after a spoken title and date. Do not put the script in `summary`.
+`text` is the only thing spoken, after a spoken title and date. The spoken date is the `published_at` calendar day. Do not put the script in `summary`.
 
 ```bash
 python3 - <<'PY'

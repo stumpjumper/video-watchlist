@@ -1,3 +1,4 @@
+import { formatStoredDate } from './calendarDate';
 import { VideoLabel } from './db';
 
 function escHtml(s: string): string {
@@ -9,11 +10,7 @@ function escHtml(s: string): string {
 }
 
 function fmtDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-  } catch {
-    return iso;
-  }
+  return formatStoredDate(iso, { month: 'long', day: 'numeric', year: 'numeric' }) ?? iso;
 }
 
 export function buildReaderHtml(

@@ -4,6 +4,7 @@ import { writeFile, readFile, unlink, mkdir, stat, readdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
 import { tmpdir } from 'os';
+import { spokenPublishedDate } from './calendarDate';
 import { savePublishedAt } from './db';
 import { extractDocument } from './ingest';
 
@@ -78,14 +79,12 @@ export async function audioDirSizeBytes(): Promise<number> {
 
 
 
-function buildAudioHeader(title?: string, publishedAt?: string | null): string {
+export function buildAudioHeader(title?: string, publishedAt?: string | null): string {
   const parts: string[] = [];
   if (title) parts.push(title);
   if (publishedAt) {
-    const date = new Date(publishedAt);
-    if (!isNaN(date.getTime())) {
-      parts.push(date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }));
-    }
+    const spoken = spokenPublishedDate(publishedAt);
+    if (spoken) parts.push(spoken);
   }
   return parts.join('. ');
 }

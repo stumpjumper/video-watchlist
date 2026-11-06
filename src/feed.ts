@@ -1,4 +1,5 @@
 import { statSync } from 'fs';
+import { formatStoredDate } from './calendarDate';
 import { getReadyAudioVideos, Video } from './db';
 import { audioUrl, audioPath } from './audio';
 
@@ -19,10 +20,7 @@ function escapeXml(s: string): string {
 }
 
 function formatDate(iso: string | null): string | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return null;
-  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  return formatStoredDate(iso, { year: 'numeric', month: 'long', day: 'numeric' });
 }
 
 function formatDuration(seconds: number | null): string | null {

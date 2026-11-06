@@ -38,16 +38,53 @@
       .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
+  // YYYY-MM-DD is a calendar day. Parsing it as an instant is the previous evening locally.
+  function calendarDay(iso) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso ?? '').trim());
+    if (!m) return null;
+    const year = Number(m[1]);
+    const month = Number(m[2]);
+    const day = Number(m[3]);
+    const d = new Date(Date.UTC(year, month - 1, day));
+    if (d.getUTCFullYear() !== year || d.getUTCMonth() !== month - 1 || d.getUTCDate() !== day) return null;
+    return d;
+  }
+
   function fmtDate(iso) {
+    const raw = String(iso ?? '').trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+      const day = calendarDay(raw);
+      return day
+        ? day.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
+        : raw;
+    }
     return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
   }
 
   function fmtDateShort(iso) {
+    const raw = String(iso ?? '').trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+      const day = calendarDay(raw);
+      return day
+        ? day.toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' })
+        : raw;
+    }
     return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   }
 
   function fmtSmartDate(iso) {
     if (!iso) return '–';
+    const raw = String(iso).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+      const day = calendarDay(raw);
+      if (!day) return '–';
+      const base = day.toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' });
+      const yearAgo = new Date();
+      const cutoff = (yearAgo.getFullYear() - 1) + '-'
+        + String(yearAgo.getMonth() + 1).padStart(2, '0') + '-'
+        + String(yearAgo.getDate()).padStart(2, '0');
+      return raw >= cutoff ? base : base + " '" + raw.slice(2, 4);
+    }
     const d = new Date(iso);
     if (isNaN(d.getTime())) return '–';
     const yearAgo = new Date();

@@ -197,6 +197,8 @@ Dispatch on **`content_type`**:
 | `ai_update` episode | Text is the script from `POST /api/episodes` (the origin URL is not fetched). Mac `say` uses `SAY_VOICE` and skips the closer. An xAI voice (`XAI_API_KEY_WATCHLIST`) is one `POST https://api.x.ai/v1/tts` per 50k characters, then the same `afconvert` to `audio/<id>.m4a`. A failure stays `failed`. |
 | `video` | `yt-dlp -x --audio-format m4a` → `audio/<id>.m4a`. YouTube also tries captions (`saveYouTubeTranscript`); X video skips that. |
 
+The spoken intro is the title, then the publication date. A `YYYY-MM-DD` `published_at` is that calendar day. A value that includes a time is formatted in local time. The same rule is used for dates on the card, in the reader, and in the feed's Published line. Already generated audio is not re-recorded.
+
 Duration via `/usr/bin/afinfo`. Status: `pending` → `generating` → `ready` (or `failed`). Queue is sequential, 5-minute retry, max 5 attempts, re-queued on startup.
 
 Supported: any `article` or `video` (YouTube **and** X native video). Wrong/missing token on the feed route is **404**, not 403.
@@ -240,7 +242,7 @@ Do not rotate `FEED_TOKEN` or change those public URLs without resubscribing Ove
 |-------|--------|------|----------|
 | Text | `text/<id>.txt` | Article extract or YouTube transcript | Until the row is permanently deleted (not on Trash) |
 | Audio | `audio/<id>.m4a` | TTS or yt-dlp | Until Trash (filed library: until manual trash) |
-| Browser | SW cache `v6-audio-v18` | Precached full m4a + static assets | Until `CACHE` bump |
+| Browser | SW cache `v6-audio-v19` | Precached full m4a + static assets | Until `CACHE` bump |
 
 SW **must not** intercept audio **range** requests (iOS streaming; caching 206 corrupts playback). API is network-only.
 
@@ -277,7 +279,7 @@ Labels, trash, settings, sources, playlists, categories match the routes in `src
 | `title` | yes | Episode title |
 | `url` | yes | Origin `http` or `https` page. Stored for Open original. Dedupe key (YouTube video id, X status id, or canonical page URL) with `source=ai_update`. |
 | `channel_name` | yes | Creator name. Feed author / subtitle. |
-| `published_at` | yes | `YYYY-MM-DD` creation date. |
+| `published_at` | yes | `YYYY-MM-DD` creation date. Spoken as that calendar day. |
 | `voice` | no | `say` (default, `SAY_VOICE`) or `ara`, `eve`, `rex`, `sal`, `leo`. |
 | `summary` | no | Optional HTML, CDATA-wrapped in the feed. |
 
